@@ -11,17 +11,20 @@ created: 2026-06-13
 ## Context
 
 The presentational layer: Ink components that render the poker table from a `HandState` — the board,
-the hero's hole cards (in colour by suit), the pot, both stacks, the dealer button, whose turn it
-is, and the street header. This is the visual heart of the TUI and replaces the hand-padded strings
-of `apps/cli/src/table.ts`'s `renderState`/`renderResult` with real flexbox-laid-out components.
+the hero's hole cards (in colour by suit), the pot, **every seat's stack** (an N-seat table, up to
+6-max), the dealer button, whose turn it is, and the street header. This is the visual heart of the
+TUI and replaces the hand-padded strings of `apps/cli/src/table.ts`'s `renderState`/`renderResult`
+with real flexbox-laid-out components.
 
 ## Acceptance criteria
 
 - [ ] Pure presentational Ink components (no game logic, no input) that, given the model's
-      `HandState` + hero seat, render: street header, board cards, pot total, each seat (name,
-      stack, current bet, button/folded/all-in/to-act marks), and the hero's hole cards.
-- [ ] Hero hole cards are shown; **opponents' cards stay hidden (`?? ??`) until showdown**, matching
-      the current CLI's reveal rule. Suit colour (e.g. red hearts/diamonds) via `chalk`/Ink colour.
+      `HandState` + hero seat, render: street header, board cards, pot total, **all N seats** (each
+      with name, stack, current bet, button/folded/all-in/to-act marks), and the hero's hole cards.
+      Lay the seats out so a full 6-max table stays readable.
+- [ ] Hero hole cards are shown; **every opponent's cards stay hidden (`?? ??`) until showdown**,
+      matching the current CLI's reveal rule. Suit colour (e.g. red hearts/diamonds) via
+      `chalk`/Ink colour.
 - [ ] A showdown/result view (winning hand + payouts) for a completed hand. Components are
       covered with `ink-testing-library` snapshot/behaviour tests; `pnpm verify` green.
 

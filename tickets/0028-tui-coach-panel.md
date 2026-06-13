@@ -30,9 +30,10 @@ and rationale. This is the TUI rendering of what `apps/cli` prints as a `── 
 
 ## Notes
 
-Depends on [[0027-tui-action-input]] and reuses [[0007-coaching-engine]]'s `@holdem/coach` exactly
-as `apps/cli/src/play.ts` `coachHero` does (incl. the capture-context-before-applying ordering and
-the advisory try/catch). Do **no** verdict math in the component — it only formats the
-`DecisionVerdict` the coach returns. Colour-code the verdict (green good / red leak / yellow
+Depends on [[0027-tui-action-input]] and [[0031-coach-multiway-equity]], and reuses
+[[0007-coaching-engine]]'s `@holdem/coach` exactly as `apps/cli/src/play.ts` `coachHero` does (incl.
+the capture-context-before-applying ordering and the advisory try/catch). With 0031 in place the
+verdict's equity already reflects the **live number of opponents** at the table — the panel just
+renders the `DecisionVerdict` it gets, doing **no** verdict math of its own. Colour-code the verdict (green good / red leak / yellow
 break-even) and reuse the percent/signed-chip formatting conventions from the CLI's `table.ts`
 (`62.5%`, `+4`, a bare `0` for near-zero EV).

@@ -33,6 +33,9 @@ Depends on [[0026-tui-table-view]]. The pure input-grammar (`c`, `b50`, `allin`,
 minimum) already exists as `parseAction` in `apps/cli/src/table.ts` — reuse it or lift it into a
 shared spot rather than re-implementing the verb/amount parsing. Keep the keystroke→Action decision
 pure and testable; Ink's `useInput` should be a thin wrapper that calls into it. Validate every
-action against `legalActions` so the engine never receives an illegal move (it throws on one).
+action against `legalActions` so the engine never receives an illegal move (it throws on one). At a
+multiway table, **several bots may act in turn between the hero's decisions** — drive the loop off
+`state.toAct` (prompt only when it is the hero's seat, otherwise let the next bot act), not a
+hardcoded hero/bot alternation.
 Coaching the decision comes next in [[0028-tui-coach-panel]]; session/again/bust flow is
 [[0029-tui-session-loop]].

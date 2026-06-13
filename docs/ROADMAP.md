@@ -27,7 +27,9 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   math into per-decision feedback. Needs M1.
 - **M3.5 — Ink TUI play client.** The first interactive UI: a full-screen terminal client (Ink —
   React for the terminal) over the already-tested packages, becoming the play experience while the
-  readline CLI is slimmed to a headless harness. Ink is React and so is the M4 PWA, so this is a
+  readline CLI is slimmed to a headless harness. Seats a realistic table (default 6-max, down to
+  heads-up) rather than the CLI's heads-up-only loop, which also pulls the coach's equity read into
+  being multiway-aware. Ink is React and so is the M4 PWA, so this is a
   low-risk dry run of M4 in the _same paradigm_: the hooks/reducer logic and the play/coach loop
   carry over (only the terminal-vs-DOM render layer differs). No engine porting; the UI just
   consumes M0–M3.

@@ -22,7 +22,8 @@ launches, drives the **real** `@holdem/engine`, and renders a single in-progress
       wired into the root `tsconfig.json` references.
 - [ ] An MVU core: a single `Model` (engine `HandState` + UI state) and a pure `reducer(model, msg)`
       with a typed message union — the Bubble Tea mental model, in React. The root Ink component
-      renders the model; no game logic lives in components.
+      renders the model; no game logic lives in components. Model the table generically for **N
+      seats** — do not bake in a heads-up (2-seat) assumption; the milestone seats up to 6.
 - [ ] Running the app (e.g. `pnpm --filter @holdem/tui dev`) renders a static snapshot of one hand
       created via `createHand` and exits cleanly. `pnpm verify` green (typecheck/lint of the new
       app included; the app is excluded from the pure-package coverage gate).

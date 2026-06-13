@@ -20,9 +20,9 @@ driver.
 ## Acceptance criteria
 
 - [ ] `pnpm play` launches the **TUI** (`apps/tui`). The slimmed `apps/cli` runs non-interactively
-      under its own script (e.g. `pnpm sim` / `pnpm play:headless`): given a seed and/or a scripted
-      list of hero actions, it plays a hand against a bot and prints a plain transcript
-      (state + actions + coach verdicts), then exits.
+      under its own script (e.g. `pnpm sim` / `pnpm play:headless`): given a seed, a **seat count**
+      (heads-up through 6-max), and/or a scripted list of hero actions, it plays a hand against the
+      bots and prints a plain transcript (state + actions + coach verdicts), then exits.
 - [ ] The interactive readline loop (`LineReader`, the `question`/`prompt` plumbing) is removed;
       whatever pure helpers remain useful (the `parseAction` grammar, percent/EV formatting) are
       kept or moved to a shared home rather than duplicated with the TUI. No dead code left behind.
