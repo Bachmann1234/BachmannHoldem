@@ -22,6 +22,7 @@ packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)  
 packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
 packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
 packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)
+apps/cli          terminal hand runner — the engine's feedback loop   (Node)
 apps/pwa          SvelteKit PWA — the only Android/web-aware module
 ```
 
@@ -37,6 +38,7 @@ pnpm install
 pnpm test          # run all package tests
 pnpm test:watch    # watch mode
 pnpm typecheck     # tsc project references build
+pnpm play          # play a hand in the terminal vs. an always-call bot
 ```
 
 ## Roadmap

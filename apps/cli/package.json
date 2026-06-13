@@ -1,0 +1,17 @@
+{
+  "name": "@holdem/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin terminal harness to play a hand against a trivial bot — the M0–M3 feedback loop.",
+  "scripts": {
+    "play": "tsx src/play.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
+  }
+}
