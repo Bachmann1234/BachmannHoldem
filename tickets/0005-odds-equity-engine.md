@@ -2,7 +2,7 @@
 id: 0005
 title: 'Epic: Odds & equity engine'
 type: epic
-status: todo
+status: in-progress
 milestone: M1
 priority: high
 created: 2026-06-13
