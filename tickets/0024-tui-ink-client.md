@@ -2,7 +2,7 @@
 id: 0024
 title: 'Epic: Ink TUI play client'
 type: epic
-status: todo
+status: in-progress
 milestone: M3.5
 priority: medium
 created: 2026-06-13
