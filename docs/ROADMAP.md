@@ -6,7 +6,7 @@ for the active M0; epics `0005`–`0012` for M1 onward). This document is the **
 locked decisions, the order, and the principles behind them. It deliberately does **not** list
 tickets or track status — that would only drift from the board.
 
-> Decisions locked: TypeScript PWA · client-only (no backend) · SvelteKit · pnpm + Vite +
+> Decisions locked: TypeScript PWA · client-only (no backend) · React · pnpm + Vite +
 > Vitest · free static hosting · equity sims in a Web Worker. Coaching starts practical
 > (equity / pot odds / EV) with clean interfaces so a GTO solver can slot in later. The core
 > loop is "play vs bots" as the spine, with drills and hand-analysis layered on over time.
@@ -27,9 +27,10 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   math into per-decision feedback. Needs M1.
 - **M3.5 — Ink TUI play client.** The first interactive UI: a full-screen terminal client (Ink —
   React for the terminal) over the already-tested packages, becoming the play experience while the
-  readline CLI is slimmed to a headless harness. Inserted before M4 to prove the play/coach loop in
-  a terminal — a low-risk dry run of the same shell the PWA repeats in the browser. No engine
-  porting; the UI just consumes M0–M3.
+  readline CLI is slimmed to a headless harness. Ink is React and so is the M4 PWA, so this is a
+  low-risk dry run of M4 in the _same paradigm_: the hooks/reducer logic and the play/coach loop
+  carry over (only the terminal-vs-DOM render layer differs). No engine porting; the UI just
+  consumes M0–M3.
 - **M4 — PWA app shell.** The first "real" version: an installable Android PWA built on the
   already-tested packages. No engine porting — the UI just consumes what M0–M3 produced.
 - **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for

@@ -15,8 +15,11 @@ playing hands, built with **Ink** (React for the terminal — declarative compon
 layout). It is a richer, swappable shell over the same already-tested pure packages
 (`engine` / `odds` / `bots` / `coach`) — exactly the "the poker brain is the asset, the UI is a
 swappable shell" principle the project is built on. No poker logic changes; the TUI only renders
-state and captures input. It also de-risks M4: the first real interactive UI over the packages,
-proving the play/coach loop in a terminal before the PWA repeats it in the browser.
+state and captures input. It also genuinely de-risks M4: Ink is React, and the M4 PWA is React too,
+so the first interactive UI over the packages shares the _paradigm_ with the PWA — the
+hooks/reducer logic, the view-model derivation, and the whole play/coach loop carry over (only the
+terminal-vs-DOM render components differ). Proving that loop in a terminal first is a low-risk dry
+run for the browser.
 
 This **becomes the primary play experience** and replaces the readline `pnpm play` loop for humans.
 The existing `apps/cli` is **slimmed to a thin headless/scriptable engine harness** (not deleted) —

@@ -27,5 +27,5 @@ so it must be ruthlessly tested.
 ## Notes
 
 Model state as immutable snapshots (`applyAction` returns a new state) — clean to test, replay,
-and later render in Svelte. Lands in `packages/engine/src/state.ts`. Side pots are the classic
+and later render in the UI. Lands in `packages/engine/src/state.ts`. Side pots are the classic
 correctness trap; cover them explicitly.
