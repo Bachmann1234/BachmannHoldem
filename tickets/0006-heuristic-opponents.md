@@ -2,7 +2,7 @@
 id: 0006
 title: 'Epic: Heuristic opponents'
 type: epic
-status: todo
+status: in-progress
 milestone: M2
 priority: medium
 created: 2026-06-13
@@ -23,6 +23,11 @@ training, and a clean seam for a smarter/GTO bot later.
 
 Depends on [[0005-odds-equity-engine]]. The `Opponent` interface is the important deliverable —
 get that seam right and the bot internals can evolve freely.
+
+Decomposed into per-feature tickets (built in order): [[0017-opponent-seam]] (the seam + package
+scaffold + reference bots), [[0018-bot-hand-reading]] (equity perception via the odds engine),
+[[0019-bot-personality]] (the tight/loose × passive/aggressive matrix), and
+[[0020-heuristic-opponent]] (the policy combining equity + pot odds + personality).
 
 Two things to hold in balance (see [../docs/LEARNING-APPROACH.md](../docs/LEARNING-APPROACH.md)):
 
