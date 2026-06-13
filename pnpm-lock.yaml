@@ -67,6 +67,18 @@ importers:
         specifier: workspace:*
         version: link:../odds
 
+  packages/coach:
+    dependencies:
+      '@holdem/bots':
+        specifier: workspace:*
+        version: link:../bots
+      '@holdem/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@holdem/odds':
+        specifier: workspace:*
+        version: link:../odds
+
   packages/engine: {}
 
   packages/odds:

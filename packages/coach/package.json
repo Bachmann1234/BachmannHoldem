@@ -1,0 +1,20 @@
+{
+  "name": "@holdem/coach",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure-TS coaching engine: deterministic per-decision verdicts (equity, pot odds, EV, good/leak) over the imperfect-information view a player faced.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/engine": "workspace:*",
+    "@holdem/odds": "workspace:*",
+    "@holdem/bots": "workspace:*"
+  }
+}

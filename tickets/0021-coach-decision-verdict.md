@@ -2,7 +2,7 @@
 id: 0021
 title: Coach package scaffold + per-decision verdict
 type: feature
-status: todo
+status: done
 milestone: M3
 priority: high
 created: 2026-06-13
@@ -21,14 +21,14 @@ optional LLM layer ([[0011-llm-coaching]]) will only narrate these numbers later
 
 ## Acceptance criteria
 
-- [ ] `packages/coach` scaffolded like the sibling pure packages (`package.json`, `tsconfig.json`,
+- [x] `packages/coach` scaffolded like the sibling pure packages (`package.json`, `tsconfig.json`,
       `src/index.ts`), wired into root `tsconfig.json` references and the `vitest.config.ts`
       coverage `include`, and passing `pnpm verify` above the coverage thresholds.
-- [ ] A `coachDecision(ctx, action)` (taking a `@holdem/bots` `DecisionContext` and the engine
+- [x] A `coachDecision(ctx, action)` (taking a `@holdem/bots` `DecisionContext` and the engine
       `Action` the player chose) returns a verdict with: hero equity, the pot-odds threshold, the
       chip EV of calling, the EV-correct continue decision (fold vs call/check), and a good/leak
       tag for the action the player actually took.
-- [ ] Pure: zero UI/DOM/Node/network deps; public API exported from `src/index.ts`; co-located
+- [x] Pure: zero UI/DOM/Node/network deps; public API exported from `src/index.ts`; co-located
       `*.test.ts` covering the value/leak/break-even cases.
 
 ## Notes
