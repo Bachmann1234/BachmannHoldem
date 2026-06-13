@@ -60,6 +60,9 @@ importers:
       '@holdem/engine':
         specifier: workspace:*
         version: link:../engine
+      '@holdem/odds':
+        specifier: workspace:*
+        version: link:../odds
 
   packages/engine: {}
 

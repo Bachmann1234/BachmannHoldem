@@ -2,7 +2,7 @@
 id: 0018
 title: Equity-based hand reading for bots (the perception layer)
 type: feature
-status: todo
+status: done
 milestone: M2
 priority: high
 created: 2026-06-13
@@ -25,18 +25,18 @@ is far enough along to be cheap, sampled otherwise), and keeping it deterministi
 
 ## Acceptance criteria
 
-- [ ] A function (e.g. `estimateEquity({ holeCards, board, opponentRange, seed, ... })`) returning the
+- [x] A function (e.g. `estimateEquity({ holeCards, board, opponentRange, seed, ... })`) returning the
       bot's equity as a `HandEquity`-style fraction in `0..1`, computed **entirely via `@holdem/odds`**
       (no re-implementing equity). Reuse `exactEquity`, `monteCarloEquity`, `parseRange`,
       `rangeSeat`/`fixedSeat`.
-- [ ] Sensible exact-vs-Monte-Carlo selection (documented): cheap enough to enumerate → exact;
+- [x] Sensible exact-vs-Monte-Carlo selection (documented): cheap enough to enumerate → exact;
       otherwise a bounded, seeded `monteCarloEquity` so results are deterministic and fast.
-- [ ] A reasonable default "opponent range" abstraction so the policy layer has something to read
+- [x] A reasonable default "opponent range" abstraction so the policy layer has something to read
       against (e.g. a few named ranges, or a width parameter the personality can later tighten/widen
       — coordinate the exact shape with [[0019-bot-personality]]). Preflop and postflop both work.
-- [ ] Range cards that collide with the bot's cards / board are handled (the MC sampler already
+- [x] Range cards that collide with the bot's cards / board are handled (the MC sampler already
       rejects per-iteration collisions; ensure inputs are well-formed and document the behaviour).
-- [ ] Unit tests on known spots: a monster (e.g. top set on a dry board) reads as high equity vs a
+- [x] Unit tests on known spots: a monster (e.g. top set on a dry board) reads as high equity vs a
       reasonable range; a weak hand reads low; a known preflop matchup lands near its textbook number
       within Monte-Carlo tolerance; results are reproducible for a fixed seed.
 

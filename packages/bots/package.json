@@ -13,6 +13,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@holdem/engine": "workspace:*"
+    "@holdem/engine": "workspace:*",
+    "@holdem/odds": "workspace:*"
   }
 }
