@@ -6,7 +6,7 @@ for the active M0; epics `0005`–`0012` for M1 onward). This document is the **
 locked decisions, the order, and the principles behind them. It deliberately does **not** list
 tickets or track status — that would only drift from the board.
 
-> Decisions locked: TypeScript PWA · client-only (no backend) · SvelteKit · pnpm + Vite +
+> Decisions locked: TypeScript PWA · client-only (no backend) · React · pnpm + Vite +
 > Vitest · free static hosting · equity sims in a Web Worker. Coaching starts practical
 > (equity / pot odds / EV) with clean interfaces so a GTO solver can slot in later. The core
 > loop is "play vs bots" as the spine, with drills and hand-analysis layered on over time.
@@ -25,6 +25,14 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   pot-odds-aware decisions; ships behind an `Opponent` seam so a smarter bot can replace it later.
 - **M3 — Coaching engine.** The actual point of the app — and still no AI. Turns the deterministic
   math into per-decision feedback. Needs M1.
+- **M3.5 — Ink TUI play client.** The first interactive UI: a full-screen terminal client (Ink —
+  React for the terminal) over the already-tested packages, becoming the play experience while the
+  readline CLI is slimmed to a headless harness. Seats a realistic table (default 6-max, down to
+  heads-up) rather than the CLI's heads-up-only loop, which also pulls the coach's equity read into
+  being multiway-aware. Ink is React and so is the M4 PWA, so this is a
+  low-risk dry run of M4 in the _same paradigm_: the hooks/reducer logic and the play/coach loop
+  carry over (only the terminal-vs-DOM render layer differs). No engine porting; the UI just
+  consumes M0–M3.
 - **M4 — PWA app shell.** The first "real" version: an installable Android PWA built on the
   already-tested packages. No engine porting — the UI just consumes what M0–M3 produced.
 - **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for
@@ -36,11 +44,15 @@ UI exists — so the foundation is trustworthy before anything is built on top o
 - **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
   last: research-grade effort, and everything else should be solid first.
 
+(The half-step **M3.5** is numbered that way deliberately: it slots a terminal UI between the coach
+and the PWA without renumbering the rest of the arc. Its epic is
+[`0024`](../tickets/0024-tui-ink-client.md).)
+
 ## The three ways to get better
 
 Your "all three eventually" maps onto the arc rather than being separate tracks:
 
-- **Play vs bots** — the spine. M2 (opponents) + M4 (table UI).
+- **Play vs bots** — the spine. M2 (opponents) + the table UI (M3.5 terminal, then M4 PWA).
 - **Drills & quizzes** — fastest reps. M5, reusing the M3 coach for verdicts.
 - **Analyze my hands** — M6, built on the stored hand history.
 

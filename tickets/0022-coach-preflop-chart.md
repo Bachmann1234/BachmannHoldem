@@ -40,4 +40,3 @@ house style (heavy doc comments, `.js` specifiers, `RangeError` on malformed inp
 Keep it chart-based and deterministic — the chart is a teaching artifact, so the tiers and the
 rationale strings matter as much as the classification. No equity simulation is required for the
 classification itself.
-</content>

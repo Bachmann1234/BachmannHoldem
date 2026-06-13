@@ -15,7 +15,7 @@ already-tested engine/odds/bots/coach packages.
 
 ## Acceptance criteria
 
-- [ ] SvelteKit + `vite-plugin-pwa` — installable to home screen, works offline
+- [ ] React + Vite + `vite-plugin-pwa` — installable to home screen, works offline
 - [ ] Poker-table UI: play vs bots with inline coaching feedback
 - [ ] Local hand-history storage (IndexedDB)
 - [ ] Deployed to free static hosting over HTTPS

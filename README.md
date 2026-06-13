@@ -6,7 +6,7 @@ coaching on odds and betting strategy, with the goal of actually getting better 
 ## Stack
 
 - **TypeScript PWA**, client-only — no backend. Runs offline after first load.
-- **SvelteKit** for the app shell, **Vite** + `vite-plugin-pwa` for build + service worker.
+- **React** for the app shell, **Vite** + `vite-plugin-pwa` for build + service worker.
 - **pnpm** workspace monorepo, **Vitest** for tests.
 - Equity simulations run in a **Web Worker** to keep the UI smooth.
 - Deployed as static files to free static hosting (GitHub Pages / Cloudflare Pages / etc.).
@@ -23,7 +23,7 @@ packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
 packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
 packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)   <- you are here
 apps/cli          terminal hand runner — the engine's feedback loop   (Node)
-apps/pwa          SvelteKit PWA — the only Android/web-aware module
+apps/pwa          React PWA — the only Android/web-aware module
 ```
 
 Why this layering: the hard, high-value work (rules correctness + equity math) is fully
