@@ -7,3 +7,9 @@ coverage/
 .DS_Store
 .env
 .env.*
+
+# The user's global gitignore excludes all of .claude/. Re-include project skills so they're
+# version-controlled with the repo, while keeping machine-specific .claude/ files ignored.
+!.claude/
+.claude/*
+!.claude/skills/
