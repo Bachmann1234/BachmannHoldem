@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: ['packages/**/src/**/*.test.ts', 'apps/**/src/**/*.test.ts'],
+    // A few correctness oracles are deliberately exhaustive — the full C(52,5) hand-frequency
+    // sweep and the multi-seed bot loops run in ~1s locally. But CI runs them under v8 coverage
+    // instrumentation on a 2-core runner with every test file contending, which is several times
+    // slower, so the stock 5s per-test timeout trips them. Raise the global floor well past that;
+    // the single heaviest spot (exact preflop enumeration) sets its own larger timeout inline.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     coverage: {
       provider: 'v8',
       // The pure, correctness-critical packages every later milestone trusts — the engine

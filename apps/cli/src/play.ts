@@ -1,7 +1,7 @@
 /**
- * `pnpm play` — a thin terminal harness to play heads-up hands against a trivial
- * "always-call" bot (ticket 0004). It drives the real {@link createHand} engine with no
- * UI, so it doubles as the fast feedback loop for the bots and coach built on top later.
+ * `pnpm play` — a thin terminal harness to play heads-up hands against the M2 heuristic
+ * bot (ticket 0004, wired to `@holdem/bots`). It drives the real {@link createHand} engine
+ * with no UI, so it doubles as the fast feedback loop for the bots and coach.
  *
  * You are the hero (seat 0); the bot is seat 1. Stacks carry between hands and the button
  * alternates; the session ends when you quit or someone busts. The engine never shuffles
@@ -19,13 +19,20 @@ import {
   type Card,
   type HandState,
 } from '@holdem/engine'
-import { alwaysCallBot, parseAction, renderState, renderResult, renderLegal } from './table.js'
+import { decisionContext, heuristicOpponent, TIGHT_AGGRESSIVE } from '@holdem/bots'
+import { parseAction, renderState, renderResult, renderLegal } from './table.js'
 
 const HERO = 0
 const BOT = 1
 const SMALL_BLIND = 1
 const BIG_BLIND = 2
 const STARTING_STACK = 200
+
+// One tight-aggressive opponent for the whole session. Its PRNG carries across hands, so
+// the aggression mix stays varied rather than replaying an identical line every hand; the
+// seed is randomised per session so two sittings differ. (Determinism lives in the tests,
+// not the play harness — the deck is already shuffled with Math.random here.)
+const bot = heuristicOpponent(TIGHT_AGGRESSIVE, Math.floor(Math.random() * 0x100000000))
 
 /** Fisher–Yates shuffle of a fresh deck (Math.random is fine for a play harness). */
 function shuffledDeck(): Card[] {
@@ -118,8 +125,9 @@ async function playHand(
       if (next === null) return null
       state = next
     } else {
-      const action = alwaysCallBot(legalActions(state))
-      console.log(`\nBot ${action.type}s.`)
+      const action = await Promise.resolve(bot.decide(decisionContext(state, BOT)))
+      const detail = 'amount' in action ? ` ${action.amount}` : ''
+      console.log(`\nBot ${action.type}s${detail}.`)
       state = applyAction(state, action)
     }
   }
@@ -130,7 +138,7 @@ async function playHand(
 }
 
 async function main(): Promise<void> {
-  console.log("Bachmann Hold'em — terminal harness. You vs. an always-call bot.")
+  console.log(`Bachmann Hold'em — terminal harness. You vs. ${bot.name ?? 'a bot'}.`)
   console.log(`Blinds ${SMALL_BLIND}/${BIG_BLIND}, starting stacks ${STARTING_STACK}.\n`)
 
   let stacks: [number, number] = [STARTING_STACK, STARTING_STACK]

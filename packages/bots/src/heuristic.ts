@@ -27,7 +27,7 @@
  * the same action — essential for stable tests and replays.
  */
 
-import type { Action } from '@holdem/engine'
+import type { Action, Card } from '@holdem/engine'
 import { callIsProfitable, evOfCall, potOdds } from '@holdem/odds'
 
 import type { DecisionContext } from './context.js'
@@ -55,6 +55,19 @@ function clampToLegal(intended: number, min: number, max: number): number | null
   if (min > max) return null
   const rounded = Math.round(intended)
   return Math.min(max, Math.max(min, rounded))
+}
+
+/**
+ * Derive a per-decision Monte-Carlo seed by folding the board into the bot's base seed with
+ * an FNV-style multiply-mix. Cards are branded integers, so this is a cheap, order-sensitive
+ * hash: the same `(base, board)` always yields the same seed (determinism preserved), but
+ * preflop / flop / turn / river each get a *different* seed, so the reads across a hand draw
+ * independent samples instead of reusing one correlated stream.
+ */
+function seedForBoard(base: number, board: readonly Card[]): number {
+  let s = base | 0
+  for (const card of board) s = (Math.imul(s, 0x01000193) + card) | 0
+  return s >>> 0
 }
 
 /**
@@ -89,7 +102,12 @@ export class HeuristicOpponent implements Opponent {
   private readonly personality: Personality
   /** The bot's own PRNG, advanced once per aggression decision. Seeded for determinism. */
   private readonly rng: () => number
-  /** The fixed seed handed to every {@link estimateEquity} call, so the read is stable. */
+  /**
+   * The bot's base equity seed. Per-decision, this is mixed with the current board (via
+   * {@link seedForBoard}) so each street draws an *independent* Monte-Carlo stream rather
+   * than reusing the preflop one — while staying fully deterministic for a fixed
+   * `(seed, board)`, so tests and replays remain stable.
+   */
   private readonly equitySeed: number
 
   constructor(personality: Personality = DEFAULT_PERSONALITY, seed = 0) {
@@ -109,7 +127,7 @@ export class HeuristicOpponent implements Opponent {
       holeCards: ctx.holeCards,
       board: ctx.board,
       opponentRange: this.personality.tightness.assumedVillainRange,
-      seed: this.equitySeed,
+      seed: seedForBoard(this.equitySeed, ctx.board),
       iterations: HEURISTIC_ITERATIONS,
     }).equity
   }

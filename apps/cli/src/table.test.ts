@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { LegalActions } from '@holdem/engine'
-import { alwaysCallBot, parseAction } from './table.js'
+import { parseAction } from './table.js'
 
 /** A legal-actions snapshot facing a bet: can fold, call 10, or raise to 20-100. */
 const facingBet: LegalActions = {
@@ -19,15 +19,6 @@ const canCheck: LegalActions = {
   bet: { min: 2, max: 100 },
   raise: null,
 }
-
-describe('alwaysCallBot', () => {
-  it('checks when checking is free', () => {
-    expect(alwaysCallBot(canCheck)).toEqual({ type: 'check' })
-  })
-  it('calls when facing a bet (never folds, never raises)', () => {
-    expect(alwaysCallBot(facingBet)).toEqual({ type: 'call' })
-  })
-})
 
 describe('parseAction', () => {
   it('reads single-letter and full-word verbs', () => {

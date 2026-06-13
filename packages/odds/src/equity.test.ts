@@ -8,11 +8,15 @@ function totalEquity(req: EquityRequest): number {
 }
 
 // Full preflop enumeration (an empty board) is the heavyweight case: heads-up it scores
-// C(48,5) = 1,712,304 board completions. It is exact and reproducible but takes seconds,
+// C(48,5) = 1,712,304 board completions. It is exact and reproducible but takes ~20s locally,
 // so the suite runs exactly one such spot — the AA-vs-KK acceptance criterion — under a
 // generous timeout. Every other spot uses a partial board (flop/turn), which enumerates
 // in well under a millisecond, to keep the suite fast while still exercising every path.
-const PREFLOP_TIMEOUT_MS = 60_000
+//
+// The timeout is sized for CI, not this machine: there the test runs under v8 coverage
+// instrumentation on a contended 2-core runner, several times slower than a local run, so
+// it needs far more headroom than the bare ~20s it takes here.
+const PREFLOP_TIMEOUT_MS = 180_000
 
 describe('exactEquity — textbook spots', () => {
   it(

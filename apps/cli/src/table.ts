@@ -18,18 +18,6 @@ import {
 /** Result of parsing a line of human input: a legal action, or a message to reprint. */
 export type ParseResult = { ok: true; action: Action } | { ok: false; error: string }
 
-/**
- * The placeholder opponent: it never folds and never raises. It checks when it can and
- * otherwise calls. (`legalActions` returns the call amount already capped at its stack,
- * so a call here is an all-in when it is short.)
- */
-export function alwaysCallBot(legal: LegalActions): Action {
-  if (legal.check) return { type: 'check' }
-  if (legal.call) return { type: 'call' }
-  // Unreachable in heads-up play, but stay total: the only thing always offered is fold.
-  return { type: 'fold' }
-}
-
 /** A one-line, human-readable menu of the legal actions, with amounts. */
 export function renderLegal(legal: LegalActions): string {
   const parts: string[] = []
