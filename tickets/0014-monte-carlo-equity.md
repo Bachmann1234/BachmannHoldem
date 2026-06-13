@@ -2,7 +2,7 @@
 id: 0014
 title: Monte Carlo equity (hand vs hand / range / partial board)
 type: feature
-status: todo
+status: done
 milestone: M1
 priority: high
 created: 2026-06-13
@@ -15,14 +15,14 @@ cards, ranges), sample. Builds on the exact oracle ([[0013-equity-enumeration]])
 
 ## Acceptance criteria
 
-- [ ] `monteCarloEquity({ hands, board, ranges, iterations, seed })` returning the same
+- [x] `monteCarloEquity({ hands, board, ranges, iterations, seed })` returning the same
       `HandEquity[]` shape as the exact path.
-- [ ] Supports unknown villain holdings drawn from a **range** (a set of two-card combos), and a
+- [x] Supports unknown villain holdings drawn from a **range** (a set of two-card combos), and a
       hero hand vs one or more ranges, on any partial board.
-- [ ] **Seeded, deterministic PRNG** (no `Math.random`) so tests are reproducible.
-- [ ] Converges to the exact oracle within tolerance on fully-known spots (assert |MC − exact| is
+- [x] **Seeded, deterministic PRNG** (no `Math.random`) so tests are reproducible.
+- [x] Converges to the exact oracle within tolerance on fully-known spots (assert |MC − exact| is
       small at high iteration counts).
-- [ ] Simple range parsing helper (e.g. `"AA, KK, AKs, AKo"` → combos), skipping combos that
+- [x] Simple range parsing helper (e.g. `"AA, KK, AKs, AKo"` → combos), skipping combos that
       collide with known cards.
 
 ## Notes
