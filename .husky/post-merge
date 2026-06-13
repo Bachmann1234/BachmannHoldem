@@ -1,0 +1,11 @@
+# After a merge, delete any local branch whose work is now fully integrated into
+# the current branch — so merged feature branches don't pile up. Uses safe delete
+# (-d), which refuses to remove a branch with unmerged commits, and never touches
+# the current branch or the protected long-lived ones.
+current="$(git rev-parse --abbrev-ref HEAD)"
+git branch --merged HEAD |
+  sed 's/^[* ]*//' |
+  grep -vxE "(${current}|main|master)" |
+  while IFS= read -r branch; do
+    [ -n "$branch" ] && git branch -d "$branch"
+  done
