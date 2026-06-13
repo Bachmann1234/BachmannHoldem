@@ -2,7 +2,7 @@
 id: 0016
 title: Web Worker wrapper for equity sims
 type: feature
-status: todo
+status: done
 milestone: M1
 priority: medium
 created: 2026-06-13
@@ -16,11 +16,11 @@ engine stays testable headlessly and the UI just awaits a promise.
 
 ## Acceptance criteria
 
-- [ ] Worker entry that receives an `EquityRequest` and posts back a `HandEquity[]` result.
-- [ ] An async client facade (`equityAsync(req)`) that, in the browser, offloads to the Worker, and
+- [x] Worker entry that receives an `EquityRequest` and posts back a `HandEquity[]` result.
+- [x] An async client facade (`equityAsync(req)`) that, in the browser, offloads to the Worker, and
       in Node runs the same computation inline (or via `worker_threads`) so tests pass without a DOM.
-- [ ] Identical results between the sync core and the async/worker path (a test asserting parity).
-- [ ] No DOM/browser-only types leak into the pure equity core — the worker boundary stays at the edge.
+- [x] Identical results between the sync core and the async/worker path (a test asserting parity).
+- [x] No DOM/browser-only types leak into the pure equity core — the worker boundary stays at the edge.
 
 ## Notes
 

@@ -1,3 +1,5 @@
 export * from './equity.js'
 export * from './monteCarlo.js'
 export * from './decisions.js'
+export * from './equityProtocol.js'
+export * from './equityAsync.js'

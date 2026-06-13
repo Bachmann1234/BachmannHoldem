@@ -18,8 +18,8 @@ Everything except the app is framework-agnostic pure TypeScript that tests on No
 milliseconds (no browser needed).
 
 ```
-packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)   <- you are here
-packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
+packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)
+packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)   <- you are here
 packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
 packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)
 apps/cli          terminal hand runner — the engine's feedback loop   (Node)

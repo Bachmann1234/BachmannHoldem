@@ -2,7 +2,7 @@
 id: 0005
 title: 'Epic: Odds & equity engine'
 type: epic
-status: in-progress
+status: done
 milestone: M1
 priority: high
 created: 2026-06-13
@@ -15,10 +15,10 @@ The math layer powering both coaching and bots. Build in `packages/odds`, runnab
 
 ## Acceptance criteria
 
-- [ ] Monte Carlo equity calculator: hand vs hand, hand vs range, vs partial board
-- [ ] Pot odds, outs, and EV-of-action helpers
-- [ ] Exact river enumeration as a correctness oracle for the simulator
-- [ ] Web Worker wrapper so sims never block the UI (same API usable from Node)
+- [x] Monte Carlo equity calculator: hand vs hand, hand vs range, vs partial board
+- [x] Pot odds, outs, and EV-of-action helpers
+- [x] Exact river enumeration as a correctness oracle for the simulator
+- [x] Web Worker wrapper so sims never block the UI (same API usable from Node)
 
 ## Notes
 
