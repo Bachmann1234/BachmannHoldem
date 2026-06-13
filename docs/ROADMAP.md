@@ -1,33 +1,44 @@
 # Roadmap
 
-This is the **narrative map** — the milestones, their order, and why. The **executable units of
-work** live on the ticket board in [`../tickets/`](../tickets/); each milestone links to its
-ticket(s). When the two disagree, the tickets win (they're the source of truth).
-
-Milestones are ordered by value-per-effort and dependency. Each is independently useful. The
-hard, risky work (engine correctness + equity math) is front-loaded and validated as pure-TS
-packages with a Node CLI/test loop, long before any UI exists.
+The **board** ([`../tickets/`](../tickets/)) is the source of truth for what's actionable and its
+status — every milestone, including the not-yet-started ones, lives there as tickets (`0002`–`0004`
+for the active M0; epics `0005`–`0012` for M1 onward). This document is the **narrative map**: the
+locked decisions, the order, and the principles behind them. It deliberately does **not** list
+tickets or track status — that would only drift from the board.
 
 > Decisions locked: TypeScript PWA · client-only (no backend) · SvelteKit · pnpm + Vite +
 > Vitest · free static hosting · equity sims in a Web Worker. Coaching starts practical
 > (equity / pot odds / EV) with clean interfaces so a GTO solver can slot in later. The core
 > loop is "play vs bots" as the spine, with drills and hand-analysis layered on over time.
 
-| Milestone   | Theme                                 | Done when                                       | Tickets                                                                                                                                                                        |
-| ----------- | ------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **M0**      | Core engine (`packages/engine`)       | Play a full, rules-correct hand in the terminal | [0001](../tickets/0001-card-primitives.md) · [0002](../tickets/0002-hand-evaluator.md) · [0003](../tickets/0003-game-state-machine.md) · [0004](../tickets/0004-cli-runner.md) |
-| **M1**      | Odds & equity (`packages/odds`)       | `equity()` returns a win% — the test oracle     | [0005](../tickets/0005-odds-equity-engine.md)                                                                                                                                  |
-| **M2**      | Heuristic opponents (`packages/bots`) | Play full hands vs configurable bots            | [0006](../tickets/0006-heuristic-opponents.md)                                                                                                                                 |
-| **M3**      | Coaching engine (`packages/coach`)    | The CLI is a real, deterministic coach          | [0007](../tickets/0007-coaching-engine.md)                                                                                                                                     |
-| **M4**      | PWA app shell (`apps/pwa`)            | Installable Android PWA — first "real" version  | [0008](../tickets/0008-pwa-app-shell.md)                                                                                                                                       |
-| **M5**      | Drills & quizzes                      | A fast-rep training mode                        | [0009](../tickets/0009-drills-and-quizzes.md)                                                                                                                                  |
-| **M6**      | Stats & leak detection                | Longitudinal feedback on _your_ tendencies      | [0010](../tickets/0010-stats-and-leak-detection.md)                                                                                                                            |
-| **M7**      | LLM coaching polish (optional)        | Conversational "why" on top of the math         | [0011](../tickets/0011-llm-coaching.md)                                                                                                                                        |
-| **stretch** | GTO solver                            | Solver-driven opponents behind the bot seam     | [0012](../tickets/0012-gto-solver.md)                                                                                                                                          |
+## The arc, and why it's ordered this way
 
-## The three ways to get better (your "all three eventually")
+Milestones are sequenced by value-per-effort and dependency. The hard, risky, correctness-critical
+work is front-loaded and validated as pure-TS packages with a Node CLI/test loop, long before any
+UI exists — so the foundation is trustworthy before anything is built on top of it.
 
-These map onto the milestones rather than being separate tracks:
+- **M0 — Core engine.** Cards, hand evaluation, and the rules state machine. Everything else
+  trusts this, so it comes first and gets tested hardest.
+- **M1 — Odds & equity.** The math layer (equity, pot odds, EV). Built on M0; powers both the
+  coach and the bots, so it precedes both.
+- **M2 — Heuristic opponents.** Someone to play against. Needs the equity engine to make
+  pot-odds-aware decisions; ships behind an `Opponent` seam so a smarter bot can replace it later.
+- **M3 — Coaching engine.** The actual point of the app — and still no AI. Turns the deterministic
+  math into per-decision feedback. Needs M1.
+- **M4 — PWA app shell.** The first "real" version: an installable Android PWA built on the
+  already-tested packages. No engine porting — the UI just consumes what M0–M3 produced.
+- **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for
+  verdicts. Comes after there's a UI to host it.
+- **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
+  feedback built on stored hand history.
+- **M7 — LLM coaching (optional).** Natural-language narration on top of the trustworthy math.
+  Last because it's polish and the only thing needing a network boundary.
+- **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
+  last: research-grade effort, and everything else should be solid first.
+
+## The three ways to get better
+
+Your "all three eventually" maps onto the arc rather than being separate tracks:
 
 - **Play vs bots** — the spine. M2 (opponents) + M4 (table UI).
 - **Drills & quizzes** — fastest reps. M5, reusing the M3 coach for verdicts.
