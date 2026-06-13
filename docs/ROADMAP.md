@@ -52,3 +52,18 @@ Your "all three eventually" maps onto the arc rather than being separate tracks:
   (M7) just explains it and is always optional / offline-degradable.
 - **Front-load the hard, high-value work.** Correctness-critical code ships and is tested before
   any pixels exist.
+
+## Process: when to run a milestone review
+
+The `milestone-review` skill is a whole-repo audit (code smells, doc drift, dependency issues,
+security, test gaps, convention violations) that files its findings back onto the board as
+tickets. Anchor it to **milestone boundaries, not a ticket count** — it's a heavier, fan-out
+audit, so running it every few tickets just re-flags the same drift:
+
+- **Small milestones (M0–M3, ~1–4 tickets each):** run it once, when the milestone's last ticket
+  flips to `done`.
+- **Large milestones (M4 onward — UI-heavy, and they decompose into many tickets):** add one
+  mid-milestone checkpoint (~6 tickets in, or whenever drift is visible). Don't let a big
+  milestone run to the end before its first review.
+
+First run: at **M0 completion**, once the CLI runner (`0004`) lands.
