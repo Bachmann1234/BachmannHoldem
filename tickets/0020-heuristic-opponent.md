@@ -2,7 +2,7 @@
 id: 0020
 title: HeuristicOpponent — equity + pot odds + personality → action
 type: feature
-status: todo
+status: done
 milestone: M2
 priority: high
 created: 2026-06-13
@@ -20,18 +20,18 @@ the epic's acceptance criteria at once: range-based, equity+pot-odds-driven, beh
 
 ## Acceptance criteria
 
-- [ ] A `HeuristicOpponent` implementing the `Opponent` interface from [[0017-opponent-seam]],
+- [x] A `HeuristicOpponent` implementing the `Opponent` interface from [[0017-opponent-seam]],
       constructed from a `Personality` (and a seed for deterministic Monte-Carlo reads).
-- [ ] Decision flow, given a `DecisionContext`: 1. Read equity via [[0018-bot-hand-reading]] against the personality-implied villain range. 2. Facing a bet: compare equity to `potOdds` / use `callIsProfitable` / `evOfCall` to decide
+- [x] Decision flow, given a `DecisionContext`: 1. Read equity via [[0018-bot-hand-reading]] against the personality-implied villain range. 2. Facing a bet: compare equity to `potOdds` / use `callIsProfitable` / `evOfCall` to decide
       fold vs call, and let **aggression** decide when to turn a call into a raise (and size it). 3. Unbet pot (can check): **aggression** + equity decide check vs bet, and the bet size (pot
       fraction from the personality), clamped to the legal `bet`/`raise` min/max.
       All returned actions are **legal** per `legalActions` (respect min/max, all-in caps, the
       reopen rule) — never construct an illegal action.
-- [ ] The personality axes visibly change behaviour: a tight-passive bot folds marginal spots and
+- [x] The personality axes visibly change behaviour: a tight-passive bot folds marginal spots and
       rarely raises; a loose-aggressive bot continues wider and bets/raises more. Demonstrate this in
       tests (same spot, different personalities → different action distributions).
-- [ ] Deterministic for a fixed seed (so tests and replays are stable).
-- [ ] Unit tests: clear +EV call is called/raised, clear −EV fold is folded, a strong hand in an
+- [x] Deterministic for a fixed seed (so tests and replays are stable).
+- [x] Unit tests: clear +EV call is called/raised, clear −EV fold is folded, a strong hand in an
       unbet pot gets bet by an aggressive bot and sometimes checked by a passive one; a full
       `HeuristicOpponent`-vs-`HeuristicOpponent` hand (and vs a reference bot) runs to completion with
       only legal actions across many seeds.
