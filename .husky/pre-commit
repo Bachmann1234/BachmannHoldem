@@ -1,0 +1,13 @@
+# Block direct commits to main so work happens on branches.
+# Skipped on an unborn branch, so the very first commit is allowed through.
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$branch" = "main" ]; then
+    echo "✖ Direct commits to 'main' are blocked."
+    echo "  Create a branch first:  git switch -c <your-branch>"
+    exit 1
+  fi
+fi
+
+# Lint + format only the staged files (fast).
+pnpm exec lint-staged
