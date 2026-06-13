@@ -22,5 +22,6 @@ The math layer powering both coaching and bots. Build in `packages/odds`, runnab
 
 ## Notes
 
-`equity("AhKh", board="7h2d9c")` returning a win% is the test oracle for everything downstream.
+`exactEquity(parseEquityRequest(['AhKh', 'QsQd'], '7h2d9c'))` returning per-seat win% is the test
+oracle for everything downstream.
 Break into per-feature tickets when pulled. Depends on [[0002-hand-evaluator]].
