@@ -2,7 +2,7 @@
 id: 0022
 title: Preflop hand-strength chart guidance
 type: feature
-status: todo
+status: done
 milestone: M3
 priority: high
 created: 2026-06-13
@@ -19,12 +19,12 @@ output).
 
 ## Acceptance criteria
 
-- [ ] A pure function in `packages/coach` that maps a two-card starting hand to a strength tier
+- [x] A pure function in `packages/coach` that maps a two-card starting hand to a strength tier
       (e.g. premium / strong / playable / marginal / trash) plus a short human-readable rationale,
       driven by a **chart** (a declared table of hand classes), not an ad-hoc equity sim.
-- [ ] Handles the standard starting-hand groupings: pocket pairs, suited vs offsuit, broadways,
+- [x] Handles the standard starting-hand groupings: pocket pairs, suited vs offsuit, broadways,
       suited connectors, and the long tail of trash.
-- [ ] Exported from `src/index.ts`; co-located `*.test.ts` pins representative hands per tier
+- [x] Exported from `src/index.ts`; co-located `*.test.ts` pins representative hands per tier
       (AA/KK premium, suited connectors playable, 72o trash, etc.); `pnpm verify` green above the
       coverage thresholds.
 
