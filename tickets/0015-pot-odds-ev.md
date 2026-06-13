@@ -2,7 +2,7 @@
 id: 0015
 title: Pot odds, outs, and EV-of-action helpers
 type: feature
-status: todo
+status: done
 milestone: M1
 priority: high
 created: 2026-06-13
@@ -16,12 +16,12 @@ a betting situation into the quantities the coach ([[0007-coaching-engine]]) and
 
 ## Acceptance criteria
 
-- [ ] `potOdds(callAmount, pot)` → the break-even equity needed to call.
-- [ ] `outsToEquity` / rule-of-2-and-4 style helper, and a way to count outs to the best hand on a
+- [x] `potOdds(callAmount, pot)` → the break-even equity needed to call.
+- [x] `outsToEquity` / rule-of-2-and-4 style helper, and a way to count outs to the best hand on a
       given board (or a documented approximation).
-- [ ] `evOfCall` / `evOfShove`-style helpers: given equity, pot, and amounts, the chip EV of an
+- [x] `evOfCall` / `evOfShove`-style helpers: given equity, pot, and amounts, the chip EV of an
       action, plus a `callIsProfitable` verdict (equity vs pot-odds threshold).
-- [ ] Unit tests on worked examples (a clear +EV call, a clear −EV call, a break-even spot).
+- [x] Unit tests on worked examples (a clear +EV call, a clear −EV call, a break-even spot).
 
 ## Notes
 
