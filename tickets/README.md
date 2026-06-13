@@ -32,15 +32,15 @@ these strings in prose — are correctly excluded.)
 
 ### Frontmatter fields
 
-| field       | values                                                 |
-| ----------- | ------------------------------------------------------ |
-| `id`        | `0001`, `0002`, … (or `BUG-0001` for bugs)             |
-| `title`     | short imperative summary                               |
-| `type`      | `feature` · `task` · `chore` · `epic` · `bug`          |
-| `status`    | `todo` · `in-progress` · `blocked` · `review` · `done` |
-| `milestone` | `M0`–`M7`, `stretch`, or blank                         |
-| `priority`  | `high` · `medium` · `low`                              |
-| `created`   | `YYYY-MM-DD`                                           |
+| field       | values                                                      |
+| ----------- | ----------------------------------------------------------- |
+| `id`        | `0001`, `0002`, … (or `BUG-0001` for bugs)                  |
+| `title`     | short imperative summary                                    |
+| `type`      | `feature` · `task` · `chore` · `epic` · `bug`               |
+| `status`    | `todo` · `in-progress` · `blocked` · `review` · `done`      |
+| `milestone` | `M0`–`M7` (or a half-step like `M3.5`), `stretch`, or blank |
+| `priority`  | `high` · `medium` · `low`                                   |
+| `created`   | `YYYY-MM-DD`                                                |
 
 The milestone overview / narrative lives in [`../docs/ROADMAP.md`](../docs/ROADMAP.md); the
 executable units live here.

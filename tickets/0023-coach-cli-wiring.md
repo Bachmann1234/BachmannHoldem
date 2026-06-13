@@ -36,4 +36,3 @@ Add `@holdem/coach` to `apps/cli`'s `package.json` and its `tsconfig.json` refer
 UX: show the coach feedback _after_ the hero acts (verdict on the actual choice) — that matches
 "coach the decision" and keeps the existing input loop intact. Keep the pure rendering helpers in
 `table.ts` (testable) and only the I/O in `play.ts`.
-</content>

@@ -25,6 +25,11 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   pot-odds-aware decisions; ships behind an `Opponent` seam so a smarter bot can replace it later.
 - **M3 — Coaching engine.** The actual point of the app — and still no AI. Turns the deterministic
   math into per-decision feedback. Needs M1.
+- **M3.5 — Ink TUI play client.** The first interactive UI: a full-screen terminal client (Ink —
+  React for the terminal) over the already-tested packages, becoming the play experience while the
+  readline CLI is slimmed to a headless harness. Inserted before M4 to prove the play/coach loop in
+  a terminal — a low-risk dry run of the same shell the PWA repeats in the browser. No engine
+  porting; the UI just consumes M0–M3.
 - **M4 — PWA app shell.** The first "real" version: an installable Android PWA built on the
   already-tested packages. No engine porting — the UI just consumes what M0–M3 produced.
 - **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for
@@ -36,11 +41,15 @@ UI exists — so the foundation is trustworthy before anything is built on top o
 - **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
   last: research-grade effort, and everything else should be solid first.
 
+(The half-step **M3.5** is numbered that way deliberately: it slots a terminal UI between the coach
+and the PWA without renumbering the rest of the arc. Its epic is
+[`0024`](../tickets/0024-tui-ink-client.md).)
+
 ## The three ways to get better
 
 Your "all three eventually" maps onto the arc rather than being separate tracks:
 
-- **Play vs bots** — the spine. M2 (opponents) + M4 (table UI).
+- **Play vs bots** — the spine. M2 (opponents) + the table UI (M3.5 terminal, then M4 PWA).
 - **Drills & quizzes** — fastest reps. M5, reusing the M3 coach for verdicts.
 - **Analyze my hands** — M6, built on the stored hand history.
 
