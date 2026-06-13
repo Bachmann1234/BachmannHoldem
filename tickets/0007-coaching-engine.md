@@ -2,7 +2,7 @@
 id: 0007
 title: 'Epic: Coaching engine (deterministic)'
 type: epic
-status: in-progress
+status: done
 milestone: M3
 priority: high
 created: 2026-06-13
@@ -15,9 +15,9 @@ into per-decision feedback.
 
 ## Acceptance criteria
 
-- [ ] Per-decision feedback: your equity, the pot odds, the EV-correct action, good/leak verdict
-- [ ] Preflop hand-strength guidance (chart-based)
-- [ ] Wired into the CLI runner so the terminal becomes a real coach
+- [x] Per-decision feedback: your equity, the pot odds, the EV-correct action, good/leak verdict
+- [x] Preflop hand-strength guidance (chart-based)
+- [x] Wired into the CLI runner so the terminal becomes a real coach
 
 ## Notes
 
