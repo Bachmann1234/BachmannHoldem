@@ -121,11 +121,20 @@ async function askHero(state: HandState): Promise<Action | null> {
  * the spot: the `ctx` was captured while it was still the hero's turn (so `decisionContext`
  * accepted it), and the verdict math lives entirely in `@holdem/coach`. Preflop we also hand
  * the coach the starting-hand chart classification.
+ *
+ * Coaching is strictly *advisory*, so it must never break the game: any throw from the coach
+ * (a malformed spot the verdict math rejects) is caught and degraded to a one-line notice
+ * rather than crashing the hand mid-loop. The play continues either way.
  */
 function coachHero(ctx: DecisionContext, action: Action): void {
-  const verdict = coachDecision(ctx, action)
-  const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
-  console.log(renderCoachFeedback(verdict, preflop))
+  try {
+    const verdict = coachDecision(ctx, action)
+    const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
+    console.log(renderCoachFeedback(verdict, preflop))
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    console.log(`\n(Coaching unavailable for this spot — ${reason})`)
+  }
 }
 
 /**
