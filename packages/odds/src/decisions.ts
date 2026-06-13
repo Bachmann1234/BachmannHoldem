@@ -193,10 +193,10 @@ function validateCallSpot({ equity, pot, callAmount }: CallSpot): void {
  *
  * This is the EV that is *consistent with* {@link potOdds}: it crosses zero exactly at
  * `equity === callAmount / (pot + callAmount)`, so {@link evOfCall} and
- * {@link callIsProfitable} never disagree (see that function). Note ticket 0015 sketches
- * the form `equity * (pot + callAmount) − (1 − equity) * callAmount`; that variant counts
- * the returned call as winnings *and* keeps it at risk, which would not break even at the
- * pot-odds threshold — so we use the internally-consistent formula above instead.
+ * {@link callIsProfitable} never disagree (see that function). A tempting alternative,
+ * `equity * (pot + callAmount) − (1 − equity) * callAmount`, counts the returned call as
+ * winnings *and* keeps it at risk, so it would not break even at the pot-odds threshold —
+ * we use the internally-consistent formula above instead.
  *
  * @example
  *   evOfCall({ equity: 0.5, pot: 100, callAmount: 50 }) // 0.5*150 − 50 = +25
