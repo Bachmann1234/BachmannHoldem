@@ -35,11 +35,16 @@ CLI/test loop _before_ any UI exists. An LLM coaching layer is optional late pol
 
 ```bash
 pnpm install
+pnpm verify        # the gate: format check + lint + typecheck + tests (run before pushing)
 pnpm test          # run all package tests
 pnpm test:watch    # watch mode
 pnpm typecheck     # tsc project references build
+pnpm lint          # eslint
+pnpm format        # prettier --write
 pnpm play          # play a hand in the terminal vs. an always-call bot
 ```
+
+`pnpm verify` is exactly what the pre-push hook and CI run, so a clean `verify` means a green push.
 
 ## Roadmap
 

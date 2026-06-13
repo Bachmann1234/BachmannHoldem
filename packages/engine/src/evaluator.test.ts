@@ -136,15 +136,15 @@ describe('category ordering is strictly monotonic', () => {
       expect(higher.score).toBeGreaterThan(lower.score)
       expect(describeHand(higher)).toBe(
         [
-          'High Card',
-          'Pair',
-          'Two Pair',
-          'Three of a Kind',
-          'Straight',
-          'Flush',
-          'Full House',
-          'Four of a Kind',
-          'Straight Flush',
+          'Ace-high', // Ah Kc 9d 6s 2h
+          'Pair of Tens', // Th Ts 8d 5c 2h
+          'Two Pair, Jacks and Fours', // Jh Js 4d 4c 9h
+          'Three of a Kind, Queens', // Qh Qs Qd 7c 2h
+          'Straight, Nine-high', // 5c 6d 7h 8s 9c
+          'Flush, King-high', // 2h 7h 9h Jh Kh
+          'Full House, Kings full of Fours', // Kh Ks Kd 4c 4h
+          'Four of a Kind, Nines', // 9h 9s 9d 9c 2h
+          'Royal Flush', // As Ks Qs Js Ts
         ][ladder[i]![0]],
       )
     }

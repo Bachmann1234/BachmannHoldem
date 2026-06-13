@@ -275,7 +275,55 @@ export function pickWinners(hands: readonly HandValue[]): number[] {
   return winners
 }
 
-/** Render a `HandValue` as a short label, e.g. "Full House". */
+/** Full rank names, indexed by rank value (0 = Two ... 12 = Ace). */
+const RANK_NAMES = [
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Jack',
+  'Queen',
+  'King',
+  'Ace',
+] as const
+
+/** Pluralised rank name, e.g. "Kings", "Sixes". */
+function plural(rank: number): string {
+  const name = RANK_NAMES[rank]!
+  return name === 'Six' ? 'Sixes' : `${name}s`
+}
+
+/**
+ * Render a `HandValue` as a human-readable description with the tie-break ranks
+ * spelled out, e.g. "Full House, Kings full of Tens", "Pair of Sevens", "Ace-high".
+ * Use {@link HAND_CATEGORY_NAMES} directly when you only want the bare category.
+ */
 export function describeHand(hand: HandValue): string {
-  return HAND_CATEGORY_NAMES[hand.category]
+  const r = hand.ranks
+  switch (hand.category) {
+    case HandCategory.HighCard:
+      return `${RANK_NAMES[r[0]!]}-high`
+    case HandCategory.Pair:
+      return `Pair of ${plural(r[0]!)}`
+    case HandCategory.TwoPair:
+      return `Two Pair, ${plural(r[0]!)} and ${plural(r[1]!)}`
+    case HandCategory.ThreeOfAKind:
+      return `Three of a Kind, ${plural(r[0]!)}`
+    case HandCategory.Straight:
+      return `Straight, ${RANK_NAMES[r[0]!]}-high`
+    case HandCategory.Flush:
+      return `Flush, ${RANK_NAMES[r[0]!]}-high`
+    case HandCategory.FullHouse:
+      return `Full House, ${plural(r[0]!)} full of ${plural(r[1]!)}`
+    case HandCategory.FourOfAKind:
+      return `Four of a Kind, ${plural(r[0]!)}`
+    case HandCategory.StraightFlush:
+      // The Ace-high straight flush is the Royal.
+      return r[0] === 12 ? 'Royal Flush' : `Straight Flush, ${RANK_NAMES[r[0]!]}-high`
+  }
 }
