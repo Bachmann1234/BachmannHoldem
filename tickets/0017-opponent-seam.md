@@ -2,7 +2,7 @@
 id: 0017
 title: Opponent seam + bots package scaffold + reference opponents
 type: feature
-status: todo
+status: done
 milestone: M2
 priority: high
 created: 2026-06-13
@@ -25,27 +25,27 @@ that plays an `Opponent` against the engine's `HandState`.
 
 ## Acceptance criteria
 
-- [ ] New pure-TS package `packages/bots` (`@holdem/bots`), mirroring the engine/odds conventions:
+- [x] New pure-TS package `packages/bots` (`@holdem/bots`), mirroring the engine/odds conventions:
       `package.json`/`tsconfig.json` shape (`main`/`types` → `src/index.ts`, `tsc -b`,
       `workspace:*` deps), `.js` import specifiers, co-located `*.test.ts`, heavy doc comments, and
       **no UI/DOM/Node/network deps**. Depends on `@holdem/engine` (and `@holdem/odds` as later
       tickets need it). Add it to `pnpm-workspace.yaml`'s coverage if needed, the root `tsconfig.json`
       references, and the vitest coverage `include` list so the package is gated like engine/odds.
-- [ ] A `DecisionContext` (name your call) — the **imperfect-information view** a bot decides from,
+- [x] A `DecisionContext` (name your call) — the **imperfect-information view** a bot decides from,
       derived from a `HandState` + the acting seat. It exposes the acting bot's own `holeCards`, the
       `board`, `legalActions(state)`, the pot, `currentBet`/amount-to-call, the bot's stack, blinds,
       street, seat counts/positions — **but never another player's hole cards**. Provide a builder
       (e.g. `decisionContext(state, seat)`) that constructs it from engine state.
-- [ ] An `Opponent` interface: a bot is something that, given a `DecisionContext`, returns a legal
+- [x] An `Opponent` interface: a bot is something that, given a `DecisionContext`, returns a legal
       `Action`. Make the seam **async-friendly** so a future solver/worker-backed bot fits without a
       breaking change — recommended return type `Action | Promise<Action>` (or `Promise<Action>`);
       pick one, document why. Optionally a `name`/`describe()` for display.
-- [ ] At least two trivial reference `Opponent`s proving the seam end-to-end (e.g. an always-check/call
+- [x] At least two trivial reference `Opponent`s proving the seam end-to-end (e.g. an always-check/call
       bot ported from `alwaysCallBot`, and an always-fold or seeded-random bot). Every action they
       return must be legal per `legalActions`.
-- [ ] A small driver helper that runs an `Opponent` to pick the action for whoever is `toAct` and
+- [x] A small driver helper that runs an `Opponent` to pick the action for whoever is `toAct` and
       `applyAction`s it — enough to play a bot-vs-bot hand to completion in a test (proves the view + interface + engine compose).
-- [ ] Unit tests: context-builder hides opponent cards and reports the right call amount/legal set;
+- [x] Unit tests: context-builder hides opponent cards and reports the right call amount/legal set;
       reference bots only ever return legal actions; a full bot-vs-bot hand runs to `complete`.
 
 ## Notes

@@ -10,7 +10,7 @@ export default defineConfig({
       // here. The CLI (`apps/cli`) is a thin readline harness whose shell is intentionally
       // untested, and the UI shells to come are covered by their own tooling — gating on
       // them would only force a meaningless floor.
-      include: ['packages/engine/src/**', 'packages/odds/src/**'],
+      include: ['packages/engine/src/**', 'packages/odds/src/**', 'packages/bots/src/**'],
       exclude: ['**/*.test.ts', '**/index.ts'],
       reporter: ['text', 'html'],
       // Floors a few points below current actuals: catches a real regression without

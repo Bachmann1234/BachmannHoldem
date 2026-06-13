@@ -55,6 +55,12 @@ importers:
         specifier: ^4.22.4
         version: 4.22.4
 
+  packages/bots:
+    dependencies:
+      '@holdem/engine':
+        specifier: workspace:*
+        version: link:../engine
+
   packages/engine: {}
 
   packages/odds:
