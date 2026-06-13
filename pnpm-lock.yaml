@@ -57,6 +57,12 @@ importers:
 
   packages/engine: {}
 
+  packages/odds:
+    dependencies:
+      '@holdem/engine':
+        specifier: workspace:*
+        version: link:../engine
+
 packages:
 
   '@babel/helper-string-parser@7.29.7':

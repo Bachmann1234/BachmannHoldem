@@ -2,7 +2,7 @@
 id: 0013
 title: Exact equity by board enumeration (the oracle)
 type: feature
-status: todo
+status: done
 milestone: M1
 priority: high
 created: 2026-06-13
@@ -18,13 +18,13 @@ it is the reference the simulator is tested against.
 
 ## Acceptance criteria
 
-- [ ] New pure-TS package `packages/odds` (`@holdem/odds`), mirroring the engine's conventions
+- [x] New pure-TS package `packages/odds` (`@holdem/odds`), mirroring the engine's conventions
       (package.json/tsconfig shape, `.js` import specifiers, co-located `*.test.ts`, no UI/network deps).
-- [ ] `exactEquity({ hands, board })` enumerates the remaining-deck completions and returns each
+- [x] `exactEquity({ hands, board })` enumerates the remaining-deck completions and returns each
       seat's `{ win, tie, equity }` (equity = win + tie/ties-share), summing to 1 across seats.
-- [ ] Works from an empty board (preflop, 2 known hands) through turn (1 card to come).
-- [ ] Validates inputs: no duplicate cards across hands+board, legal board sizes (0/3/4/5).
-- [ ] Unit tests against textbook spots (e.g. AA vs KK preflop ≈ 82/18; a known coin-flip;
+- [x] Works from an empty board (preflop, 2 known hands) through turn (1 card to come).
+- [x] Validates inputs: no duplicate cards across hands+board, legal board sizes (0/3/4/5).
+- [x] Unit tests against textbook spots (e.g. AA vs KK preflop ≈ 82/18; a known coin-flip;
       a locked/dead hand at 0%; an exact tie split).
 
 ## Notes

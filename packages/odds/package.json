@@ -1,0 +1,18 @@
+{
+  "name": "@holdem/odds",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure-TS equity engine: exact equity by board enumeration (pot odds and EV to follow).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/engine": "workspace:*"
+  }
+}
