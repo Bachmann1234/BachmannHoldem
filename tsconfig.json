@@ -5,6 +5,7 @@
     { "path": "packages/odds" },
     { "path": "packages/bots" },
     { "path": "packages/coach" },
-    { "path": "apps/cli" }
+    { "path": "apps/cli" },
+    { "path": "apps/tui" }
   ]
 }

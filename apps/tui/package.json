@@ -1,0 +1,22 @@
+{
+  "name": "@holdem/tui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Full-screen Ink (React-for-the-terminal) play client over the pure poker packages — the M3.5 shell.",
+  "scripts": {
+    "dev": "tsx src/main.tsx",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/engine": "workspace:*",
+    "ink": "^7.0.6",
+    "react": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "ink-testing-library": "^4.0.0",
+    "react-devtools-core": "^6.1.2",
+    "tsx": "^4.22.4"
+  }
+}
