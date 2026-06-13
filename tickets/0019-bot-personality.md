@@ -2,7 +2,7 @@
 id: 0019
 title: Personality matrix — tight/loose × passive/aggressive
 type: feature
-status: todo
+status: done
 milestone: M2
 priority: medium
 created: 2026-06-13
@@ -22,17 +22,17 @@ the matrix legible and the bots tunable — and it keeps the play experience var
 
 ## Acceptance criteria
 
-- [ ] A `Personality` type capturing two orthogonal axes: - **Tightness** (tight↔loose): how much equity / how strong a holding the bot requires to
+- [x] A `Personality` type capturing two orthogonal axes: - **Tightness** (tight↔loose): how much equity / how strong a holding the bot requires to
       continue — e.g. a continuing-equity threshold and/or the width of the range it plays and the
       range it assigns villain. - **Aggression** (passive↔aggressive): how often it bets/raises rather than checks/calls with a
       given hand, and how big it sizes (as a fraction of pot).
       Document each field's units and range clearly (the doc-comment density of engine/odds).
-- [ ] Named presets covering the four quadrants, using standard poker labels, e.g.:
+- [x] Named presets covering the four quadrants, using standard poker labels, e.g.:
       tight-aggressive (TAG), loose-aggressive (LAG), tight-passive (rock/nit), loose-passive
       (calling station). Plus a sensible default.
-- [ ] The parameters are consumed by — and therefore validated against — the policy in
+- [x] The parameters are consumed by — and therefore validated against — the policy in
       [[0020-heuristic-opponent]]; provide validation (ranges in `0..1`, etc.) with clear errors.
-- [ ] Unit tests: presets are well-formed and meaningfully distinct (e.g. tight threshold > loose
+- [x] Unit tests: presets are well-formed and meaningfully distinct (e.g. tight threshold > loose
       threshold; aggressive bet-frequency > passive); validation rejects out-of-range knobs.
 
 ## Notes
