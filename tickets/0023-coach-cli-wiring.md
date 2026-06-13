@@ -2,7 +2,7 @@
 id: 0023
 title: Wire the coach into the CLI runner
 type: feature
-status: todo
+status: done
 milestone: M3
 priority: high
 created: 2026-06-13
@@ -17,12 +17,12 @@ payoff: the terminal becomes the feedback loop the whole design front-loads.
 
 ## Acceptance criteria
 
-- [ ] `apps/cli` consumes `@holdem/coach` and prints the per-decision verdict for the hero's spots
+- [x] `apps/cli` consumes `@holdem/coach` and prints the per-decision verdict for the hero's spots
       (postflop: equity / pot odds / EV-correct action / good-or-leak; preflop: the chart tier +
       rationale).
-- [ ] The coaching output is readable in the existing terminal rendering style (see `table.ts`) and
+- [x] The coaching output is readable in the existing terminal rendering style (see `table.ts`) and
       does not break the play loop or leak the bot's hole cards.
-- [ ] Rendering helpers added in `apps/cli` are unit-tested in the existing `table.test.ts` style;
+- [x] Rendering helpers added in `apps/cli` are unit-tested in the existing `table.test.ts` style;
       `pnpm verify` green.
 
 ## Notes

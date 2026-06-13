@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@holdem/bots": "workspace:*",
+    "@holdem/coach": "workspace:*",
     "@holdem/engine": "workspace:*"
   },
   "devDependencies": {

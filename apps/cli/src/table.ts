@@ -14,6 +14,7 @@ import {
   type LegalActions,
   type PlayerState,
 } from '@holdem/engine'
+import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
 
 /** Result of parsing a line of human input: a legal action, or a message to reprint. */
 export type ParseResult = { ok: true; action: Action } | { ok: false; error: string }
@@ -141,5 +142,59 @@ export function renderResult(state: HandState, heroSeat: number): string {
     const won = state.payouts[p.seat] ?? 0
     if (won > 0) lines.push(`  ${p.seat === heroSeat ? 'You' : 'Bot'} collect ${won}`)
   }
+  return lines.join('\n')
+}
+
+/** Format a `0..1` equity/pot-odds fraction as a one-decimal percent, e.g. `0.625 → "62.5%"`. */
+function pct(fraction: number): string {
+  return `${(fraction * 100).toFixed(1)}%`
+}
+
+/** Format a chip EV as a signed number, e.g. `4 → "+4"`, `-1.5 → "-1.5"`, `0 → "0"`. */
+function signedChips(ev: number): string {
+  // Round to one decimal *first* so a near-zero EV renders a bare, unsigned `0` rather than
+  // a misleading signed zero (`-0.04 → "0"`, not `"-0"`; also handles JS negative zero).
+  const rounded = Math.round(ev * 10) / 10
+  if (rounded === 0) return '0'
+  // Trim a trailing `.0` so whole-chip EVs read clean (`+4`, not `+4.0`).
+  const magnitude = Math.abs(rounded).toFixed(1).replace(/\.0$/, '')
+  return rounded < 0 ? `-${magnitude}` : `+${magnitude}`
+}
+
+/** The human-readable headline for each {@link DecisionVerdict.verdict} tag. */
+const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>> = {
+  good: 'Good — your action agreed with the math.',
+  leak: 'Leak — the math pointed the other way.',
+  breakEven: 'Break-even — a coin-flip spot; either way is fine.',
+}
+
+/**
+ * Render the coach's feedback on the hero's decision in the existing `── Section ──` /
+ * two-space-indented style of {@link renderState} / {@link renderResult}.
+ *
+ * Always shows the postflop-math view of the spot the hero faced: the estimated equity, the
+ * pot-odds threshold it is judged against, the chip EV of calling, the EV-correct action
+ * (continue vs. fold), and the good/leak/break-even verdict — all taken verbatim from the
+ * {@link DecisionVerdict} the coach computed (the CLI does no math of its own). When the
+ * decision was preflop, pass the {@link StartingHandVerdict} too and its starting-hand chart
+ * tier + rationale lead the block, mirroring how a learner reaches for the chart first
+ * preflop and the pot-odds math postflop.
+ */
+export function renderCoachFeedback(
+  verdict: DecisionVerdict,
+  preflop?: StartingHandVerdict,
+): string {
+  const lines = ['', `── Coach ${'─'.repeat(39)}`]
+  if (preflop) {
+    // The rationale is a self-contained, tier-named sentence (e.g. "Premium holding — …"),
+    // so we render it as-is rather than prefixing `cap(tier)` and doubling the tier word.
+    lines.push(`  Starting hand: ${preflop.rationale}`)
+  }
+  lines.push(
+    `  Equity ${pct(verdict.equity)}  vs pot odds ${pct(verdict.potOddsThreshold)}` +
+      `  EV(call) ${signedChips(verdict.callEv)}`,
+  )
+  lines.push(`  EV-correct: ${verdict.correctDecision}`)
+  lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
   return lines.join('\n')
 }
