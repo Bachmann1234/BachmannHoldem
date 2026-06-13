@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "packages/engine" }, { "path": "packages/odds" }, { "path": "apps/cli" }]
+  "references": [
+    { "path": "packages/engine" },
+    { "path": "packages/odds" },
+    { "path": "packages/bots" },
+    { "path": "apps/cli" }
+  ]
 }
