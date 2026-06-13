@@ -4,6 +4,7 @@
     { "path": "packages/engine" },
     { "path": "packages/odds" },
     { "path": "packages/bots" },
+    { "path": "packages/coach" },
     { "path": "apps/cli" }
   ]
 }

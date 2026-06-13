@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { LegalActions } from '@holdem/engine'
-import { parseAction } from './table.js'
+import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
+import { parseAction, renderCoachFeedback } from './table.js'
 
 /** A legal-actions snapshot facing a bet: can fold, call 10, or raise to 20-100. */
 const facingBet: LegalActions = {
@@ -61,5 +62,80 @@ describe('parseAction', () => {
   it('rejects gibberish', () => {
     expect(parseAction('', facingBet).ok).toBe(false)
     expect(parseAction('xyz', facingBet).ok).toBe(false)
+  })
+})
+
+/** A postflop verdict the hero played correctly: a +EV call that agreed with the math. */
+const goodCall: DecisionVerdict = {
+  equity: 0.625,
+  potOddsThreshold: 0.25,
+  callEv: 4,
+  correctDecision: 'continue',
+  heroContinued: true,
+  verdict: 'good',
+}
+
+/** A leak: the hero called off below the pot-odds threshold. */
+const leakCall: DecisionVerdict = {
+  equity: 0.18,
+  potOddsThreshold: 0.33,
+  callEv: -1.5,
+  correctDecision: 'fold',
+  heroContinued: true,
+  verdict: 'leak',
+}
+
+const premium: StartingHandVerdict = {
+  tier: 'premium',
+  rationale: 'Premium holding — always raise; you want chips in.',
+}
+
+describe('renderCoachFeedback', () => {
+  it('renders the postflop math view in the section style', () => {
+    const out = renderCoachFeedback(goodCall)
+    expect(out).toContain('── Coach ')
+    // Equity and pot odds as one-decimal percents, EV as a signed chip number.
+    expect(out).toContain('Equity 62.5%')
+    expect(out).toContain('pot odds 25.0%')
+    expect(out).toContain('EV(call) +4')
+    expect(out).toContain('EV-correct: continue')
+    expect(out).toContain('Good')
+  })
+
+  it('flags a leak and shows the EV-correct fold', () => {
+    const out = renderCoachFeedback(leakCall)
+    expect(out).toContain('EV(call) -1.5')
+    expect(out).toContain('EV-correct: fold')
+    expect(out).toContain('Leak')
+  })
+
+  it('omits the starting-hand line when no preflop verdict is given', () => {
+    expect(renderCoachFeedback(goodCall)).not.toContain('Starting hand')
+  })
+
+  it('leads with the starting-hand chart rationale preflop', () => {
+    const out = renderCoachFeedback(goodCall, premium)
+    expect(out).toContain('Starting hand: Premium holding')
+    // The math view still renders alongside the chart line.
+    expect(out).toContain('Equity 62.5%')
+  })
+
+  it('renders a near-zero / break-even EV as a bare 0, never a signed zero', () => {
+    // A break-even coin-flip: equity sits on the threshold and the chip EV rounds to ~0.
+    const breakEven: DecisionVerdict = {
+      equity: 0.5,
+      potOddsThreshold: 0.5,
+      callEv: -0.04, // rounds to 0; must not print "-0"
+      correctDecision: 'continue',
+      heroContinued: true,
+      verdict: 'breakEven',
+    }
+    const out = renderCoachFeedback(breakEven)
+    expect(out).toContain('EV(call) 0')
+    expect(out).not.toContain('-0')
+    expect(out).not.toContain('+0')
+    // The free-check / on-threshold boundary still renders cleanly as a percent.
+    expect(out).toContain('pot odds 50.0%')
+    expect(out).toContain('Break-even')
   })
 })

@@ -16,11 +16,24 @@ import {
   applyAction,
   isComplete,
   makeDeck,
+  type Action,
   type Card,
   type HandState,
 } from '@holdem/engine'
-import { decisionContext, heuristicOpponent, TIGHT_AGGRESSIVE } from '@holdem/bots'
-import { parseAction, renderState, renderResult, renderLegal } from './table.js'
+import {
+  decisionContext,
+  heuristicOpponent,
+  TIGHT_AGGRESSIVE,
+  type DecisionContext,
+} from '@holdem/bots'
+import { coachDecision, classifyStartingHand } from '@holdem/coach'
+import {
+  parseAction,
+  renderState,
+  renderResult,
+  renderLegal,
+  renderCoachFeedback,
+} from './table.js'
 
 const HERO = 0
 const BOT = 1
@@ -88,17 +101,39 @@ async function prompt(text: string): Promise<string | null> {
 }
 
 /**
- * Prompt the hero until they enter a legal action. Returns `null` if input ends (the
- * caller treats that as quitting).
+ * Prompt the hero until they enter a legal action. Returns the chosen {@link Action} (not
+ * the next state) so the caller can both coach the decision and apply it; `null` if input
+ * ends (the caller treats that as quitting).
  */
-async function askHero(state: HandState): Promise<HandState | null> {
+async function askHero(state: HandState): Promise<Action | null> {
   const legal = legalActions(state)
   for (;;) {
     const line = await prompt(`\n${renderLegal(legal)}\n> `)
     if (line === null) return null
     const parsed = parseAction(line, legal)
-    if (parsed.ok) return applyAction(state, parsed.action)
+    if (parsed.ok) return parsed.action
     console.log(parsed.error)
+  }
+}
+
+/**
+ * Coach the hero's decision and print the verdict. Builds nothing of its own beyond reading
+ * the spot: the `ctx` was captured while it was still the hero's turn (so `decisionContext`
+ * accepted it), and the verdict math lives entirely in `@holdem/coach`. Preflop we also hand
+ * the coach the starting-hand chart classification.
+ *
+ * Coaching is strictly *advisory*, so it must never break the game: any throw from the coach
+ * (a malformed spot the verdict math rejects) is caught and degraded to a one-line notice
+ * rather than crashing the hand mid-loop. The play continues either way.
+ */
+function coachHero(ctx: DecisionContext, action: Action): void {
+  try {
+    const verdict = coachDecision(ctx, action)
+    const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
+    console.log(renderCoachFeedback(verdict, preflop))
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    console.log(`\n(Coaching unavailable for this spot — ${reason})`)
   }
 }
 
@@ -121,9 +156,13 @@ async function playHand(
   while (!isComplete(state)) {
     console.log(renderState(state, HERO))
     if (state.toAct === HERO) {
-      const next = await askHero(state)
-      if (next === null) return null
-      state = next
+      // Capture the coach's view of the spot while it is still the hero's turn —
+      // `decisionContext` throws once the action is applied and the turn moves on.
+      const ctx = decisionContext(state, HERO)
+      const action = await askHero(state)
+      if (action === null) return null
+      state = applyAction(state, action)
+      coachHero(ctx, action)
     } else {
       const action = await Promise.resolve(bot.decide(decisionContext(state, BOT)))
       const detail = 'amount' in action ? ` ${action.amount}` : ''
