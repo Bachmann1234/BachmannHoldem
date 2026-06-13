@@ -20,8 +20,8 @@ milliseconds (no browser needed).
 ```
 packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)
 packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
-packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)   <- you are here
-packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)
+packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
+packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)   <- you are here
 apps/cli          terminal hand runner — the engine's feedback loop   (Node)
 apps/pwa          SvelteKit PWA — the only Android/web-aware module
 ```
@@ -41,7 +41,7 @@ pnpm test:watch    # watch mode
 pnpm typecheck     # tsc project references build
 pnpm lint          # eslint
 pnpm format        # prettier --write
-pnpm play          # play a hand in the terminal vs. the heuristic bot
+pnpm play          # play hands in the terminal vs. the bot, with per-decision coaching
 ```
 
 `pnpm verify` is exactly what the pre-push hook and CI run, so a clean `verify` means a green push.
