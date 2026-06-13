@@ -41,7 +41,7 @@ pnpm test:watch    # watch mode
 pnpm typecheck     # tsc project references build
 pnpm lint          # eslint
 pnpm format        # prettier --write
-pnpm play          # play a hand in the terminal vs. an always-call bot
+pnpm play          # play a hand in the terminal vs. the heuristic bot
 ```
 
 `pnpm verify` is exactly what the pre-push hook and CI run, so a clean `verify` means a green push.

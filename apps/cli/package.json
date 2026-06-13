@@ -3,12 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Thin terminal harness to play a hand against a trivial bot — the M0–M3 feedback loop.",
+  "description": "Thin terminal harness to play a hand against a heuristic bot — the M0–M3 feedback loop.",
   "scripts": {
     "play": "tsx src/play.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@holdem/bots": "workspace:*",
     "@holdem/engine": "workspace:*"
   },
   "devDependencies": {

@@ -22,6 +22,7 @@
  */
 
 import type { Action } from '@holdem/engine'
+import { mulberry32 } from '@holdem/odds'
 
 import type { DecisionContext } from './context.js'
 
@@ -46,9 +47,10 @@ export interface Opponent {
 }
 
 /**
- * The placeholder opponent ported from the CLI's `alwaysCallBot`: it never folds and
- * never raises — it checks when checking is free and otherwise calls. (`legalActions`
- * caps the call amount at the stack, so a call here is an all-in when the bot is short.)
+ * The classic "calling station": it never folds and never raises — it checks when
+ * checking is free and otherwise calls. (`legalActions` caps the call amount at the stack,
+ * so a call here is an all-in when the bot is short.) This is the bots-package home of the
+ * trivial opponent the CLI play harness used before it adopted {@link HeuristicOpponent}.
  *
  * Useful as a passive baseline and as a "station" to test value betting against.
  */
@@ -84,23 +86,16 @@ export const rock: Opponent = {
 }
 
 /**
- * A tiny, well-known 32-bit PRNG (mulberry32): one multiply-xor-shift round per call,
- * returning a float in `[0, 1)`. Inlined here (rather than importing `@holdem/odds`) to
- * keep this package's dependency footprint to `@holdem/engine` only — the seeded bot is
- * the sole consumer and needs nothing more.
+ * The seeded 32-bit PRNG the bots use, re-exported from `@holdem/odds` (its canonical
+ * home, where the equity sampler already uses it). `@holdem/bots` depends on `@holdem/odds`
+ * anyway — for the equity reads in {@link estimateEquity} — so there is no footprint to
+ * save by re-implementing it here; sharing the one definition keeps every "same seed ⇒
+ * identical sequence" guarantee in the project pointing at a single source of truth.
  *
- * Same seed ⇒ identical sequence, so a {@link randomBot} is fully reproducible in tests.
+ * Re-exported (not just imported) because the seeded bots below and {@link HeuristicOpponent}
+ * are its consumers and tests reach for it directly.
  */
-export function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+export { mulberry32 }
 
 /**
  * A seeded-random opponent that uniformly picks among its **currently legal** simple

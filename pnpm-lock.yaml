@@ -47,6 +47,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@holdem/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
       '@holdem/engine':
         specifier: workspace:*
         version: link:../../packages/engine
