@@ -90,6 +90,34 @@ export const COACH_SEED = 0
 export const EPSILON = 0.02
 
 /**
+ * The mental model a graded spot exercises — the name of the *idea* a verdict turns on.
+ *
+ * The coach narrates raw numbers (`equity`, `potOddsThreshold`, `callEv`, `verdict`) against a
+ * framework it assumes the player already holds; M4.5's Foundations primer
+ * ([[0042-foundations-primer]]) teaches that framework, and tagging every verdict with the idea it
+ * exercises is what lets the primer, the play coach, and the future M5 drills cross-link a live spot
+ * to its lesson ("this is the pot-odds idea from Foundations"). The values are exactly the models
+ * the coach uses and the primer teaches:
+ *
+ * - `'equity'` — your share of the pot if the hand went to showdown right now: how good the hand is,
+ *   independent of any price. The lens for a free decision, where there is nothing to weigh it
+ *   against.
+ * - `'pot-odds'` — the break-even price: what fraction of the pot a call costs, i.e. the minimum
+ *   equity a call needs to be worthwhile. The idea in isolation, before it is weighed against equity.
+ * - `'equity-vs-price'` — the continue decision proper: weighing your {@link DecisionVerdict.equity}
+ *   against the {@link DecisionVerdict.potOddsThreshold pot-odds price} to decide whether putting
+ *   chips in is profitable. The primary idea a *priced* continue verdict turns on.
+ * - `'ev'` — expected value: the chip-denominated worth of a decision over the long run, the number
+ *   that says not just *whether* a play is right but *how much* it is worth.
+ * - `'position'` — acting later than your opponents is an edge: more information and more control over
+ *   the pot, which widens the hands you can profitably play.
+ * - `'ranges'` — thinking in the *set* of hands rather than one holding: the strength tiers a
+ *   starting-hand chart sorts hands into, and the assumed range you read equity against. The lens the
+ *   preflop chart grades through.
+ */
+export type Concept = 'equity' | 'pot-odds' | 'equity-vs-price' | 'ev' | 'position' | 'ranges'
+
+/**
  * The EV-correct continue decision the math points to, independent of what the hero did.
  *
  * - `'continue'` — the hero's equity meets or beats the pot-odds threshold (the call/check
@@ -153,6 +181,22 @@ export interface DecisionVerdict {
   readonly heroContinued: boolean
   /** Whether the hero's action was a `'good'` play, a `'leak'`, or a `'breakEven'` coin-flip. */
   readonly verdict: ActionVerdict
+  /**
+   * The primary mental model this decision turns on — the cross-link to the Foundations primer
+   * ([[0042-foundations-primer]]). A single verdict touches equity, pot odds, and EV all at once, so
+   * this names the *one* idea the decision hinges on rather than every number it reports:
+   *
+   * - A **free check** (`toCall === 0`) → `'equity'`. There is no price to weigh, so the decision is
+   *   purely reading your share of the pot.
+   * - **Facing a price** (`toCall > 0`, both the break-even and the clear-decision branches) →
+   *   `'equity-vs-price'`. The continue decision turns on weighing equity against the pot-odds price.
+   *
+   * `'pot-odds'`, `'ev'`, and `'position'` exist in the {@link Concept} union for the primer
+   * ([[0045-foundations-primer-content]]) and M5 drills to tag spots that *isolate* those ideas, even
+   * though the live continue-verdict here rolls them into `'equity-vs-price'`. The tag is derived from
+   * the spot, never hand-fed.
+   */
+  readonly concept: Concept
 }
 
 /**
@@ -184,6 +228,11 @@ export interface DecisionVerdict {
  * Note we grade only *whether* to put chips in, not *how much*: a `bet`/`raise` is scored
  * exactly like a `call`/`check` (a continue). Grading sizing needs fold-equity assumptions
  * we do not own deterministically and is out of scope (see the module doc).
+ *
+ * Each verdict is tagged with the {@link Concept} it exercises, derived from the spot: a free check
+ * is the `'equity'` idea (no price to weigh), and any priced continue — break-even or clear — is the
+ * `'equity-vs-price'` idea (the decision turns on weighing equity against the price). See the
+ * {@link DecisionVerdict.concept} doc for the full mapping rationale.
  *
  * The equity is a seeded ({@link COACH_SEED}) Monte-Carlo estimate against
  * {@link COACH_ASSUMED_RANGE}, read against the `ctx.numActive - 1` opponents actually live
@@ -230,6 +279,8 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       correctDecision: 'continue',
       heroContinued,
       verdict: heroContinued ? 'good' : 'leak',
+      // No price to weigh — the decision is purely reading your share of the pot.
+      concept: 'equity',
     }
   }
 
@@ -243,6 +294,8 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       correctDecision: 'continue',
       heroContinued,
       verdict: 'breakEven',
+      // Facing a price: the continue decision turns on weighing equity against that price.
+      concept: 'equity-vs-price',
     }
   }
 
@@ -262,5 +315,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
     correctDecision,
     heroContinued,
     verdict: heroWasCorrect ? 'good' : 'leak',
+    // Facing a price: the continue decision turns on weighing equity against that price.
+    concept: 'equity-vs-price',
   }
 }

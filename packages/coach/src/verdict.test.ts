@@ -211,6 +211,39 @@ describe('coachDecision — break-even tolerance band', () => {
   })
 })
 
+describe('coachDecision — concept tag (the Foundations cross-link)', () => {
+  it('a free check (no price) is the equity idea', () => {
+    const spot = ctx({ holeCards: hole('7h2c'), pot: 100, toCall: 0 })
+    // There is nothing to weigh against, so the decision is purely reading equity.
+    expect(coachDecision(spot, CHECK).concept).toBe('equity')
+    expect(coachDecision(spot, FOLD).concept).toBe('equity')
+  })
+
+  it('a clearly priced continue (good or leak) is the equity-vs-price idea', () => {
+    // +EV value spot (good) and the −EV overpay (leak) both hinge on equity vs the price.
+    const value = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
+    const overpay = ctx({ holeCards: hole('7h2c'), pot: 100, toCall: 200 })
+    expect(coachDecision(value, CALL).verdict).toBe('good')
+    expect(coachDecision(value, CALL).concept).toBe('equity-vs-price')
+    expect(coachDecision(overpay, CALL).verdict).toBe('leak')
+    expect(coachDecision(overpay, CALL).concept).toBe('equity-vs-price')
+  })
+
+  it('a break-even priced spot is also the equity-vs-price idea', () => {
+    // Same coin-flip construction as the tolerance-band test: priced right on the threshold.
+    const holeCards = hole('AsAh')
+    const board = parseCards('Kd 7c 2h')
+    const equity = coachEquity(holeCards, board)
+    const pot = 100
+    const toCall = Math.round((equity * pot) / (1 - equity))
+    const spot = ctx({ holeCards, board, pot, toCall })
+
+    const v = coachDecision(spot, CALL)
+    expect(v.verdict).toBe('breakEven')
+    expect(v.concept).toBe('equity-vs-price')
+  })
+})
+
 describe('coachDecision — input validation (odds/bots RangeError idiom)', () => {
   it('throws on a negative pot', () => {
     expect(() =>

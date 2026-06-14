@@ -2,7 +2,7 @@
 id: 0043
 title: Tag every coach verdict with the concept it exercises
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -22,16 +22,16 @@ stays pure and the field is additive (existing consumers ignore it).
 
 ## Acceptance criteria
 
-- [ ] A `Concept` string-union type, exported from `@holdem/coach`, covering the models the coach
+- [x] A `Concept` string-union type, exported from `@holdem/coach`, covering the models the coach
       actually uses: `'equity'`, `'pot-odds'`, `'equity-vs-price'`, `'ev'`, `'position'`, `'ranges'`
       (the same set [[0042-foundations-primer]] lists). Each value carries a doc comment.
-- [ ] `DecisionVerdict` (postflop, `verdict.ts`) gains a `readonly concept: Concept` field set to the
+- [x] `DecisionVerdict` (postflop, `verdict.ts`) gains a `readonly concept: Concept` field set to the
       idea the graded decision exercises — the continue decision against a price is `'equity-vs-price'`;
       a free check (no price) is `'equity'` (there is no price to weigh). Decide and **document** the
       mapping in the doc comment; keep it derived from the spot, not hand-fed.
-- [ ] `PreflopVerdict` (chart, `preflop.ts`) gains the same `readonly concept: Concept` field, set to
+- [x] `PreflopVerdict` (chart, `preflop.ts`) gains the same `readonly concept: Concept` field, set to
       `'ranges'` (the starting-hand chart is the ranges/strength-tier idea). Document why.
-- [ ] Tests cover the concept assignment for each branch (free check, priced continue, preflop), and
+- [x] Tests cover the concept assignment for each branch (free check, priced continue, preflop), and
       the existing verdict/preflop tests stay green. `pnpm verify` green above coverage thresholds.
 
 ## Notes

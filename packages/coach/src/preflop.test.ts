@@ -295,4 +295,14 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
     const dup = parseCards('As As') as [Card, Card]
     expect(() => gradePreflop(preflopCtx({ holeCards: dup }), CALL)).toThrow(RangeError)
   })
+
+  it('tags every preflop verdict with the ranges concept (the chart IS the ranges idea)', () => {
+    // True across the open, fold, and free-check paths and across tiers — preflop is always graded
+    // off the strength-tier chart, never the postflop equity-vs-price lens.
+    expect(gradePreflop(preflopCtx({ holeCards: hole('AsAh') }), CALL).concept).toBe('ranges')
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7h2c') }), FOLD).concept).toBe('ranges')
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7c2d'), seat: 1 }), CHECK).concept).toBe(
+      'ranges',
+    )
+  })
 })

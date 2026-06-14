@@ -34,6 +34,7 @@ const GOOD: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  concept: 'equity-vs-price',
 }
 
 /** A leak: the math pointed to folding, a negative call EV. */
@@ -44,6 +45,7 @@ const LEAK: DecisionVerdict = {
   correctDecision: 'fold',
   heroContinued: true,
   verdict: 'leak',
+  concept: 'equity-vs-price',
 }
 
 /** A break-even coin-flip. */
@@ -54,6 +56,7 @@ const BREAKEVEN: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'breakEven',
+  concept: 'equity-vs-price',
 }
 
 /** A free check: no bet to call, so `potOddsThreshold === 0`. */
@@ -64,6 +67,7 @@ const FREE_CHECK: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  concept: 'equity',
 }
 
 describe('CoachDrawer — verdict state', () => {
@@ -118,6 +122,7 @@ describe('CoachDrawer — preflop state', () => {
     advice: 'open',
     heroContinued: true,
     verdict: 'good',
+    concept: 'ranges',
   }
 
   it('renders the chart rationale and the shared good headline', () => {

@@ -68,6 +68,7 @@ const goodCall: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  concept: 'equity-vs-price',
 }
 
 /** A leak: the hero called off below the pot-odds threshold. */
@@ -78,6 +79,7 @@ const leakCall: DecisionVerdict = {
   correctDecision: 'fold',
   heroContinued: true,
   verdict: 'leak',
+  concept: 'equity-vs-price',
 }
 
 /** A preflop grade off the chart: a premium hand the hero correctly entered the pot with. */
@@ -87,6 +89,7 @@ const premiumOpen: PreflopVerdict = {
   advice: 'open',
   heroContinued: true,
   verdict: 'good',
+  concept: 'ranges',
 }
 
 describe('renderCoachFeedback', () => {
@@ -121,6 +124,7 @@ describe('renderCoachFeedback', () => {
       correctDecision: 'continue',
       heroContinued: true,
       verdict: 'breakEven',
+      concept: 'equity-vs-price',
     }
     const out = renderCoachFeedback(breakEven)
     expect(out).toContain('EV(call) 0')
@@ -156,6 +160,7 @@ describe('renderPreflopCoach', () => {
       advice: 'open',
       heroContinued: false,
       verdict: 'leak',
+      concept: 'ranges',
     })
     expect(out).toContain('Starting hand: Strong value hand')
     expect(out).toContain('Leak')

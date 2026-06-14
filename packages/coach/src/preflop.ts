@@ -27,7 +27,7 @@
 import { formatCard, type Action, type Card } from '@holdem/engine'
 import type { DecisionContext } from '@holdem/bots'
 import { parseRange, type Combo, type Range } from '@holdem/odds'
-import type { ActionVerdict } from './verdict.js'
+import type { ActionVerdict, Concept } from './verdict.js'
 
 /**
  * The strength ladder a starting hand classifies into, strongest first.
@@ -245,6 +245,14 @@ export interface PreflopVerdict {
    * the chart gives a crisp open/fold call, not a coin-flip band.)
    */
   readonly verdict: ActionVerdict
+  /**
+   * The mental model this decision turns on — always `'ranges'` preflop. The starting-hand chart
+   * *is* the ranges/strength-tier idea: it grades by sorting the holding into a {@link PreflopTier}
+   * and consulting the range that tier represents, never by weighing equity against a price (the
+   * postflop `'equity-vs-price'` lens, which preflop deliberately rejects). This is the cross-link to
+   * the Foundations primer's ranges lesson ([[0042-foundations-primer]]); see {@link Concept}.
+   */
+  readonly concept: Concept
 }
 
 /**
@@ -304,6 +312,8 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
       advice: 'open',
       heroContinued: true,
       verdict: 'good',
+      // Preflop grading is always the ranges/strength-tier idea (see PreflopVerdict.concept).
+      concept: 'ranges',
     }
   }
 
@@ -311,5 +321,6 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
   const heroContinued = action.type !== 'fold'
   // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
   const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'
-  return { tier, rationale, advice, heroContinued, verdict }
+  // Preflop grading is always the ranges/strength-tier idea (see PreflopVerdict.concept).
+  return { tier, rationale, advice, heroContinued, verdict, concept: 'ranges' }
 }

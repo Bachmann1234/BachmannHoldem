@@ -25,6 +25,7 @@ function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
       correctDecision: 'continue',
       heroContinued: true,
       verdict: tag,
+      concept: 'equity-vs-price',
     },
   }
 }
@@ -72,6 +73,7 @@ describe('CoachFab — ring reflects the coach state', () => {
         advice: 'open',
         heroContinued: true,
         verdict: 'good',
+        concept: 'ranges',
       },
     }
     render(<CoachFab coach={coach} onOpen={vi.fn()} />)
