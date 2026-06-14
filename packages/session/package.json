@@ -1,0 +1,20 @@
+{
+  "name": "@holdem/session",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure-TS MVU session core — the model + reducer (session state machine + coach grading) both play clients consume.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/bots": "workspace:*",
+    "@holdem/coach": "workspace:*",
+    "@holdem/engine": "workspace:*"
+  }
+}

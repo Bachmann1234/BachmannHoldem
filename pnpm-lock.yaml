@@ -81,6 +81,9 @@ importers:
       '@holdem/format':
         specifier: workspace:*
         version: link:../../packages/format
+      '@holdem/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       ink:
         specifier: ^7.0.6
         version: 7.0.6(@types/react@19.2.17)(react-devtools-core@6.1.5)(react@19.2.7)
@@ -132,6 +135,18 @@ importers:
 
   packages/odds:
     dependencies:
+      '@holdem/engine':
+        specifier: workspace:*
+        version: link:../engine
+
+  packages/session:
+    dependencies:
+      '@holdem/bots':
+        specifier: workspace:*
+        version: link:../bots
+      '@holdem/coach':
+        specifier: workspace:*
+        version: link:../coach
       '@holdem/engine':
         specifier: workspace:*
         version: link:../engine

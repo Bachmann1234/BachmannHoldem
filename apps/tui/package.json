@@ -13,6 +13,7 @@
     "@holdem/coach": "workspace:*",
     "@holdem/engine": "workspace:*",
     "@holdem/format": "workspace:*",
+    "@holdem/session": "workspace:*",
     "ink": "^7.0.6",
     "react": "^19.2.7"
   },

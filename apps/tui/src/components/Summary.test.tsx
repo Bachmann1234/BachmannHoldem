@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
 import { Summary } from './Summary.js'
-import type { SessionPlayer } from '../model.js'
+import type { SessionPlayer } from '@holdem/session'
 
 function plain(frame: string): string {
   return frame.replace(/\[[0-9;]*m/g, '')

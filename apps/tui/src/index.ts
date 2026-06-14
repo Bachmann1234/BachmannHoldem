@@ -7,6 +7,5 @@
  * they are the I/O shell, exercised via `ink-testing-library`.
  */
 
-export * from './model.js'
-export * from './reducer.js'
+export * from '@holdem/session'
 export * from './input.js'

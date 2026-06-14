@@ -8,7 +8,7 @@
  */
 
 import { Box, Text } from 'ink'
-import { livePlayers, type SessionPlayer } from '../model.js'
+import { livePlayers, type SessionPlayer } from '@holdem/session'
 
 /** Props for {@link Summary}: the final stable players and how many hands were played. */
 export interface SummaryProps {

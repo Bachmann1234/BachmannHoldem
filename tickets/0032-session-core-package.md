@@ -2,7 +2,7 @@
 id: 0032
 title: Extract the shared MVU session core into @holdem/session
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: high
 created: 2026-06-13
@@ -23,18 +23,18 @@ This is pure plumbing with **no behaviour change** — the TUI must render and p
 
 ## Acceptance criteria
 
-- [ ] New pure package `packages/session` (sibling shape to `packages/format`): `package.json`
+- [x] New pure package `packages/session` (sibling shape to `packages/format`): `package.json`
       (`@holdem/session`, deps on `@holdem/engine`/`@holdem/bots`/`@holdem/coach`), `tsconfig.json`
       (project references to those packages), `src/index.ts` exporting the public API.
-- [ ] `apps/tui/src/model.ts` and `apps/tui/src/reducer.ts` move into `packages/session/src/` with
+- [x] `apps/tui/src/model.ts` and `apps/tui/src/reducer.ts` move into `packages/session/src/` with
       their doc comments intact; `reducer.test.ts` moves with them and stays green.
-- [ ] `apps/tui` consumes `@holdem/session` (its `package.json` adds the workspace dep; `Root.tsx`/
+- [x] `apps/tui` consumes `@holdem/session` (its `package.json` adds the workspace dep; `Root.tsx`/
       `App.tsx`/components import `Model`/`Msg`/`reducer`/helpers from `@holdem/session` instead of
       local `./model.js` / `./reducer.js`). No MVU logic remains in `apps/tui`.
-- [ ] Wired into the build: root `tsconfig.json` references `packages/session`; `apps/tui` tsconfig
+- [x] Wired into the build: root `tsconfig.json` references `packages/session`; `apps/tui` tsconfig
       references it; `vitest.config.ts` coverage `include` gains `packages/session/src/**` (the
       moved `reducer.test.ts` already exercises it thoroughly — keep thresholds green).
-- [ ] Purity preserved: zero UI/DOM/Node/React imports in `packages/session`. `pnpm verify` green.
+- [x] Purity preserved: zero UI/DOM/Node/React imports in `packages/session`. `pnpm verify` green.
 
 ## Notes
 
