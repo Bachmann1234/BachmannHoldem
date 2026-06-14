@@ -1,5 +1,5 @@
 /**
- * The end-of-primer hand-off (ticket 0047) — recreated from the design bundle's `EndOfPrimer`. After
+ * The end-of-primer hand-off (tickets 0047/0048) — recreated from the design bundle's `EndOfPrimer`. After
  * the learner finishes the sixth and last lesson, the path is complete and this warm, restrained
  * celebration takes over: a medal, "You've got the fundamentals.", a recap of all six ideas (each
  * checked, with its concept tag), then the hand-off — a primary **Play a hand →** CTA that switches to
