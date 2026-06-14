@@ -80,12 +80,12 @@ export function ActionBar({
   // The deps are DELIBERATELY narrowed to those four fields — re-seeding on every `pot`/`sizeMin`
   // change would stomp the value mid-edit while the hero drags the slider. (street, toAct,
   // currentBet) uniquely identify a new hero decision point, which is exactly when we want a reseed.
-  // This repo has no `eslint-plugin-react-hooks`, so this invariant is not lint-enforced — keep it.
   useEffect(() => {
     if (!isHeroTurn || sizing === null) return
     const start = clamp(Math.round(pot * 0.66), sizeMin, sizeMax)
     setBetTo(start)
     setSizeKey(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reseed only at a new decision point, never mid-drag (see above)
   }, [isHeroTurn, hand.street, hand.toAct, hand.currentBet])
 
   const applySize = (key: SizeKey): void => {

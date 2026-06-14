@@ -2,7 +2,7 @@
 id: 0040
 title: Add eslint-plugin-react-hooks to enforce effect deps in the React shells
 type: task
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-14
