@@ -42,8 +42,8 @@ import {
   type Opponent,
   type Personality,
 } from '@holdem/bots'
-import { reducer } from './reducer.js'
 import {
+  reducer,
   createInitialModel,
   shuffledDeck,
   MAX_SEATS,
@@ -51,7 +51,7 @@ import {
   type BotKind,
   type InitialModelOptions,
   type SessionPlayer,
-} from './model.js'
+} from '@holdem/session'
 import { App } from './App.js'
 import { ActionBar } from './components/ActionBar.js'
 import { SetupScreen } from './components/SetupScreen.js'

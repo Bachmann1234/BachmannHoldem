@@ -1,0 +1,33 @@
+{
+  "name": "@holdem/pwa",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vite + React PWA play client over the pure poker packages — the M4 browser shell (scaffold).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/bots": "workspace:*",
+    "@holdem/coach": "workspace:*",
+    "@holdem/engine": "workspace:*",
+    "@holdem/format": "workspace:*",
+    "@holdem/session": "workspace:*",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.3.0",
+    "workbox-window": "^7.4.1"
+  }
+}

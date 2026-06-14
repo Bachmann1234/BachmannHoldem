@@ -1,0 +1,46 @@
+name: Deploy PWA
+
+# Deploys apps/pwa to Cloudflare Pages on every push to main (and on demand). It re-runs the full
+# `verify` gate first, so only a green tree ships — the build is never published on a red commit.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — a token with the "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
+# And a one-time Cloudflare Pages project named `bachmann-holdem` (Direct Upload / Wrangler), which
+# serves at https://bachmann-holdem.pages.dev. See README "Deploy" for the exact setup steps.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys race; a newer push supersedes an in-flight one.
+concurrency:
+  group: deploy-pwa
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only a green tree ships — same gate as CI and the pre-push hook.
+      - run: pnpm verify
+
+      - run: pnpm --filter @holdem/pwa build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/pwa/dist --project-name=bachmann-holdem --branch=main

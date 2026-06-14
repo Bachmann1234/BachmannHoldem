@@ -13,8 +13,8 @@
  */
 
 import { Box, Text } from 'ink'
-import type { Model } from './model.js'
-import type { Dispatch } from './reducer.js'
+import type { Model } from '@holdem/session'
+import type { Dispatch } from '@holdem/session'
 import { Table } from './components/Table.js'
 import { CoachPanel } from './components/CoachPanel.js'
 

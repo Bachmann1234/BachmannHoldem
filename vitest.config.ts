@@ -30,6 +30,7 @@ export default defineConfig({
         'packages/odds/src/**',
         'packages/bots/src/**',
         'packages/coach/src/**',
+        'packages/session/src/**',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
       reporter: ['text', 'html'],

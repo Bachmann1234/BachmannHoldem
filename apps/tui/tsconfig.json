@@ -12,6 +12,7 @@
     { "path": "../../packages/engine" },
     { "path": "../../packages/bots" },
     { "path": "../../packages/coach" },
-    { "path": "../../packages/format" }
+    { "path": "../../packages/format" },
+    { "path": "../../packages/session" }
   ]
 }

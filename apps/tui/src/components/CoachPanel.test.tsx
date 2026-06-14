@@ -16,8 +16,8 @@ import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
 import { parseCards, type Card, type HandState } from '@holdem/engine'
 import { CoachPanel } from './CoachPanel.js'
-import { createInitialModel, type Model } from '../model.js'
-import { reducer } from '../reducer.js'
+import { createInitialModel, type Model } from '@holdem/session'
+import { reducer } from '@holdem/session'
 
 /** Build a deck dealing exactly the given hole cards and board (mirrors the engine test helper). */
 function buildDeck(n: number, button: number, holesBySeat: string[], board: string): Card[] {

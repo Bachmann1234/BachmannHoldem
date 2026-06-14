@@ -13,3 +13,6 @@ coverage/
 !.claude/
 .claude/*
 !.claude/skills/
+
+# Playwright MCP scratch (screenshots/snapshots from manual verification)
+.playwright-mcp/

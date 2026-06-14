@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
 import { SetupScreen } from './SetupScreen.js'
-import type { SetupState } from '../model.js'
+import type { SetupState } from '@holdem/session'
 
 /** Strip ANSI escape codes so structural assertions ignore colour. */
 function plain(frame: string): string {

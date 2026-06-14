@@ -6,7 +6,9 @@
     { "path": "packages/bots" },
     { "path": "packages/coach" },
     { "path": "packages/format" },
+    { "path": "packages/session" },
     { "path": "apps/cli" },
-    { "path": "apps/tui" }
+    { "path": "apps/tui" },
+    { "path": "apps/pwa" }
   ]
 }

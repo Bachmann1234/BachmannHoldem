@@ -10,7 +10,7 @@
  */
 
 import { Box, Text } from 'ink'
-import { BOT_LABELS, type SetupState } from '../model.js'
+import { BOT_LABELS, type SetupState } from '@holdem/session'
 
 /** Props for {@link SetupScreen}: the current selection and which control row is highlighted. */
 export interface SetupScreenProps {

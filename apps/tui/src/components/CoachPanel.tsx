@@ -26,7 +26,7 @@
 import { Box, Text } from 'ink'
 import type { DecisionVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
-import type { CoachResult } from '../model.js'
+import type { CoachResult } from '@holdem/session'
 
 /** The Ink `color` prop for each verdict tag: green good / red leak / yellow break-even. */
 const VERDICT_COLOR: Readonly<Record<DecisionVerdict['verdict'], string>> = {
