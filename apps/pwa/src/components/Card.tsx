@@ -48,6 +48,10 @@ export interface CardProps {
 export function Card({ card, size = 'md', winning, muck }: CardProps): React.JSX.Element {
   const suit = suitOf(card)
   const rank = rankOf(card)
+  // On a real card face the ten reads "10", not the "T" notation shorthand (`T` stays in hand
+  // notation / the coach text, e.g. "T9s"). Only the displayed label changes; `data-card` keeps the
+  // canonical single-char rank so tests/selectors are stable.
+  const label = rank === 'T' ? '10' : rank
   const glyph = SUIT_GLYPH[suit]
   const cls = [
     'card',
@@ -62,12 +66,12 @@ export function Card({ card, size = 'md', winning, muck }: CardProps): React.JSX
   return (
     <div className={cls} data-testid="card" data-card={`${rank}${suit}`}>
       <div className="corner tl">
-        <span className="r">{rank}</span>
+        <span className="r">{label}</span>
         <span className="s">{glyph}</span>
       </div>
       <div className="pip">{glyph}</div>
       <div className="corner br">
-        <span className="r">{rank}</span>
+        <span className="r">{label}</span>
         <span className="s">{glyph}</span>
       </div>
     </div>

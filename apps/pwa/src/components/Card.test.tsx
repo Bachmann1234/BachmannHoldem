@@ -28,6 +28,15 @@ describe('Card', () => {
     expect(el.textContent).toContain('♠')
   })
 
+  it('renders the ten as "10" on the card face, not the "T" notation (BUG-0003 follow-up)', () => {
+    const { getByTestId } = render(<Card card={card('T', 'h')} />)
+    const el = getByTestId('card')
+    expect(el.textContent).toContain('10')
+    expect(el.textContent).not.toContain('T')
+    // The canonical single-char rank is still exposed for selectors/tests.
+    expect(el.getAttribute('data-card')).toBe('Th')
+  })
+
   it('maps each suit LETTER to its four-color class and glyph (not by index)', () => {
     for (const suit of SUITS) {
       const { getByTestId, unmount } = render(<Card card={card('K', suit)} />)
