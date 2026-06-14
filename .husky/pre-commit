@@ -1,13 +1,6 @@
-# Block direct commits to main so work happens on branches.
-# Skipped on an unborn branch, so the very first commit is allowed through.
-if git rev-parse --verify HEAD >/dev/null 2>&1; then
-  branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [ "$branch" = "main" ]; then
-    echo "✖ Direct commits to 'main' are blocked."
-    echo "  Create a branch first:  git switch -c <your-branch>"
-    exit 1
-  fi
-fi
-
 # Lint + format only the staged files (fast).
+#
+# Direct commits to main are allowed: the real gate is the pre-push hook, which runs the full
+# `pnpm verify` (format + lint + typecheck + tests) before anything leaves the machine — the same
+# suite CI runs. Branch-per-feature is still the norm, but it's no longer hard-blocked here.
 pnpm exec lint-staged

@@ -38,9 +38,14 @@ jobs:
 
       - run: pnpm --filter @holdem/pwa build
 
+      # Run wrangler via `pnpm dlx` rather than cloudflare/wrangler-action: the action shells out to
+      # `pnpm add wrangler` at the repo root, which pnpm refuses in a workspace
+      # (ERR_PNPM_ADDING_TO_ROOT). `pnpm dlx` fetches wrangler ephemerally — no root install, no
+      # lockfile churn. The project is created on first run if it doesn't exist yet (idempotent).
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/pwa/dist --project-name=bachmann-holdem --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm dlx wrangler@4 pages project create bachmann-holdem --production-branch=main 2>/dev/null || true
+          pnpm dlx wrangler@4 pages deploy apps/pwa/dist --project-name=bachmann-holdem --branch=main
