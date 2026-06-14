@@ -35,8 +35,15 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   consumes M0–M3.
 - **M4 — PWA app shell.** The first "real" version: an installable Android PWA built on the
   already-tested packages. No engine porting — the UI just consumes what M0–M3 produced.
+- **M4.5 — Foundations primer.** The explicit-instruction layer: a short "how to think about a
+  hand" primer that teaches the mental models the coach already assumes (equity, pot odds,
+  equity-vs-price, EV, position, ranges) — each taught by a retrieval check, not prose. The coach
+  scores decisions but assumes you hold the framework; M4.5 builds the framework. It precedes M5
+  because drilling a skill you have no concept for is just faster confusion — the concepts are the
+  dependency the drills rest on, the same way the math (M1) preceded the coach (M3). Its epic is
+  [`0042`](../tickets/0042-foundations-primer.md).
 - **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for
-  verdicts. Comes after there's a UI to host it.
+  verdicts. Comes after there's a UI to host it and the M4.5 framework to drill against.
 - **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
   feedback built on stored hand history.
 - **M7 — LLM coaching (optional).** Natural-language narration on top of the trustworthy math.
@@ -44,9 +51,10 @@ UI exists — so the foundation is trustworthy before anything is built on top o
 - **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
   last: research-grade effort, and everything else should be solid first.
 
-(The half-step **M3.5** is numbered that way deliberately: it slots a terminal UI between the coach
-and the PWA without renumbering the rest of the arc. Its epic is
-[`0024`](../tickets/0024-tui-ink-client.md).)
+(The half-steps **M3.5** and **M4.5** are numbered that way deliberately: each slots a step into the
+arc without renumbering the rest. M3.5 puts a terminal UI between the coach and the PWA (epic
+[`0024`](../tickets/0024-tui-ink-client.md)); M4.5 puts a concept primer between the PWA shell and
+the drills that depend on it (epic [`0042`](../tickets/0042-foundations-primer.md)).)
 
 ## The three ways to get better
 

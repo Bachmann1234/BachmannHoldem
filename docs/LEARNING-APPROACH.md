@@ -29,6 +29,13 @@ asset.
 
 ## What the evidence supports
 
+- **Explicit instruction (M4.5 — Foundations primer).** DeDonno (2008), cited above, found that
+  explicitly teaching strategy/probability _measurably improved play_. The coach scores decisions
+  but assumes the player already holds the framework (equity, pot odds, EV, position, ranges) — so a
+  short primer that teaches those models, by retrieval check rather than prose, is the
+  declarative-knowledge layer the feedback loop rests on. It precedes the drills (a skill you have
+  no concept for can't be usefully drilled). See
+  [../tickets/0042-foundations-primer.md](../tickets/0042-foundations-primer.md).
 - **Drills & quizzes (M5).** Interleaved/randomized practice and retrieval practice (being _tested_,
   not re-reading) both produce more durable learning and transfer. So: **randomize spot types**
   within a drill set, and lean on the quiz/test format as a learning mechanism, not just assessment.
