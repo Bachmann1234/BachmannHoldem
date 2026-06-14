@@ -61,6 +61,7 @@ function preflopCtx(over: {
 const FOLD: Action = { type: 'fold' }
 const CALL: Action = { type: 'call' }
 const RAISE: Action = { type: 'raise', amount: 6 }
+const CHECK: Action = { type: 'check' }
 
 /** Classify a glued two-card string and return just the tier. */
 function tierOf(cards: string): PreflopTier {
@@ -233,6 +234,25 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
     expect(gradePreflop(preflopCtx({ holeCards: hole('7h6h'), ...early }), CALL).advice).toBe(
       'open',
     )
+  })
+
+  it('a free check (big-blind option) is GOOD for ANY hand — never a leak (BUG-0003)', () => {
+    // The bug: in the BB with no raise to call, checking trash was graded a leak because the chart
+    // says "fold". But a free check strictly dominates folding — you see a free flop. Checking is
+    // never a mistake regardless of tier, and folding away a free look would be the pathological
+    // leak.
+    const trash = preflopCtx({ holeCards: hole('Kh8h'), seat: 1, buttonIndex: 0, numPlayers: 2 })
+    expect(gradePreflop(trash, CHECK).verdict).toBe('good')
+    // True across the ladder — checking premium/marginal in the BB is also fine (not maximally
+    // aggressive, but not a leak; the coach grades continue-vs-fold, not raise sizing).
+    expect(gradePreflop(preflopCtx({ holeCards: hole('AsAh'), seat: 1 }), CHECK).verdict).toBe(
+      'good',
+    )
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7c2d'), seat: 1 }), CHECK).verdict).toBe(
+      'good',
+    )
+    // The rationale explains the free flop rather than contradicting the "Good" grade with "fold".
+    expect(gradePreflop(trash, CHECK).rationale).toMatch(/free flop/i)
   })
 
   it('trash is "fold": folding is GOOD, entering is a LEAK', () => {

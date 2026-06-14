@@ -291,6 +291,22 @@ function adviceFor(tier: PreflopTier, latePosition: boolean): PreflopAdvice {
  */
 export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdict {
   const { tier, rationale } = classifyStartingHand(ctx.holeCards)
+
+  // A free check is never a leak. Checking is only legal when there is nothing to call — the big
+  // blind's option after the pot is limped/folded around — and a free flop strictly dominates
+  // folding regardless of how weak the hand is. The open/fold chart is about *entering the pot for
+  // chips*; it simply does not apply when continuing costs nothing. (Raising the limpers is graded
+  // through the chart path below; only the bare check short-circuits here.)
+  if (action.type === 'check') {
+    return {
+      tier,
+      rationale: 'Big-blind option — no raise to call, so check and take the free flop.',
+      advice: 'open',
+      heroContinued: true,
+      verdict: 'good',
+    }
+  }
+
   const advice = adviceFor(tier, isLatePosition(ctx))
   const heroContinued = action.type !== 'fold'
   // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
