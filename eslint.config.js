@@ -6,8 +6,10 @@ import reactHooks from 'eslint-plugin-react-hooks'
 // Flat config as a plain array (ESLint 9/10). We deliberately avoid the `tseslint.config()` helper —
 // its variadic signature is deprecated, and we have no `extends` keys that would need it.
 export default [
-  // Don't lint build output, deps, or coverage.
-  { ignores: ['**/dist/**', '**/build/**', '**/coverage/**'] },
+  // Don't lint build output, deps, coverage, or the vendored design handoff bundles under
+  // docs/design (external claude.ai/design prototypes — reference artefacts kept verbatim, not our
+  // source; the real shell lives in apps/pwa).
+  { ignores: ['**/dist/**', '**/build/**', '**/coverage/**', 'docs/design/**'] },
 
   // Base JS + TypeScript recommended rules (syntactic — no type-aware pass yet, keeps it fast).
   js.configs.recommended,

@@ -17,6 +17,7 @@
     { "path": "../../packages/session" },
     { "path": "../../packages/bots" },
     { "path": "../../packages/coach" },
+    { "path": "../../packages/curriculum" },
     { "path": "../../packages/format" }
   ]
 }

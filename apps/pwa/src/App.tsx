@@ -41,9 +41,15 @@ import { ActionBar } from './components/ActionBar.js'
 import { CoachDrawer } from './components/CoachDrawer.js'
 import { CoachFab } from './components/CoachFab.js'
 import { HistoryView } from './components/HistoryView.js'
+import { EndOfPrimer } from './components/EndOfPrimer.js'
+import { LearnView } from './components/LearnView.js'
+import { LessonPlayer } from './components/LessonPlayer.js'
 import { SetupScreen } from './components/SetupScreen.js'
 import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
+import type { Tab } from './components/TabBar.js'
+import { learnLessons } from './learn/lessonMeta.js'
+import { LocalStorageLessonProgressStore, type LessonProgressStore } from './learn/progressStore.js'
 import {
   assembleRecord,
   IndexedDbHandHistoryStore,
@@ -51,6 +57,7 @@ import {
   type HeroDecision,
 } from './history/index.js'
 import './styles.css'
+import './primer.css'
 
 /** Default bot "thinking" delay (ms) before a bot's action dispatches — for feel. Tests pass `0`. */
 export const DEFAULT_BOT_DELAY_MS = 500
@@ -90,29 +97,187 @@ export interface AppProps {
    * is shared across "New table" remounts so the log is one continuous history.
    */
   readonly historyStore?: HandHistoryStore
+  /**
+   * The on-device store the Learn primer persists lesson progress to (ticket 0048). Defaults to the
+   * `localStorage`-backed store; tests inject a fake / throwing fake so they never touch real storage.
+   * Created once (via a ref) and threaded into {@link LearnBranch}.
+   */
+  readonly progressStore?: LessonProgressStore
 }
 
 /**
  * The interactive app. A `sessionKey` keys the inner {@link Session} so "New table" remounts a
  * brand-new session (fresh reducer state + fresh bot/deck refs) without any reset plumbing.
+ *
+ * **Top-level navigation (ticket 0046)** lives here as app-shell state — `activeTab` (`'play'` |
+ * `'learn'`, boot lands on `'play'`), exactly like the coach-drawer open flag: it is UI, NOT poker
+ * state, so it deliberately stays out of the `@holdem/session` reducer (keeping the session model
+ * unpolluted). The `'play'` branch renders the unchanged {@link Session}; the `'learn'` branch renders
+ * the {@link LearnBranch} (the Foundations path + the placeholder lesson player). The bottom tab bar
+ * shows only on the lobby surfaces (the Play setup screen and the Learn path) — `onNavigate` is
+ * threaded down to both.
+ *
+ * Crucially the {@link Session} is kept *mounted* across tab switches (rendered hidden when Learn is
+ * active) so flipping to Learn and back never tears down a live hand — switching tabs is navigation,
+ * not "New table".
  */
 export function App(props: AppProps): React.JSX.Element {
   const [sessionKey, setSessionKey] = useState(0)
+  // Top-level nav: which path the player is on. App-shell UI state (like coachOpen) — never in the
+  // reducer. Boot lands on Play (the design's locked decision).
+  const [activeTab, setActiveTab] = useState<Tab>('play')
+  const onNavigate = useCallback((tab: Tab) => setActiveTab(tab), [])
   // The default store is created lazily ONCE and reused across "New table" remounts, so the history
   // log is one continuous record of the whole play session (the inner Session remounts; this does
   // not). Tests pass their own `historyStore` and never touch IndexedDB.
   const defaultStoreRef = useRef<HandHistoryStore | null>(null)
   const historyStore =
     props.historyStore ?? (defaultStoreRef.current ??= new IndexedDbHandHistoryStore())
+  // The default progress store is likewise created lazily ONCE (same idiom as historyStore) so the
+  // Learn primer reads/writes one durable on-device record across renders. Tests inject their own.
+  const defaultProgressStoreRef = useRef<LessonProgressStore | null>(null)
+  const progressStore =
+    props.progressStore ??
+    (defaultProgressStoreRef.current ??= new LocalStorageLessonProgressStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
-      <Session
-        key={sessionKey}
-        {...props}
-        historyStore={historyStore}
-        onNewTable={() => setSessionKey((k) => k + 1)}
-      />
+      {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn; just hide it. */}
+      <div hidden={activeTab !== 'play'}>
+        <Session
+          key={sessionKey}
+          {...props}
+          historyStore={historyStore}
+          onNavigate={onNavigate}
+          onNewTable={() => setSessionKey((k) => k + 1)}
+        />
+      </div>
+      {activeTab === 'learn' ? (
+        <LearnBranch onNavigate={onNavigate} progressStore={progressStore} />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * Map the durable set of completed lesson ids to the numeric `progress` the {@link LearnView} consumes:
+ * the length of the **leading run** of completed lessons in `FOUNDATIONS` order. That is the unlocked
+ * prefix — lessons unlock sequentially (§5.4), so progress is "how many from the front are done", i.e.
+ * the index of the first *un*finished lesson and the resume point. A completed id that is out of order
+ * (e.g. a stored blob completed lesson 3 but not 2) does not jump the prefix; only the contiguous
+ * front counts. Ignoring ids not in `learnLessons` is handled by the store (load filters), but the
+ * `.has` check here is also id-set based, so unknown ids simply never match a node.
+ */
+function progressFromCompleted(completedIds: ReadonlySet<string>): number {
+  let n = 0
+  for (const { lesson } of learnLessons) {
+    if (!completedIds.has(lesson.id)) break
+    n += 1
+  }
+  return n
+}
+
+/**
+ * The Learn route (tickets 0046 / 0047 / 0048): the Foundations path, the full {@link LessonPlayer}
+ * once a lesson is opened, and the {@link EndOfPrimer} hand-off once all six lessons are complete.
+ *
+ * Progress is now **durable, on-device** (ticket 0048): the {@link LessonProgressStore} persists the
+ * SET of completed lesson ids. On mount we `load()` it into local state; finishing a lesson marks that
+ * lesson's stable `id` complete (in the store AND in state) — forward-only, since completion only ever
+ * adds an id. The numeric `progress` the {@link LearnView} wants (its done/current/locked nodes, the
+ * `n / 6` meter, the resume CTA) is derived from the id set via {@link progressFromCompleted} (the
+ * leading-completed prefix = the resume point). Reopening the app resumes at the next unfinished lesson
+ * because the loaded id set rebuilds that same prefix. This state stays in the shell, never in the
+ * `@holdem/session` reducer (it is primer state, not poker state).
+ *
+ * The open lesson is tracked by its index; `null` shows the path. The lesson player and the
+ * end-of-primer screen are tab-less (immersive), so the bottom tab bar only appears on the path.
+ */
+function LearnBranch({
+  onNavigate,
+  progressStore,
+}: {
+  onNavigate: (tab: Tab) => void
+  progressStore: LessonProgressStore
+}): React.JSX.Element {
+  const total = learnLessons.length
+  // The durable set of completed lesson ids, seeded from the store ONCE on mount. The store's load
+  // already tolerates a missing/malformed blob (returns []); we additionally filter to ids that still
+  // exist in the live lesson set so a stored id from an older/renamed lesson is ignored, never crashes.
+  const [completedIds, setCompletedIds] = useState<ReadonlySet<string>>(() => {
+    const known = new Set(learnLessons.map(({ lesson }) => lesson.id))
+    // Wrap the store call at the shell boundary (like the history seam): even a custom store whose
+    // `load` throws must not crash the primer — fall back to "no progress" and carry on in-memory.
+    let loaded: readonly string[] = []
+    try {
+      loaded = progressStore.load()
+    } catch (err: unknown) {
+      console.warn('primer-progress: load failed', err)
+    }
+    return new Set(loaded.filter((id) => known.has(id)))
+  })
+  // The numeric progress the LearnView consumes, derived from the id set (the leading-completed prefix).
+  const progress = progressFromCompleted(completedIds)
+  // Which lesson is open (index into `learnLessons`), or null for the path list.
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+  // Whether the end-of-primer hand-off is showing. Seeded from the loaded progress: reopening the app
+  // with all six already persisted lands straight on the hand-off (§5.5), not the path. It is also set
+  // when the last lesson completes in-session, and cleared by the screen's Back (to review the path).
+  const [showEnd, setShowEnd] = useState(() => progress >= total)
+
+  // Finishing a lesson marks that lesson's stable id complete — persisted to the store AND mirrored in
+  // state (so the path reflects it immediately) — then returns to the path. Completion only ever adds
+  // an id, so progress is forward-only. If this completes all six, hand off to the end-of-primer screen.
+  const completeLesson = useCallback(
+    (index: number) => {
+      const entry = learnLessons[index]
+      if (entry !== undefined) {
+        setCompletedIds((prev) => {
+          if (prev.has(entry.lesson.id)) return prev
+          const next = new Set(prev)
+          next.add(entry.lesson.id)
+          // Persist the new id set, wrapped at the shell boundary so even a custom store whose `save`
+          // throws never breaks the primer — progress still advances in-memory.
+          try {
+            progressStore.save([...next])
+          } catch (err: unknown) {
+            console.warn('primer-progress: save failed', err)
+          }
+          return next
+        })
+      }
+      setOpenIndex(null)
+      if (index + 1 >= total) setShowEnd(true)
+    },
+    [total, progressStore],
+  )
+
+  if (showEnd) {
+    return (
+      <EndOfPrimer
+        lessons={learnLessons}
+        onPlay={() => onNavigate('play')}
+        onBack={() => setShowEnd(false)}
+      />
+    )
+  }
+
+  if (openIndex !== null) {
+    const entry = learnLessons[openIndex]
+    if (entry !== undefined) {
+      return (
+        <LessonPlayer
+          lesson={entry.lesson}
+          n={entry.n}
+          total={total}
+          onBack={() => setOpenIndex(null)}
+          onComplete={() => completeLesson(openIndex)}
+        />
+      )
+    }
+  }
+
+  return (
+    <LearnView progress={progress} onOpenLesson={(i) => setOpenIndex(i)} onNavigate={onNavigate} />
   )
 }
 
@@ -126,6 +291,8 @@ function seatLabelFor(model: Model, seat: number): string {
 interface SessionProps extends AppProps {
   /** The hand-history store (resolved by {@link App} — always present here). */
   readonly historyStore: HandHistoryStore
+  /** Navigate to another top-level tab — forwarded to the lobby {@link SetupScreen}'s tab bar. */
+  readonly onNavigate: (tab: Tab) => void
   /** Start a brand-new session (the parent bumps the remount key). */
   readonly onNewTable: () => void
 }
@@ -137,6 +304,7 @@ function Session({
   makeBot = defaultMakeBot,
   botDelayMs = DEFAULT_BOT_DELAY_MS,
   historyStore,
+  onNavigate,
   onNewTable,
 }: SessionProps): React.JSX.Element {
   const [model, dispatch] = useReducer(reducer, initial, createInitialModel)
@@ -258,7 +426,14 @@ function Session({
 
   // --- Render the current phase ----------------------------------------------------------------
   if (phase === 'setup') {
-    return <SetupScreen setup={model.setup} dispatch={dispatch} onStart={beginHand} />
+    return (
+      <SetupScreen
+        setup={model.setup}
+        dispatch={dispatch}
+        onStart={beginHand}
+        onNavigate={onNavigate}
+      />
+    )
   }
 
   // The History affordance + overlay (ticket 0037): a button that reads recent hands back through the

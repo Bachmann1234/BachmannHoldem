@@ -5,3 +5,6 @@ build/
 .svelte-kit/
 coverage/
 *.tsbuildinfo
+
+# Vendored design handoff bundles (claude.ai/design prototypes) — kept verbatim, not formatted.
+docs/design/

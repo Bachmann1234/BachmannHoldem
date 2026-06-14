@@ -7,7 +7,8 @@ coaching on odds and betting strategy, with the goal of actually getting better 
 
 - **TypeScript**, client-only — no backend. Two frontends share the pure poker packages: an
   **Ink (React-for-the-terminal) TUI** (`pnpm play`) and the installable **React PWA** (`pnpm
-play:pwa`) — play vs bots with an on-demand coach. Both run offline.
+play:pwa`) — play vs bots with an on-demand coach. The PWA also has a **Learn the fundamentals**
+  primer (a short, retrieval-checked concept course graded by the same coach math). Both run offline.
 - **React** for both shells, **Vite** + `vite-plugin-pwa` for the PWA build + service worker.
 - **pnpm** workspace monorepo, **Vitest** for tests.
 - Equity simulations run in a **Web Worker** to keep the UI smooth.
@@ -20,15 +21,16 @@ Everything except the app is framework-agnostic pure TypeScript that tests on No
 milliseconds (no browser needed).
 
 ```
-packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)
-packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
-packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
-packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)
-packages/format   action-input grammar + coach value formatters       (pure TS)
-packages/session  shared MVU model + reducer (session state machine)  (pure TS)
-apps/tui          Ink (React-for-the-terminal) play client — the play UI   (Node)
-apps/cli          headless scriptable engine harness — deterministic smoke-test  (Node)
-apps/pwa          React PWA — the only Android/web-aware module
+packages/engine      cards, 7-card hand evaluator, game state machine        (pure TS)
+packages/odds        equity simulation (Web Worker), pot odds, EV            (pure TS)
+packages/bots        heuristic opponents (range + pot-odds driven)           (pure TS)
+packages/coach       deterministic coaching verdicts (good / leak)           (pure TS)
+packages/curriculum  lesson engine (spot → ask → grade → explain) + primer   (pure TS)
+packages/format      action-input grammar + coach value formatters           (pure TS)
+packages/session     shared MVU model + reducer (session state machine)      (pure TS)
+apps/tui             Ink (React-for-the-terminal) play client — the play UI   (Node)
+apps/cli             headless scriptable engine harness — deterministic smoke-test  (Node)
+apps/pwa             React PWA — Android/web shell; Play + Learn the fundamentals
 ```
 
 Why this layering: the hard, high-value work (rules correctness + equity math) is fully

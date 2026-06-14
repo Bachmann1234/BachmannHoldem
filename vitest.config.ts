@@ -31,6 +31,7 @@ export default defineConfig({
         'packages/bots/src/**',
         'packages/coach/src/**',
         'packages/session/src/**',
+        'packages/curriculum/src/**',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
       reporter: ['text', 'html'],
