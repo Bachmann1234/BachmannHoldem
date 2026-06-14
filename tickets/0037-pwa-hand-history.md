@@ -2,7 +2,7 @@
 id: 0037
 title: PWA local hand-history storage (IndexedDB)
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-13
@@ -18,15 +18,15 @@ enough to prove it round-trips.
 
 ## Acceptance criteria
 
-- [ ] A typed hand-history store over IndexedDB: append a completed hand's record (the
+- [x] A typed hand-history store over IndexedDB: append a completed hand's record (the
       serialisable result of a finished `HandState` — players, stacks, board, hero's decisions +
       their coach verdicts, timestamp) and read them back ordered.
-- [ ] The play loop ([[0035-pwa-play-loop]]) records each hand exactly once when it completes, via a
+- [x] The play loop ([[0035-pwa-play-loop]]) records each hand exactly once when it completes, via a
       narrow seam — no storage calls scattered through the reducer/render (the reducer stays pure;
       persistence is a shell effect).
-- [ ] Works offline and persists across reloads; a minimal history view (or list) confirms records
+- [x] Works offline and persists across reloads; a minimal history view (or list) confirms records
       round-trip. Storage failures degrade gracefully (play is never blocked by a write error).
-- [ ] The store's serialisation/shaping logic is unit-tested (fake-indexeddb or an injected store
+- [x] The store's serialisation/shaping logic is unit-tested (fake-indexeddb or an injected store
       interface); `pnpm verify` green.
 
 ## Notes

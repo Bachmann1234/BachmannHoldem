@@ -1177,3 +1177,89 @@ body {
   color: var(--text-2);
   font-weight: 600;
 }
+
+/* ============ hand history (ticket 0037) ============ */
+/* A small "History" trigger sits in the table overlay next to the coach FAB. */
+.btn.history-open {
+  position: absolute;
+  left: 8px;
+  bottom: 12px;
+  z-index: 4;
+  background: rgba(8, 10, 13, 0.62);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line-2);
+}
+.btn.history-open:hover {
+  border-color: var(--accent);
+}
+
+/* The recent-hands sheet: a centered modal over a dim scrim. */
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  padding: 16px;
+}
+.history-sheet {
+  width: min(440px, 100%);
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #0d0f13);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  overflow: hidden;
+}
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.history-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line-2);
+  font-size: 12px;
+}
+.history-when {
+  color: var(--text-3);
+}
+.history-table {
+  color: var(--text-2);
+}
+.history-net {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.history-net.win {
+  color: var(--good);
+}
+.history-net.lose {
+  color: var(--bad);
+}
+.history-empty {
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 20px 4px;
+  text-align: center;
+}

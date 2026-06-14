@@ -48,13 +48,28 @@ import {
 import { ActionBar } from './components/ActionBar.js'
 import { CoachDrawer } from './components/CoachDrawer.js'
 import { CoachFab } from './components/CoachFab.js'
+import { HistoryView } from './components/HistoryView.js'
 import { SetupScreen } from './components/SetupScreen.js'
 import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
+import {
+  assembleRecord,
+  IndexedDbHandHistoryStore,
+  type HandHistoryStore,
+  type HeroDecision,
+} from './history/index.js'
 import './styles.css'
 
 /** Default bot "thinking" delay (ms) before a bot's action dispatches — for feel. Tests pass `0`. */
 export const DEFAULT_BOT_DELAY_MS = 500
+
+/** A unique record id, using `crypto.randomUUID` where present and a timestamp+random fallback else. */
+function newRecordId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 /** The `@holdem/bots` personality each setup preset maps to. */
 const PERSONALITY_BY_KIND: Readonly<Record<BotKind, Personality>> = {
@@ -86,6 +101,12 @@ export interface AppProps {
   readonly makeBot?: (player: SessionPlayer) => Opponent
   /** Bot "thinking" delay (ms). Defaults to {@link DEFAULT_BOT_DELAY_MS}; tests pass `0`. */
   readonly botDelayMs?: number
+  /**
+   * The hand-history store the recording seam appends completed hands to (ticket 0037). Defaults to
+   * the IndexedDB-backed store; tests inject a fake / `fake-indexeddb`-backed one. A single instance
+   * is shared across "New table" remounts so the log is one continuous history.
+   */
+  readonly historyStore?: HandHistoryStore
 }
 
 /**
@@ -94,9 +115,20 @@ export interface AppProps {
  */
 export function App(props: AppProps): React.JSX.Element {
   const [sessionKey, setSessionKey] = useState(0)
+  // The default store is created lazily ONCE and reused across "New table" remounts, so the history
+  // log is one continuous record of the whole play session (the inner Session remounts; this does
+  // not). Tests pass their own `historyStore` and never touch IndexedDB.
+  const defaultStoreRef = useRef<HandHistoryStore | null>(null)
+  const historyStore =
+    props.historyStore ?? (defaultStoreRef.current ??= new IndexedDbHandHistoryStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
-      <Session key={sessionKey} {...props} onNewTable={() => setSessionKey((k) => k + 1)} />
+      <Session
+        key={sessionKey}
+        {...props}
+        historyStore={historyStore}
+        onNewTable={() => setSessionKey((k) => k + 1)}
+      />
     </div>
   )
 }
@@ -109,6 +141,8 @@ function seatLabelFor(model: Model, seat: number): string {
 }
 
 interface SessionProps extends AppProps {
+  /** The hand-history store (resolved by {@link App} — always present here). */
+  readonly historyStore: HandHistoryStore
   /** Start a brand-new session (the parent bumps the remount key). */
   readonly onNewTable: () => void
 }
@@ -119,6 +153,7 @@ function Session({
   decks,
   makeBot = defaultMakeBot,
   botDelayMs = DEFAULT_BOT_DELAY_MS,
+  historyStore,
   onNewTable,
 }: SessionProps): React.JSX.Element {
   const [model, dispatch] = useReducer(reducer, initial, createInitialModel)
@@ -142,6 +177,16 @@ function Session({
   // A queue of injected decks (tests); we pop from the front, falling back to a fresh shuffle.
   const deckQueueRef = useRef<(readonly Card[])[]>(decks ? [...decks] : [])
 
+  // --- Hand-history recording seam (ticket 0037) -----------------------------------------------
+  // Pure-reducer discipline: the reducer never touches IndexedDB/Date — recording is a shell effect.
+  // `decisionsRef` accumulates the hero's voluntary decisions for the CURRENT hand (reset at deal);
+  // `recordedRef` is the last hand number we appended, the once-per-hand guard (StrictMode-safe: a
+  // double-invoked effect sees the same number and no-ops).
+  const decisionsRef = useRef<HeroDecision[]>([])
+  const recordedRef = useRef<number>(0)
+  // A tiny "history open?" UI flag (component-local, like the coach drawer — not poker state).
+  const [historyOpen, setHistoryOpen] = useState(false)
+
   const { phase, hand, heroSeat, seatToId, players } = model
   const handComplete = hand !== null && isComplete(hand)
   const isHeroTurn =
@@ -149,6 +194,8 @@ function Session({
 
   /** Pull the next deck (an injected one if queued, else a fresh shuffle) and start a hand. */
   const beginHand = (): void => {
+    // Reset the per-hand decision buffer at the start of every hand (recording is per completed hand).
+    decisionsRef.current = []
     const deck = deckQueueRef.current.shift() ?? shuffledDeck()
     dispatch({ type: 'start-hand', deck })
   }
@@ -193,15 +240,72 @@ function Session({
     }
   }, [phase, hand, handComplete, isHeroTurn, seatToId, botDelayMs])
 
-  const onAction = (action: Action): void => dispatch({ type: 'apply-action', action })
+  const onAction = (action: Action): void => {
+    // Capture the hero's voluntary decision (with the street it was made on) BEFORE dispatching, so
+    // the buffer reflects the live hand. `onAction` only fires from the hero's ActionBar; the guard
+    // is belt-and-suspenders. Blind posts never come through here, so VPIP/PFR stay correct for M6.
+    if (isHeroTurn && hand !== null) {
+      decisionsRef.current.push({ street: hand.street, action })
+    }
+    dispatch({ type: 'apply-action', action })
+  }
+
+  // --- Record exactly once when the hand completes ---------------------------------------------
+  // Guarded by `recordedRef` (last recorded hand number): completes the once-per-hand contract and is
+  // StrictMode-safe (a re-invoked effect sees the same handNumber and returns early). Every store
+  // call is wrapped so a write failure is logged and NEVER blocks or crashes play (graceful
+  // degradation). `model.handNumber` is captured at deal and is stable for the life of the hand.
+  useEffect(() => {
+    if (!handComplete || hand === null) return
+    if (recordedRef.current === model.handNumber) return
+    recordedRef.current = model.handNumber
+    try {
+      const record = assembleRecord(model, hand, decisionsRef.current, {
+        id: newRecordId(),
+        playedAt: Date.now(),
+      })
+      void Promise.resolve(historyStore.append(record)).catch((err: unknown) => {
+        console.warn('hand-history: append failed', err)
+      })
+    } catch (err: unknown) {
+      // Assembly should never throw on a completed hand, but never let recording break play.
+      console.warn('hand-history: record failed', err)
+    }
+  }, [handComplete, hand, model, historyStore])
 
   // --- Render the current phase ----------------------------------------------------------------
   if (phase === 'setup') {
     return <SetupScreen setup={model.setup} dispatch={dispatch} onStart={beginHand} />
   }
 
+  // The History affordance + overlay (ticket 0037): a button that reads recent hands back through the
+  // store, proving the round-trip. Shared across the playing and game-over phases.
+  const historyButton = (
+    <button
+      type="button"
+      className="btn history-open"
+      data-testid="history-open"
+      onClick={() => setHistoryOpen(true)}
+    >
+      History
+    </button>
+  )
+  const historyOverlay = historyOpen ? (
+    <HistoryView store={historyStore} onClose={() => setHistoryOpen(false)} />
+  ) : null
+
   if (phase === 'game-over') {
-    return <Summary players={players} handNumber={model.handNumber} onNewTable={onNewTable} />
+    return (
+      <>
+        <Summary
+          players={players}
+          handNumber={model.handNumber}
+          onNewTable={onNewTable}
+          onShowHistory={() => setHistoryOpen(true)}
+        />
+        {historyOverlay}
+      </>
+    )
   }
 
   // 'playing' / 'hand-over': the live table, the action bar, and the between-hands affordance. The
@@ -217,7 +321,12 @@ function Session({
           heroSeat={heroSeat}
           handNumber={model.handNumber}
           seatLabel={(seat) => seatLabelFor(model, seat)}
-          overlay={<CoachFab coach={model.coach} onOpen={openCoach} />}
+          overlay={
+            <>
+              {historyButton}
+              <CoachFab coach={model.coach} onOpen={openCoach} />
+            </>
+          }
         />
       ) : null}
       {hand !== null ? (
@@ -233,6 +342,7 @@ function Session({
         />
       ) : null}
       <CoachDrawer coach={model.coach} open={coachOpen} onClose={closeCoach} />
+      {historyOverlay}
     </div>
   )
 }

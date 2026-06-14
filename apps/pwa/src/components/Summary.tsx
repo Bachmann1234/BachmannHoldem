@@ -18,10 +18,17 @@ export interface SummaryProps {
   readonly handNumber: number
   /** Start a brand-new session (back to the setup screen). */
   readonly onNewTable: () => void
+  /** Open the recent-hands history view (ticket 0037). Optional so the component reads standalone. */
+  readonly onShowHistory?: () => void
 }
 
 /** Render the session outcome headline, the standings by stack, and a new-table CTA. */
-export function Summary({ players, handNumber, onNewTable }: SummaryProps): React.JSX.Element {
+export function Summary({
+  players,
+  handNumber,
+  onNewTable,
+  onShowHistory,
+}: SummaryProps): React.JSX.Element {
   const hero = players.find((p) => p.isHero)
   const live = livePlayers(players)
   const heroBusted = hero !== undefined && hero.stack === 0
@@ -80,6 +87,16 @@ export function Summary({ players, handNumber, onNewTable }: SummaryProps): Reac
         <button type="button" className="btn next-cta summary-cta" onClick={onNewTable}>
           New table →
         </button>
+        {onShowHistory !== undefined ? (
+          <button
+            type="button"
+            className="btn summary-cta"
+            data-testid="history-open"
+            onClick={onShowHistory}
+          >
+            View hand history
+          </button>
+        ) : null}
       </div>
     </div>
   )
