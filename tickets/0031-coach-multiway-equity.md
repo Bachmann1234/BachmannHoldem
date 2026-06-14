@@ -2,7 +2,7 @@
 id: 0031
 title: Make the coach's equity read multiway-aware
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: high
 created: 2026-06-13
@@ -20,12 +20,12 @@ that only holds one-on-one). Fix the read so the coach grades honestly at any ta
 
 ## Acceptance criteria
 
-- [ ] `coachDecision` estimates the hero's equity against the number of opponents actually live in
+- [x] `coachDecision` estimates the hero's equity against the number of opponents actually live in
       the pot — `ctx.numActive - 1` villains, each on `COACH_ASSUMED_RANGE` — using the N-seat
       Monte-Carlo path the odds engine already supports, not a single assumed villain.
-- [ ] Heads-up behaviour is unchanged (`numActive === 2` → one opponent → the current result); the
+- [x] Heads-up behaviour is unchanged (`numActive === 2` → one opponent → the current result); the
       read stays deterministic (fixed `COACH_SEED`).
-- [ ] Tests across heads-up / 3-way / 6-way confirm the reported equity for a fixed hand **falls as
+- [x] Tests across heads-up / 3-way / 6-way confirm the reported equity for a fixed hand **falls as
       opponents increase**, and that the good/leak verdict flips appropriately for a hand that is
       +EV heads-up but −EV multiway. `pnpm verify` green (coverage gate honoured).
 

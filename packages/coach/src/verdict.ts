@@ -14,9 +14,12 @@
  *
  * 1. **The read** — how good is the hand right now? Answered by {@link estimateEquity}
  *    from `@holdem/bots` ([[0018-bot-hand-reading]]), entirely through `@holdem/odds`,
- *    against an *assumed* villain range. The coach has no more X-ray vision than a bot:
- *    it reasons against a plausible range ({@link COACH_ASSUMED_RANGE}), so the equity
- *    here is an **estimate against an assumed range, not an omniscient truth**.
+ *    against the opponents *actually live in the pot*. The coach has no more X-ray vision
+ *    than a bot: it reasons against a plausible range ({@link COACH_ASSUMED_RANGE}) per
+ *    villain, so the equity here is an **estimate against an assumed range, not an
+ *    omniscient truth**. It does, however, read against the right *number* of villains —
+ *    `ctx.numActive - 1` of them ([[0031-coach-multiway-equity]]) — so equity at a full
+ *    table is not overstated by a heads-up read.
  * 2. **The math** — given that equity and the money on the table, is putting chips in
  *    profitable, and what is it worth? Answered by {@link potOdds} and {@link evOfCall}
  *    from `@holdem/odds` ([[0005-odds-equity-engine]], ticket 0015) — the EV-correct
@@ -128,8 +131,9 @@ function isContinue(action: Action): boolean {
  */
 export interface DecisionVerdict {
   /**
-   * The hero's estimated equity (expected pot share) as a fraction `0..1`, read against
-   * {@link COACH_ASSUMED_RANGE}. An *estimate against an assumed range*, not omniscient.
+   * The hero's estimated equity (expected pot share) as a fraction `0..1`, read against the
+   * `ctx.numActive - 1` opponents live in the pot, each on {@link COACH_ASSUMED_RANGE}. An
+   * *estimate against an assumed range per villain*, not omniscient; lower at a fuller table.
    */
   readonly equity: number
   /**
@@ -182,8 +186,11 @@ export interface DecisionVerdict {
  * we do not own deterministically and is out of scope (see the module doc).
  *
  * The equity is a seeded ({@link COACH_SEED}) Monte-Carlo estimate against
- * {@link COACH_ASSUMED_RANGE} — deterministic, but an estimate against an *assumed* range,
- * not villain's actual cards.
+ * {@link COACH_ASSUMED_RANGE}, read against the `ctx.numActive - 1` opponents actually live
+ * in the pot ([[0031-coach-multiway-equity]]) — deterministic, but an estimate against an
+ * *assumed* range per villain, not their actual cards. A heads-up pot reads against one
+ * villain (the original behaviour); a fuller table reads against more, so the equity is not
+ * overstated.
  *
  * Throws {@link RangeError} (via {@link estimateEquity} / the odds helpers) on malformed
  * inputs: a context with the wrong hole-card count, an illegal board size, a negative pot,
@@ -196,11 +203,15 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   if (ctx.toCall < 0) throw new RangeError(`ctx.toCall must be ≥ 0, got ${ctx.toCall}`)
 
   // --- The read: equity against the assumed range, seeded for determinism. ------------
+  // Read against the number of opponents ACTUALLY live in the pot — `ctx.numActive - 1`
+  // villains, each on COACH_ASSUMED_RANGE — so the equity reflects the real table size. A
+  // heads-up pot (`numActive === 2`) is one villain, i.e. the unchanged single-villain read.
   const equity = estimateEquity({
     holeCards: ctx.holeCards,
     board: ctx.board,
     opponentRange: COACH_ASSUMED_RANGE,
     seed: COACH_SEED,
+    opponentCount: ctx.numActive - 1,
   }).equity
 
   // --- The math: map DIRECTLY (pot is BEFORE the call; toCall is the chips to add). ----

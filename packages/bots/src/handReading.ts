@@ -151,6 +151,21 @@ export interface EquityEstimate {
   readonly seed?: number
   /** Monte Carlo iteration cap. Defaults to {@link DEFAULT_ITERATIONS}. Ignored when exact. */
   readonly iterations?: number
+  /**
+   * How many opponents the hero faces, each assumed to hold an independent hand from the
+   * same `opponentRange`. Defaults to `1` (the single-villain heads-up read).
+   *
+   * `1` takes the exact-vs-Monte-Carlo two-seat path unchanged (including the exact
+   * enumeration optimisation for a single known combo) — a heads-up read is byte-for-byte
+   * what it has always been. `> 1` builds that many villain {@link rangeSeat}s into one
+   * N-seat {@link monteCarloEquity} spot, so the hero's equity reflects the *real* number
+   * of live hands: equity falls as opponents rise (more hands competing ⇒ a smaller pot
+   * share). The coach ([[0007-coaching-engine]]) uses this so it grades honestly at any
+   * table size ([[0031-coach-multiway-equity]]); the bots deliberately stay heads-up.
+   *
+   * Must be an integer `≥ 1` (a {@link RangeError} otherwise).
+   */
+  readonly opponentCount?: number
 }
 
 /**
@@ -249,19 +264,39 @@ function blockedByHero(holeCards: readonly [Card, Card], board: readonly Card[])
  *   bounded, seeded {@link monteCarloEquity} against a {@link rangeSeat}. This is the
  *   natural tool against a range and keeps the read fast and deterministic.
  *
- * Either way the bot is seat 0 in a two-seat (hero vs. one assumed villain) spot, and we
- * return seat 0's {@link HandEquity}.
+ * **Opponent count.** By default the hero faces **one** assumed villain (`opponentCount`
+ * defaults to `1`), is seat 0 in a two-seat spot, and we return seat 0's {@link HandEquity}.
+ * For `opponentCount > 1` the hero faces that many independent villains — each an extra
+ * {@link rangeSeat} drawn from the *same* pruned range — in a single N-seat
+ * {@link monteCarloEquity} spot, and the hero's seat-0 equity falls accordingly (more live
+ * hands compete for the pot). The `opponentCount === 1` path is left exactly as it was, so a
+ * heads-up read (including the exact-enumeration shortcut and the precise seeded MC draw) is
+ * byte-for-byte unchanged.
  *
  * **Collisions.** Range combos that collide with the bot's cards or the board are pruned
  * before the read (see {@link pruneColliding}); if *every* combo collides, this throws
- * rather than handing the sampler an empty range.
+ * rather than handing the sampler an empty range. In the multiway path the sampler also
+ * deals every villain seat *without replacement* — it rejects and re-draws any combo that
+ * collides with another seat's drawn cards — so the several villains never share a card.
  *
  * Throws {@link RangeError}/{@link Error} on malformed inputs (wrong hole-card count,
- * illegal board size, duplicate cards, an empty/fully-colliding range, or a non-positive
- * iteration count), mirroring the odds engine's validation style.
+ * illegal board size, duplicate cards, an empty/fully-colliding range, a non-positive
+ * iteration count, or an `opponentCount` that is not an integer `≥ 1`), mirroring the odds
+ * engine's validation style.
  */
 export function estimateEquity(query: EquityEstimate): HandEquity {
-  const { holeCards, board, opponentRange, seed = 0, iterations = DEFAULT_ITERATIONS } = query
+  const {
+    holeCards,
+    board,
+    opponentRange,
+    seed = 0,
+    iterations = DEFAULT_ITERATIONS,
+    opponentCount = 1,
+  } = query
+
+  if (!Number.isInteger(opponentCount) || opponentCount < 1) {
+    throw new RangeError(`opponentCount must be an integer ≥ 1, got ${opponentCount}`)
+  }
 
   const blocked = blockedByHero(holeCards, board)
   const resolved = resolveRange(opponentRange)
@@ -273,6 +308,25 @@ export function estimateEquity(query: EquityEstimate): HandEquity {
     )
   }
 
+  // --- Multiway: the hero faces several independent villains drawn from the same range. ---
+  // Each villain is its own rangeSeat; the sampler deals them without replacement (see the
+  // module doc), so they never collide. Always Monte-Carlo (the exact oracle is a known-hands
+  // tool); seeded and bounded, hence deterministic. Returns seat 0 (the hero).
+  if (opponentCount > 1) {
+    if (!Number.isInteger(iterations) || iterations < 1) {
+      throw new RangeError(`iterations must be a positive integer, got ${iterations}`)
+    }
+    const villainSeats = new Array(opponentCount).fill(null).map(() => rangeSeat(villain))
+    const [heroEquity] = monteCarloEquity({
+      seats: [fixedSeat(holeCards), ...villainSeats],
+      board,
+      iterations,
+      seed,
+    })
+    return heroEquity!
+  }
+
+  // --- Heads-up (opponentCount === 1): the original two-seat path, untouched. -------------
   const cardsToCome = 5 - board.length
   if (villain.length === 1 && cardsToCome <= MAX_EXACT_CARDS_TO_COME) {
     // Villain is a single known combo and the board enumeration is small: take the exact,

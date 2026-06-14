@@ -211,6 +211,93 @@ describe('estimateEquity — opponent range polymorphism & defaults', () => {
   })
 })
 
+describe('estimateEquity — multiway (opponentCount)', () => {
+  it('opponentCount === 1 is byte-identical to the default single-villain read', () => {
+    const args = {
+      holeCards: hole('AhAd'),
+      board: parseCards('Kd 7c 2h'),
+      opponentRange: 'medium' as const,
+      seed: 0,
+    }
+    const implicit = estimateEquity(args)
+    const explicit = estimateEquity({ ...args, opponentCount: 1 })
+    expect(explicit).toEqual(implicit)
+  })
+
+  it('equity falls monotonically as the opponent count rises (1 → 2 → 5)', () => {
+    const base = {
+      holeCards: hole('AhAd'),
+      board: parseCards('Kd 7c 2h'),
+      opponentRange: 'medium' as const,
+      seed: 0,
+      iterations: 8000,
+    }
+    const heads = estimateEquity({ ...base, opponentCount: 1 }).equity
+    const threeWay = estimateEquity({ ...base, opponentCount: 2 }).equity
+    const sixWay = estimateEquity({ ...base, opponentCount: 5 }).equity
+    // More live hands compete for the pot, so the hero's share strictly shrinks.
+    expect(threeWay).toBeLessThan(heads)
+    expect(sixWay).toBeLessThan(threeWay)
+  })
+
+  it('a 6-way read (5 villains on a medium range) returns without a sampler throw', () => {
+    expect(() =>
+      estimateEquity({
+        holeCards: hole('AhAd'),
+        board: [],
+        opponentRange: 'medium',
+        seed: 0,
+        opponentCount: 5,
+      }),
+    ).not.toThrow()
+  })
+
+  it('the multiway read is deterministic under a fixed seed', () => {
+    const args = {
+      holeCards: hole('JhTh'),
+      board: parseCards('9h 8c 2d'),
+      opponentRange: 'medium' as const,
+      seed: 0,
+      opponentCount: 4,
+    }
+    expect(estimateEquity(args)).toEqual(estimateEquity(args))
+  })
+
+  it('throws on opponentCount = 0', () => {
+    expect(() =>
+      estimateEquity({
+        holeCards: hole('AhAd'),
+        board: [],
+        opponentRange: 'medium',
+        opponentCount: 0,
+      }),
+    ).toThrow(/opponentCount must be an integer ≥ 1/)
+  })
+
+  it('throws on a non-integer opponentCount', () => {
+    expect(() =>
+      estimateEquity({
+        holeCards: hole('AhAd'),
+        board: [],
+        opponentRange: 'medium',
+        opponentCount: 2.5,
+      }),
+    ).toThrow(/opponentCount must be an integer ≥ 1/)
+  })
+
+  it('throws on a non-positive iteration count in the multiway path', () => {
+    expect(() =>
+      estimateEquity({
+        holeCards: hole('AhAd'),
+        board: [],
+        opponentRange: 'medium',
+        opponentCount: 3,
+        iterations: 0,
+      }),
+    ).toThrow(/iterations must be a positive integer/)
+  })
+})
+
 describe('estimateEquity — collisions & validation', () => {
   it('prunes range combos that collide with the bot cards / board (KK still readable when hero holds a king)', () => {
     // Hero holds Ks; villain "KK" loses the Ks combo but the other 3 K-pairs remain.
