@@ -26,21 +26,13 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { isComplete, legalActions, type Action, type Card, type LegalActions } from '@holdem/engine'
-import {
-  decisionContext,
-  heuristicOpponent,
-  LOOSE_AGGRESSIVE,
-  LOOSE_PASSIVE,
-  TIGHT_AGGRESSIVE,
-  TIGHT_PASSIVE,
-  type Opponent,
-  type Personality,
-} from '@holdem/bots'
+import { decisionContext, type Opponent } from '@holdem/bots'
 import {
   createInitialModel,
   reducer,
   shuffledDeck,
-  type BotKind,
+  actionIsLegal,
+  makeBot,
   type InitialModelOptions,
   type Model,
   type SessionPlayer,
@@ -71,18 +63,9 @@ function newRecordId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** The `@holdem/bots` personality each setup preset maps to. */
-const PERSONALITY_BY_KIND: Readonly<Record<BotKind, Personality>> = {
-  tag: TIGHT_AGGRESSIVE,
-  lag: LOOSE_AGGRESSIVE,
-  rock: TIGHT_PASSIVE,
-  station: LOOSE_PASSIVE,
-}
-
 /** Build the per-player bot instance for an opponent — its own randomised PRNG seed per session. */
 function defaultMakeBot(player: SessionPlayer): Opponent {
-  const personality = PERSONALITY_BY_KIND[player.botKind ?? 'tag']
-  return heuristicOpponent(personality, Math.floor(Math.random() * 0x100000000))
+  return makeBot(player, Math.floor(Math.random() * 0x100000000))
 }
 
 /** Props for {@link App}. */
@@ -345,26 +328,4 @@ function Session({
       {historyOverlay}
     </div>
   )
-}
-
-/**
- * Is `action` one of the moves `legal` permits right now? A last-ditch guard so the shell never
- * dispatches an action the engine would throw on (the hero's controls only offer legal moves; this
- * covers the defensive bot path). Mirrors the engine's `LegalActions` shape.
- */
-function actionIsLegal(action: Action, legal: LegalActions): boolean {
-  switch (action.type) {
-    case 'fold':
-      return legal.fold
-    case 'check':
-      return legal.check
-    case 'call':
-      return legal.call !== null
-    case 'bet':
-      return legal.bet !== null && action.amount >= legal.bet.min && action.amount <= legal.bet.max
-    case 'raise':
-      return (
-        legal.raise !== null && action.amount >= legal.raise.min && action.amount <= legal.raise.max
-      )
-  }
 }

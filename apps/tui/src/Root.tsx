@@ -31,24 +31,16 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { Box, Text, useApp, useInput, useStdin } from 'ink'
-import { isComplete, legalActions, type Action, type Card, type LegalActions } from '@holdem/engine'
-import {
-  decisionContext,
-  heuristicOpponent,
-  LOOSE_AGGRESSIVE,
-  LOOSE_PASSIVE,
-  TIGHT_AGGRESSIVE,
-  TIGHT_PASSIVE,
-  type Opponent,
-  type Personality,
-} from '@holdem/bots'
+import { isComplete, legalActions, type Action, type Card } from '@holdem/engine'
+import { decisionContext, type Opponent } from '@holdem/bots'
 import {
   reducer,
   createInitialModel,
   shuffledDeck,
+  actionIsLegal,
+  makeBot,
   MAX_SEATS,
   MIN_SEATS,
-  type BotKind,
   type InitialModelOptions,
   type SessionPlayer,
 } from '@holdem/session'
@@ -57,18 +49,9 @@ import { ActionBar } from './components/ActionBar.js'
 import { SetupScreen } from './components/SetupScreen.js'
 import { Summary } from './components/Summary.js'
 
-/** The `@holdem/bots` personality each setup preset maps to. */
-const PERSONALITY_BY_KIND: Readonly<Record<BotKind, Personality>> = {
-  tag: TIGHT_AGGRESSIVE,
-  lag: LOOSE_AGGRESSIVE,
-  rock: TIGHT_PASSIVE,
-  station: LOOSE_PASSIVE,
-}
-
 /** Build the per-player bot instance for an opponent — its own randomised PRNG seed per session. */
 function defaultMakeBot(player: SessionPlayer): Opponent {
-  const personality = PERSONALITY_BY_KIND[player.botKind ?? 'tag']
-  return heuristicOpponent(personality, Math.floor(Math.random() * 0x100000000))
+  return makeBot(player, Math.floor(Math.random() * 0x100000000))
 }
 
 /** Props for {@link Root}. */
@@ -262,26 +245,4 @@ export function Root({ initial, decks, makeBot = defaultMakeBot }: RootProps): R
       </Box>
     </Box>
   )
-}
-
-/**
- * Is `action` one of the moves `legal` permits right now? A last-ditch guard so the shell never
- * dispatches an action the engine would throw on (the hero's path already validates via
- * `parseAction`; this covers the defensive bot path). Mirrors the engine's `LegalActions` shape.
- */
-function actionIsLegal(action: Action, legal: LegalActions): boolean {
-  switch (action.type) {
-    case 'fold':
-      return legal.fold
-    case 'check':
-      return legal.check
-    case 'call':
-      return legal.call !== null
-    case 'bet':
-      return legal.bet !== null && action.amount >= legal.bet.min && action.amount <= legal.bet.max
-    case 'raise':
-      return (
-        legal.raise !== null && action.amount >= legal.raise.min && action.amount <= legal.raise.max
-      )
-  }
 }

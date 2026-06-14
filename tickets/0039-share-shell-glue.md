@@ -2,7 +2,7 @@
 id: 0039
 title: Share the TUI/PWA shell glue (personality map, bot factory, legality guard)
 type: chore
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-14
