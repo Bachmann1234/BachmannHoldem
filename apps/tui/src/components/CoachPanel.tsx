@@ -26,7 +26,7 @@
 
 import { Box, Text } from 'ink'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
 /** The Ink `color` prop for each verdict tag: green good / red leak / yellow break-even. */
@@ -77,6 +77,7 @@ function Verdict({ verdict }: { readonly verdict: DecisionVerdict }): React.JSX.
       </Text>
       <Text>{`  EV-correct: ${verdict.correctDecision}`}</Text>
       <Text color={VERDICT_COLOR[verdict.verdict]}>{`  ${VERDICT_LABEL[verdict.verdict]}`}</Text>
+      <Text dimColor>{`  ${explainDecision(verdict)}`}</Text>
     </Box>
   )
 }

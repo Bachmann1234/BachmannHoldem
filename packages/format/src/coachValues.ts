@@ -35,3 +35,45 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
   leak: 'Leak — the math pointed the other way.',
   breakEven: 'Break-even — a coin-flip spot; either way is fine.',
 }
+
+/**
+ * The deterministic **"why" line** for a postflop decision: a single, label-free sentence that
+ * states the *reason* behind the verdict by connecting the numbers the verdict already carries —
+ * the spot-specific explanation the three metric cards only imply.
+ *
+ * It is the shared phrasing every play client and the Foundations primer render, for the same reason
+ * {@link pct} / {@link signedChips} / {@link VERDICT_LABEL} live here: the coach must never explain a
+ * verdict one way at the table and another in a lesson. It does **no** poker math — it reads
+ * `equity` / `potOddsThreshold` / `callEv` / `correctDecision` / `verdict` straight off the verdict
+ * and formats them. This is the *deterministic* half of "say why"; rich natural-language narration
+ * (outs, draws, board texture) is the optional LLM layer ([[0011-llm-coaching]]), not this.
+ *
+ * Four cases, mirroring {@link coachDecision}'s own branches:
+ * - **Free check** (`potOddsThreshold === 0`): no price, so any equity continues — no EV claim.
+ * - **Break-even** (`verdict === 'breakEven'`): equity sits on the price; the call is a wash.
+ * - **Priced continue** (`correctDecision === 'continue'`): equity beats the price, so calling is +EV.
+ * - **Priced fold** (`correctDecision === 'fold'`): equity trails the price, so folding is +EV.
+ *
+ * The sentence is **label-free** (no "Good"/"Leak" prefix) so a client can pair it with its own
+ * headline — the play coach's {@link VERDICT_LABEL}, the primer's encouraging copy — without
+ * repeating the tag.
+ */
+export function explainDecision(verdict: DecisionVerdict): string {
+  const equity = pct(verdict.equity)
+  // A free check has no price to weigh equity against, so it never talks about a break-even % or EV.
+  if (verdict.potOddsThreshold === 0) {
+    return `There's no price to call, so taking the free card is automatic — you keep your ${equity} share for nothing.`
+  }
+  const price = pct(verdict.potOddsThreshold)
+  // Break-even: equity is within the tolerance band of the price, so the call is a coin-flip.
+  if (verdict.verdict === 'breakEven') {
+    return `Your ${equity} equity sits right on the ${price} the call needs — a coin-flip, so continuing and folding are equal in value.`
+  }
+  // Clear decision: equity is meaningfully above or below the break-even price. `callEv`'s sign is
+  // the EV-correct side; report the chip EV of calling either way so the magnitude teaches too.
+  const chips = `calling is worth ${signedChips(verdict.callEv)} chips`
+  if (verdict.correctDecision === 'continue') {
+    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play — ${chips}.`
+  }
+  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play — ${chips}.`
+}

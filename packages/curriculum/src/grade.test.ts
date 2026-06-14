@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCards, type Card } from '@holdem/engine'
+import { pct } from '@holdem/format'
 import { gradeSpot } from './grade.js'
 import type { CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
 
@@ -78,10 +79,16 @@ describe('gradeSpot — coach-graded postflop', () => {
 
   it('builds the explanation from deterministic numbers (verdict round-trip)', () => {
     const res = gradeSpot(STRONG_COACH_SPOT, 0)
-    // Phrased with @holdem/format — percent equity, the price, and signed chip EV.
-    expect(res.explanation).toMatch(/Equity \d+\.\d%/)
-    expect(res.explanation).toMatch(/pot-odds price \d+\.\d%/)
+    const v = res.verdict
+    // The explanation is the shared @holdem/format wording: the verdict headline + the deterministic
+    // "why" line, carrying the actual equity %, the price %, and the chip EV (not invented copy).
+    expect(v && 'potOddsThreshold' in v).toBe(true)
+    if (v && 'potOddsThreshold' in v) {
+      expect(res.explanation).toContain(pct(v.equity))
+      expect(res.explanation).toContain(pct(v.potOddsThreshold))
+    }
     expect(res.explanation).toMatch(/chips/)
+    expect(res.explanation).toMatch(/\+EV/)
   })
 })
 

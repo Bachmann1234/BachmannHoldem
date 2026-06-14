@@ -39,7 +39,7 @@ import {
   type DecisionVerdict,
   type PreflopVerdict,
 } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, VERDICT_LABEL } from '@holdem/format'
 import { synthesizeContext, type Spot, type ActionChoice } from './spot.js'
 
 /**
@@ -111,11 +111,10 @@ function actionIsCorrect(verdict: SpotVerdict): boolean {
  * play coach. Reports the equity read, the pot-odds price, the chip EV, and the verdict headline.
  */
 function explainCoach(verdict: DecisionVerdict): string {
-  return (
-    `${VERDICT_LABEL[verdict.verdict]} ` +
-    `Equity ${pct(verdict.equity)} vs pot-odds price ${pct(verdict.potOddsThreshold)}; ` +
-    `calling is worth ${signedChips(verdict.callEv)} chips.`
-  )
+  // The verdict label (the tag headline) + the shared deterministic "why" line, so a primer lesson
+  // and the live play coach phrase the reasoning identically (the shared builder lives in
+  // @holdem/format for exactly that reason — no duplicated wording here).
+  return `${VERDICT_LABEL[verdict.verdict]} ${explainDecision(verdict)}`
 }
 
 /**
