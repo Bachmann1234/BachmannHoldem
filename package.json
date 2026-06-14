@@ -5,6 +5,9 @@
   "type": "module",
   "description": "A Texas Hold'em training PWA — play vs bots, drills, and a deterministic odds/strategy coach.",
   "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "play": "pnpm --filter @holdem/tui dev",
     "play:pwa": "pnpm --filter @holdem/pwa dev",

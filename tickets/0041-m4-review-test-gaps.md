@@ -15,15 +15,15 @@ covered by a test. Both are cheap to pin and worth locking in before M5/M6 build
 
 ## Acceptance criteria
 
-- [ ] **Bet-amount clamp** (`apps/pwa/src/components/ActionBar.tsx` → `ActionBar.test.tsx`): a test
+- [x] **Bet-amount clamp** (`apps/pwa/src/components/ActionBar.tsx` → `ActionBar.test.tsx`): a test
       that drives the slider/`betTo` to a value OUTSIDE the legal `[min,max]` and asserts the committed
       `bet`/`raise` action's `amount` is clamped into range (the code clamps via `clamp(...)`; the
       invariant is currently only exercised on happy-path size buttons).
-- [ ] **Reducer coach-error branch** (`packages/session/src/reducer.ts` `coachHero` → `reducer.test.ts`):
+- [x] **Reducer coach-error branch** (`packages/session/src/reducer.ts` `coachHero` → `reducer.test.ts`):
       a test that makes the coach throw for a spot and asserts the reducer degrades to
       `model.coach.kind === 'error'` (today this is covered only indirectly via the PWA drawer's
       error-state component test).
-- [ ] `pnpm verify` green; session coverage thresholds held or improved.
+- [x] `pnpm verify` green; session coverage thresholds held or improved.
 
 ## Notes
 

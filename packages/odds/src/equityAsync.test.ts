@@ -166,3 +166,49 @@ describe('equityAsync — worker offload path (fake worker)', () => {
     await expect(equityAsync(bad, { workerFactory: factory })).rejects.toThrow(/board must have/)
   })
 })
+
+/**
+ * A worker whose `error` event can be fired on demand — models a worker that crashes/fails to load
+ * (a thrown `ErrorEvent`, not a clean `ok:false` response). Exercises `runOnWorker`'s `error`
+ * listener, which the message-driven fake above never reaches.
+ */
+function makeCrashingWorker() {
+  const errorListeners: ((event: { message?: string }) => void)[] = []
+  let terminated = false
+  return {
+    postMessage(): void {
+      /* request is dropped — this worker only ever errors */
+    },
+    terminate(): void {
+      terminated = true
+    },
+    addEventListener(type: 'message' | 'error', listener: unknown): void {
+      if (type === 'error') errorListeners.push(listener as (event: { message?: string }) => void)
+    },
+    fireError(message?: string): void {
+      for (const l of errorListeners) l({ message })
+    },
+    get terminated() {
+      return terminated
+    },
+  }
+}
+
+describe('equityAsync — worker error event', () => {
+  it('rejects with the error event message and terminates the worker', async () => {
+    const worker = makeCrashingWorker()
+    const factory: WorkerFactory = () => worker
+    const p = equityAsync(exactComputation, { workerFactory: factory })
+    worker.fireError('simulated worker crash')
+    await expect(p).rejects.toThrow(/simulated worker crash/)
+    expect(worker.terminated).toBe(true)
+  })
+
+  it('falls back to a generic message when the error event carries none', async () => {
+    const worker = makeCrashingWorker()
+    const factory: WorkerFactory = () => worker
+    const p = equityAsync(exactComputation, { workerFactory: factory })
+    worker.fireError()
+    await expect(p).rejects.toThrow(/equity worker error/)
+  })
+})

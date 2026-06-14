@@ -21,13 +21,13 @@ review.
 
 ## Acceptance criteria
 
-- [ ] `eslint-plugin-react-hooks` is added and wired into `eslint.config.js`, scoped to the React app
+- [x] `eslint-plugin-react-hooks` is added and wired into `eslint.config.js`, scoped to the React app
       sources (`apps/tui`, `apps/pwa`) — the pure packages are not React and need not run it.
-- [ ] `rules-of-hooks` passes clean. For each `exhaustive-deps` warning, EITHER fix the deps OR add a
+- [x] `rules-of-hooks` passes clean. For each `exhaustive-deps` warning, EITHER fix the deps OR add a
       scoped `eslint-disable-next-line react-hooks/exhaustive-deps` with a one-line rationale (the
       deliberately-narrowed effects — the ActionBar re-seed and the bot-turn effect — are intentional;
       annotate, don't widen them in a way that changes behaviour).
-- [ ] `pnpm verify` (which runs `eslint .`) stays green with the rule active.
+- [x] `pnpm verify` (which runs `eslint .`) stays green with the rule active.
 
 ## Notes
 

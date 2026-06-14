@@ -2,6 +2,11 @@
 
 _Started 2026-06-13 22:43 UTC_
 
+> **Archival note:** This is a transcript of the M4 design conversation. It predates the final
+> stack decision — where it says "SvelteKit," the project ultimately shipped on **React + Vite**
+> (see [`README.md`](../../../README.md) and [`docs/ROADMAP.md`](../../ROADMAP.md)). Kept as-is for
+> design history; not current direction.
+
 ---
 
 ## User

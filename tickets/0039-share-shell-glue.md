@@ -25,13 +25,13 @@ milestone review.
 
 ## Acceptance criteria
 
-- [ ] `PERSONALITY_BY_KIND` and `actionIsLegal` are exported from a shared pure module (`@holdem/session`
+- [x] `PERSONALITY_BY_KIND` and `actionIsLegal` are exported from a shared pure module (`@holdem/session`
       is the natural home — it already owns `BotKind` and depends on `@holdem/bots`/`@holdem/engine`)
       and consumed by BOTH `apps/tui/src/Root.tsx` and `apps/pwa/src/App.tsx`; the duplicate copies
       are removed.
-- [ ] `defaultMakeBot` (or a shared `makeBot(player, seed)` factory) is shared too, or documented as
+- [x] `defaultMakeBot` (or a shared `makeBot(player, seed)` factory) is shared too, or documented as
       intentionally shell-local if the RNG seeding must differ.
-- [ ] No behaviour change in either shell; `@holdem/session` stays pure (no UI/DOM/Node). `pnpm verify`
+- [x] No behaviour change in either shell; `@holdem/session` stays pure (no UI/DOM/Node). `pnpm verify`
       green, coverage thresholds held.
 
 ## Notes

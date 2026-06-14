@@ -81,4 +81,30 @@ describe('IndexedDbHandHistoryStore', () => {
     const all = await second.list()
     expect(all.map((r) => r.id)).toEqual(['persisted'])
   })
+
+  it('prunes the oldest beyond the retention cap, keeping the newest', async () => {
+    const capped = new IndexedDbHandHistoryStore(new IDBFactory(), 3)
+    for (const [id, playedAt] of [
+      ['a', 1000],
+      ['b', 2000],
+      ['c', 3000],
+      ['d', 4000],
+      ['e', 5000],
+    ] as const) {
+      await capped.append(makeRecord(id, playedAt))
+    }
+    const all = await capped.list()
+    // Only the 3 newest survive; 'a' and 'b' were pruned as each append pushed over the cap.
+    expect(all.map((r) => r.id)).toEqual(['e', 'd', 'c'])
+  })
+
+  it('clear() drops every stored hand', async () => {
+    await store.append(makeRecord('a', 1000))
+    await store.append(makeRecord('b', 2000))
+    await store.clear()
+    expect(await store.list()).toEqual([])
+    // Still usable after clearing.
+    await store.append(makeRecord('c', 3000))
+    expect((await store.list()).map((r) => r.id)).toEqual(['c'])
+  })
 })

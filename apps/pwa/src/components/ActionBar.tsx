@@ -41,6 +41,11 @@ export interface ActionBarProps {
 /** A quick-size key for the bet/raise control. */
 type SizeKey = 'min' | 'half' | 'pot' | 'allin'
 
+/** The slider's default seed at a fresh decision point: ~⅔ pot, the standard open/c-bet sizing. */
+const DEFAULT_BET_FRACTION = 0.66
+/** The "½" quick-size button: half the pot, added on top of the call. */
+const HALF_POT_FRACTION = 0.5
+
 /** Clamp `v` into the inclusive `[min, max]` range. */
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max)
@@ -82,7 +87,7 @@ export function ActionBar({
   // currentBet) uniquely identify a new hero decision point, which is exactly when we want a reseed.
   useEffect(() => {
     if (!isHeroTurn || sizing === null) return
-    const start = clamp(Math.round(pot * 0.66), sizeMin, sizeMax)
+    const start = clamp(Math.round(pot * DEFAULT_BET_FRACTION), sizeMin, sizeMax)
     setBetTo(start)
     setSizeKey(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reseed only at a new decision point, never mid-drag (see above)
@@ -92,7 +97,7 @@ export function ActionBar({
     if (sizing === null) return
     let to: number
     if (key === 'min') to = sizeMin
-    else if (key === 'half') to = heroCommitted + toCall + Math.round(pot * 0.5)
+    else if (key === 'half') to = heroCommitted + toCall + Math.round(pot * HALF_POT_FRACTION)
     else if (key === 'pot') to = heroCommitted + toCall + pot
     else to = sizeMax
     setBetTo(clamp(to, sizeMin, sizeMax))
