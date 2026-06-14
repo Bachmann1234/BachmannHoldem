@@ -2,7 +2,7 @@
 id: 0033
 title: PWA scaffold — Vite + React + vite-plugin-pwa, installable & offline
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: high
 created: 2026-06-13
@@ -19,15 +19,15 @@ land.
 
 ## Acceptance criteria
 
-- [ ] `apps/pwa` exists as a sibling to `apps/tui`: `package.json` (React + Vite + `vite-plugin-pwa` + `@vitejs/plugin-react`, deps on the pure packages incl. `@holdem/session`/`@holdem/odds`),
+- [x] `apps/pwa` exists as a sibling to `apps/tui`: `package.json` (React + Vite + `vite-plugin-pwa` + `@vitejs/plugin-react`, deps on the pure packages incl. `@holdem/session`/`@holdem/odds`),
       `vite.config.ts`, `tsconfig.json` (ESM + `react-jsx`, project references), `index.html`, and
       wired into the root `tsconfig.json` references.
-- [ ] `vite-plugin-pwa` configured for an installable Android PWA: web-app manifest (name, theme/
+- [x] `vite-plugin-pwa` configured for an installable Android PWA: web-app manifest (name, theme/
       background colour, display `standalone`, icons), an auto-updating service worker that
       precaches the app shell so a second load works **offline**.
-- [ ] A minimal React root mounts and drives the shared `reducer` via `useReducer` — e.g. renders
+- [x] A minimal React root mounts and drives the shared `reducer` via `useReducer` — e.g. renders
       one dealt hand's state read-only (proving model→DOM wiring), no interaction required yet.
-- [ ] Scripts: `dev`, `build`, `preview`; a root `pnpm play:pwa` (or similar) convenience script.
+- [x] Scripts: `dev`, `build`, `preview`; a root `pnpm play:pwa` (or similar) convenience script.
       `pnpm verify` green (typecheck + lint of the new app; app excluded from the pure-package
       coverage gate, like `apps/tui`).
 
