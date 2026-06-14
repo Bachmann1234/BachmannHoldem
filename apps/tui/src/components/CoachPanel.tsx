@@ -5,14 +5,15 @@
  * Purely presentational: it renders the {@link CoachResult} the pure reducer already computed and
  * stored on the model. It does **no** verdict math of its own — all of it lives in `@holdem/coach`,
  * which the reducer calls (capturing the spot before the action is applied) and hands the panel a
- * finished {@link DecisionVerdict} (+ a preflop {@link StartingHandVerdict}). With ticket 0031 in
+ * finished {@link DecisionVerdict} postflop or {@link PreflopVerdict} preflop. With ticket 0031 in
  * place that verdict's equity already reflects the live number of opponents in the pot, so the panel
  * just lays out the numbers it is given.
  *
- * Three states, one per {@link CoachResult.kind}:
- * - `'verdict'` — the laid-out grade: (preflop) the starting-hand rationale, then equity vs pot
- *   odds + EV(call), the EV-correct continue decision, and a colour-coded good/leak/break-even
- *   headline (green / red / yellow).
+ * Four states, one per {@link CoachResult.kind}:
+ * - `'verdict'` — a postflop grade: equity vs pot odds + EV(call), the EV-correct continue
+ *   decision, and a colour-coded good/leak/break-even headline (green / red / yellow).
+ * - `'preflop'` — a preflop grade off the starting-hand chart: the tier rationale and the
+ *   colour-coded headline, with no pot-odds math to contradict the chart (ticket BUG-0001).
  * - `'error'` — coaching is advisory, so a coach throw degrades to a dim one-line notice here; the
  *   game continues uninterrupted.
  * - `'none'` — no hero decision graded yet: a dim placeholder.
@@ -24,7 +25,7 @@
  */
 
 import { Box, Text } from 'ink'
-import type { DecisionVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
@@ -50,7 +51,9 @@ export function CoachPanel({ coach }: CoachPanelProps): React.JSX.Element {
     <Box flexDirection="column">
       <Text>{`── Coach ${'─'.repeat(39)}`}</Text>
       {coach.kind === 'verdict' ? (
-        <Verdict verdict={coach.verdict} rationale={coach.preflop?.rationale} />
+        <Verdict verdict={coach.verdict} />
+      ) : coach.kind === 'preflop' ? (
+        <PreflopGrade verdict={coach.verdict} />
       ) : coach.kind === 'error' ? (
         <Text dimColor>{`  ${coach.message}`}</Text>
       ) : (
@@ -60,25 +63,35 @@ export function CoachPanel({ coach }: CoachPanelProps): React.JSX.Element {
   )
 }
 
-/** The laid-out verdict body: the numbers, the EV-correct action, and the colour-coded headline. */
-function Verdict({
-  verdict,
-  rationale,
-}: {
-  readonly verdict: DecisionVerdict
-  /** The preflop starting-hand rationale, present only when the decision was preflop. */
-  readonly rationale?: string
-}): React.JSX.Element {
+/**
+ * The laid-out *postflop* verdict body: the numbers, the EV-correct action, and the colour-coded
+ * headline. Postflop only — preflop is graded by the chart and rendered by {@link PreflopGrade},
+ * which carries no pot-odds math to contradict the chart (ticket BUG-0001).
+ */
+function Verdict({ verdict }: { readonly verdict: DecisionVerdict }): React.JSX.Element {
   return (
     <Box flexDirection="column">
-      {/* Preflop, the chart tier leads — the rationale is a self-contained, tier-named sentence,
-          so it is rendered as-is (no `cap(tier)` prefix), exactly like the CLI. */}
-      {rationale ? <Text>{`  Starting hand: ${rationale}`}</Text> : null}
       <Text>
         {`  Equity ${pct(verdict.equity)}  vs pot odds ${pct(verdict.potOddsThreshold)}` +
           `  EV(call) ${signedChips(verdict.callEv)}`}
       </Text>
       <Text>{`  EV-correct: ${verdict.correctDecision}`}</Text>
+      <Text color={VERDICT_COLOR[verdict.verdict]}>{`  ${VERDICT_LABEL[verdict.verdict]}`}</Text>
+    </Box>
+  )
+}
+
+/**
+ * The laid-out *preflop* grade: the starting-hand chart rationale (a self-contained, tier-named
+ * sentence, rendered as-is) and the colour-coded good/leak headline. There is deliberately no
+ * equity / pot-odds / EV-correct line here — preflop is graded off the chart, not the pot-odds math
+ * (ticket BUG-0001), so the panel never shows the self-contradicting "open for value" + "EV-correct:
+ * fold" pairing.
+ */
+function PreflopGrade({ verdict }: { readonly verdict: PreflopVerdict }): React.JSX.Element {
+  return (
+    <Box flexDirection="column">
+      <Text>{`  Starting hand: ${verdict.rationale}`}</Text>
       <Text color={VERDICT_COLOR[verdict.verdict]}>{`  ${VERDICT_LABEL[verdict.verdict]}`}</Text>
     </Box>
   )

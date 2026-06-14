@@ -9,8 +9,9 @@
  * - `'none'` / `'error'` — `?`, in the neutral accent ring (no decision graded yet, or coaching
  *   degraded to an advisory). The hero hasn't been told anything actionable, so the dot doesn't
  *   pretend otherwise.
- * - `'verdict'` — a quiet post-action dot: `✓` good (green), `!` leak (red), `·` break-even
- *   (accent) — the design's "after the hero acts, show a dot instead of nagging".
+ * - `'verdict'` (postflop) / `'preflop'` — a quiet post-action dot: `✓` good (green), `!` leak
+ *   (red), `·` break-even (accent) — the design's "after the hero acts, show a dot instead of
+ *   nagging". Both grades carry the same good/leak/break-even tag, so they read the same here.
  *
  * Clicking (the whole pill) opens the drawer; it carries `aria-haspopup="dialog"` so the
  * relationship to the drawer is announced.
@@ -28,7 +29,7 @@ export interface CoachFabProps {
 
 /** The ring glyph + colour class for the current coach state. */
 function ringFor(coach: CoachResult): { readonly glyph: string; readonly tone: string } {
-  if (coach.kind === 'verdict') {
+  if (coach.kind === 'verdict' || coach.kind === 'preflop') {
     switch (coach.verdict.verdict) {
       case 'good':
         return { glyph: '✓', tone: 'good' }

@@ -13,9 +13,11 @@
  * **Post-action verdict only** (user decision, recorded in ticket 0036): there is no pre-action
  * "live read" mode. The `'none'` state is a placeholder that prompts the hero to act and check back.
  *
- * Three states, one per {@link CoachResult.kind}:
- * - `'verdict'` — the full grade (badge ✓/!/~, `VERDICT_LABEL` headline, encouraging copy, the
- *   optional preflop rationale, the equity / pot-odds / EV metric cards, the win/lose bar, the note).
+ * Four states, one per {@link CoachResult.kind}:
+ * - `'verdict'` — the full *postflop* grade (badge ✓/!/~, `VERDICT_LABEL` headline, encouraging
+ *   copy, the equity / pot-odds / EV metric cards, the win/lose bar, the note).
+ * - `'preflop'` — the *preflop* grade off the starting-hand chart (badge + headline + copy + the
+ *   chart rationale), with no pot-odds cards to contradict the chart (ticket BUG-0001).
  * - `'none'` — the dim "act, then tap to review" placeholder.
  * - `'error'` — the one-line advisory `coach.message` (coaching never crashes the hand).
  *
@@ -25,7 +27,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import type { DecisionVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
@@ -132,7 +134,9 @@ export function CoachDrawer({ coach, open, onClose }: CoachDrawerProps): React.J
           </button>
         </div>
         {coach.kind === 'verdict' ? (
-          <VerdictBody verdict={coach.verdict} rationale={coach.preflop?.rationale} />
+          <VerdictBody verdict={coach.verdict} />
+        ) : coach.kind === 'preflop' ? (
+          <PreflopBody verdict={coach.verdict} />
         ) : coach.kind === 'error' ? (
           <div className="coach-note" data-testid="coach-error">
             {coach.message}
@@ -147,15 +151,12 @@ export function CoachDrawer({ coach, open, onClose }: CoachDrawerProps): React.J
   )
 }
 
-/** The laid-out verdict: badge + headline + encouraging copy, the preflop line, metrics, equity bar. */
-function VerdictBody({
-  verdict,
-  rationale,
-}: {
-  readonly verdict: DecisionVerdict
-  /** The preflop starting-hand rationale, present only when the decision was preflop. */
-  readonly rationale?: string
-}): React.JSX.Element {
+/**
+ * The laid-out *postflop* verdict: badge + headline + encouraging copy, the metric cards, equity
+ * bar, and the explainer. Postflop only — preflop is graded by the chart and rendered by
+ * {@link PreflopBody} (no equity/EV cards to contradict the chart, ticket BUG-0001).
+ */
+function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
   // The win/lose bar mirrors the design: a green win fill at `pct(equity)`, the rest is lose.
   const winWidth = pct(verdict.equity)
@@ -170,11 +171,6 @@ function VerdictBody({
           <p>{encouragingCopy(verdict)}</p>
         </div>
       </div>
-      {rationale !== undefined ? (
-        <div className="coach-note" data-testid="coach-preflop">
-          <b>Starting hand:</b> {rationale}
-        </div>
-      ) : null}
       <div className="metrics">
         <div className="metric">
           <div className="k">Your equity</div>
@@ -208,6 +204,47 @@ function VerdictBody({
       <div className="coach-note">
         Equity is your estimated share of the pot against the live opponents&apos; assumed ranges.{' '}
         <b>Pot odds</b> are the price you&apos;re laid — continue when equity beats the price.
+      </div>
+    </>
+  )
+}
+
+/**
+ * The encouraging copy for a *preflop* grade — keyed on our three verdict tags, modelled on
+ * {@link encouragingCopy}. It references the chart's open/fold advice (not pot odds) so the warm
+ * line teaches the chart lesson. Touches no numbers, so it stays PWA-local.
+ */
+function preflopCopy(verdict: PreflopVerdict): string {
+  const target = verdict.advice === 'open' ? 'playing this hand' : 'folding it'
+  switch (verdict.verdict) {
+    case 'good':
+      return `Nice — that's exactly right. Keep trusting the chart.`
+    case 'leak':
+      return `Close one! The chart pointed to ${target} here — you'll catch it next time.`
+    default:
+      return `Borderline spot — trust your read and your position.`
+  }
+}
+
+/**
+ * The laid-out *preflop* grade off the starting-hand chart (ticket BUG-0001): the verdict badge +
+ * headline + encouraging copy, then the chart rationale. Deliberately no equity / pot-odds / EV
+ * cards — preflop is graded by the chart, not the pot-odds math, so there is nothing here to
+ * contradict the chart verdict.
+ */
+function PreflopBody({ verdict }: { readonly verdict: PreflopVerdict }): React.JSX.Element {
+  const tone = verdictTone(verdict.verdict)
+  return (
+    <>
+      <div className={`verdict ${tone.cls}`} data-testid="coach-verdict">
+        <div className="verdict-badge">{tone.badge}</div>
+        <div className="verdict-body">
+          <h4>{VERDICT_LABEL[verdict.verdict]}</h4>
+          <p>{preflopCopy(verdict)}</p>
+        </div>
+      </div>
+      <div className="coach-note" data-testid="coach-preflop">
+        <b>Starting hand:</b> {verdict.rationale}
       </div>
     </>
   )

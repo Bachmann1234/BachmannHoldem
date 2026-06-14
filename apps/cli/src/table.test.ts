@@ -8,8 +8,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { createHand, parseCards, type Card } from '@holdem/engine'
-import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
-import { renderState, renderResult, renderCoachFeedback } from './table.js'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import { renderState, renderResult, renderCoachFeedback, renderPreflopCoach } from './table.js'
 
 /** Build a heads-up deck dealing the given holes + board (mirrors the engine test helper). */
 function headsUpDeck(holesBySeat: string[], board: string): Card[] {
@@ -80,9 +80,13 @@ const leakCall: DecisionVerdict = {
   verdict: 'leak',
 }
 
-const premium: StartingHandVerdict = {
+/** A preflop grade off the chart: a premium hand the hero correctly entered the pot with. */
+const premiumOpen: PreflopVerdict = {
   tier: 'premium',
   rationale: 'Premium holding — always raise; you want chips in.',
+  advice: 'open',
+  heroContinued: true,
+  verdict: 'good',
 }
 
 describe('renderCoachFeedback', () => {
@@ -104,15 +108,8 @@ describe('renderCoachFeedback', () => {
     expect(out).toContain('Leak')
   })
 
-  it('omits the starting-hand line when no preflop verdict is given', () => {
+  it('shows no starting-hand line postflop (the chart is preflop only)', () => {
     expect(renderCoachFeedback(goodCall)).not.toContain('Starting hand')
-  })
-
-  it('leads with the starting-hand chart rationale preflop', () => {
-    const out = renderCoachFeedback(goodCall, premium)
-    expect(out).toContain('Starting hand: Premium holding')
-    // The math view still renders alongside the chart line.
-    expect(out).toContain('Equity 62.5%')
   })
 
   it('renders a near-zero / break-even EV as a bare 0, never a signed zero', () => {
@@ -132,5 +129,35 @@ describe('renderCoachFeedback', () => {
     // The free-check / on-threshold boundary still renders cleanly as a percent.
     expect(out).toContain('pot odds 50.0%')
     expect(out).toContain('Break-even')
+  })
+})
+
+describe('renderPreflopCoach', () => {
+  it('leads with the starting-hand chart rationale and the good/leak headline', () => {
+    const out = renderPreflopCoach(premiumOpen)
+    expect(out).toContain('── Coach ')
+    expect(out).toContain('Starting hand: Premium holding')
+    expect(out).toContain('Good')
+  })
+
+  it('shows no pot-odds math preflop (the chart drives the verdict, not equity)', () => {
+    // BUG-0001: preflop must not render the equity / pot-odds / EV-correct lines that would
+    // contradict the chart verdict (the old "open for value" + "EV-correct: fold" pairing).
+    const out = renderPreflopCoach(premiumOpen)
+    expect(out).not.toContain('Equity')
+    expect(out).not.toContain('pot odds')
+    expect(out).not.toContain('EV-correct')
+  })
+
+  it('flags folding a chart-open hand as a leak', () => {
+    const out = renderPreflopCoach({
+      tier: 'strong',
+      rationale: 'Strong value hand — open and bet for value.',
+      advice: 'open',
+      heroContinued: false,
+      verdict: 'leak',
+    })
+    expect(out).toContain('Starting hand: Strong value hand')
+    expect(out).toContain('Leak')
   })
 })

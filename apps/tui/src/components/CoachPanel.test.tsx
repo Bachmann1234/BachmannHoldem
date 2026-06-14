@@ -72,17 +72,18 @@ describe('CoachPanel placeholder / error states', () => {
 })
 
 describe('CoachPanel verdicts (graded through the real reducer)', () => {
-  it('preflop: shows the starting-hand tier line and a GREEN good headline (AA continues)', () => {
-    // Hero AA in the SB/button (seat 0), to act first heads-up; calling a premium is a good play.
+  it('preflop: shows the chart tier line and a GREEN good headline, no pot-odds math (AA opens)', () => {
+    // Hero AA in the SB/button (seat 0), to act first heads-up; entering with a premium is good.
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
     const model = dealtModel(2, deck)
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     // The starting-hand chart tier leads, rendered as the self-contained rationale sentence.
     expect(frame).toContain('Starting hand: Premium holding')
-    expect(frame).toContain('EV-correct: continue')
     expect(frame).toContain('Good — your action agreed with the math.')
-    // The laid-out numbers (equity vs pot odds + EV) are present.
-    expect(frame).toMatch(/Equity \d+\.\d%\s+vs pot odds \d+\.\d%\s+EV\(call\) [+-]?\d/)
+    // BUG-0001: preflop is graded off the chart, so NO equity / pot-odds / EV-correct line that
+    // would contradict it.
+    expect(frame).not.toContain('Equity')
+    expect(frame).not.toContain('EV-correct')
   })
 
   it('preflop: folding a premium is a RED leak headline', () => {
@@ -128,7 +129,7 @@ describe('CoachPanel through the reducer: ordering + advisory contract', () => {
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
     let model = dealtModel(2, deck)
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero (seat0) graded
-    expect(model.coach.kind).toBe('verdict')
+    expect(model.coach.kind).toBe('preflop')
     const heroGrade = model.coach
     model = reducer(model, { type: 'apply-action', action: { type: 'check' } }) // bot (seat1) acts
     expect(model.coach).toBe(heroGrade) // same reference: the bot turn left it untouched
