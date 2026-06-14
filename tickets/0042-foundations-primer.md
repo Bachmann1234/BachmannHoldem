@@ -2,7 +2,7 @@
 id: 0042
 title: 'Epic: Foundations primer — how to think about a hand'
 type: epic
-status: todo
+status: in-progress
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -49,6 +49,29 @@ preceded the coach (M3).
       or the layering (`@holdem/coach` stays pure).
 - [ ] Lesson content/progress is local-only (no backend); completing the primer hands the player
       off to free play and, when it exists, M5 drills.
+
+## Decomposition (`/work-milestone M4.5`, 2026-06-14)
+
+Split into six per-feature tickets in dependency order — the pure poker-brain layer first, then the
+PWA UI. **What matters most:** the checks are graded by the **deterministic coach math, not
+hand-authored answer keys** (the lesson can never disagree with the live coach), and the spot →
+ask → grade → explain engine is **reusable by M5 drills** — so it is a new pure package, not PWA
+code. The lessons teach by **retrieval, not prose**.
+
+Pure layer (the poker brain — build and verify before any UI):
+
+- [[0043-coach-concept-tag]] — tag every coach verdict with the `Concept` it exercises (the
+  enabling primitive; pure addition to `@holdem/coach`).
+- [[0044-curriculum-engine]] — new pure `@holdem/curriculum` package: the spot → ask → grade →
+  explain engine, grading via the coach, designed for M5 to reuse.
+- [[0045-foundations-primer-content]] — the six concept lessons authored as pure data on that engine.
+
+PWA UI layer (built **after** the design hand-off — the M4 precedent of a designer driving
+look-and-feel before build applies; see `docs/design/m4.5-foundations-primer-brief.md`):
+
+- [[0046-pwa-learn-nav]] — top-level navigation + the "Learn the fundamentals" route/list.
+- [[0047-pwa-lesson-player]] — the lesson player: explain → check → grade → explain.
+- [[0048-pwa-lesson-progress]] — local-only progress persistence + the completion hand-off.
 
 ## Notes
 
