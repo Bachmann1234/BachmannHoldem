@@ -34,7 +34,7 @@ import {
   type Spot,
   type SpotVerdict,
 } from '@holdem/curriculum'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import { lessonMeta, positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
 import { BackIcon, SparkIcon } from './Icons.js'
@@ -486,6 +486,15 @@ function ResultSheet({
           // Preflop chart-graded: no metric row — the chart rationale, like the coach drawer's preflop mode.
           <div className="coach-note" data-testid="result-rationale">
             <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
+          </div>
+        ) : null}
+
+        {/* The shared deterministic "why" line — the same sentence the live play coach shows, so a
+            lesson and the table explain a verdict identically. Postflop (priced or free) only;
+            preflop's rationale above already is its why. */}
+        {decision !== null ? (
+          <div className="coach-note" data-testid="result-why">
+            {explainDecision(decision)}
           </div>
         ) : null}
 

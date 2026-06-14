@@ -28,7 +28,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
 /** Props for {@link CoachDrawer}. */
@@ -201,9 +201,8 @@ function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.
         <span>win {pct(verdict.equity)}</span>
         <span>lose {pct(1 - verdict.equity)}</span>
       </div>
-      <div className="coach-note">
-        Equity is your estimated share of the pot against the live opponents&apos; assumed ranges.{' '}
-        <b>Pot odds</b> are the price you&apos;re laid — continue when equity beats the price.
+      <div className="coach-note" data-testid="coach-why">
+        {explainDecision(verdict)}
       </div>
     </>
   )
