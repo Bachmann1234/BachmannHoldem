@@ -41,6 +41,7 @@ import { ActionBar } from './components/ActionBar.js'
 import { CoachDrawer } from './components/CoachDrawer.js'
 import { CoachFab } from './components/CoachFab.js'
 import { HistoryView } from './components/HistoryView.js'
+import { EndOfPrimer } from './components/EndOfPrimer.js'
 import { LearnView } from './components/LearnView.js'
 import { LessonPlayer } from './components/LessonPlayer.js'
 import { SetupScreen } from './components/SetupScreen.js'
@@ -143,18 +144,48 @@ export function App(props: AppProps): React.JSX.Element {
 }
 
 /**
- * The Learn route (ticket 0046): the Foundations path, plus a placeholder {@link LessonPlayer} once a
- * lesson is opened. Progress is **in-memory only this ticket** (durable on-device progress is ticket
- * 0048): `progress` is the count of completed lessons (default 0 ⇒ lesson 1 is current). The open
- * lesson is tracked by its index; `null` shows the path. The lesson player is tab-less (immersive),
- * so the bottom tab bar only appears on the path itself.
+ * The Learn route (tickets 0046 / 0047): the Foundations path, the full {@link LessonPlayer} once a
+ * lesson is opened, and the {@link EndOfPrimer} hand-off once all six lessons are complete.
+ *
+ * Progress is **in-memory only this ticket** (durable on-device progress is ticket 0048): `progress`
+ * is the count of completed lessons (default 0 ⇒ lesson 1 is current). Finishing the last spot of a
+ * lesson advances `progress` to *at least* that lesson's number (only ever forward — replaying an
+ * already-done lesson never rewinds it), then returns to the path. When all six are complete the path
+ * shows the end-of-primer screen, whose Play CTA switches to the Play tab via `onNavigate`.
+ *
+ * The open lesson is tracked by its index; `null` shows the path. The lesson player and the
+ * end-of-primer screen are tab-less (immersive), so the bottom tab bar only appears on the path.
  */
 function LearnBranch({ onNavigate }: { onNavigate: (tab: Tab) => void }): React.JSX.Element {
-  // In-memory progress for 0046 — ticket 0048 swaps this for the on-device store. Default 0: nothing
+  const total = learnLessons.length
+  // In-memory progress for 0047 — ticket 0048 swaps this for the on-device store. Default 0: nothing
   // completed, so lesson 1 is the current/resume node and the rest are locked.
-  const [progress] = useState(0)
+  const [progress, setProgress] = useState(0)
   // Which lesson is open (index into `learnLessons`), or null for the path list.
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+  // Whether the end-of-primer hand-off is showing (entered once the last lesson completes the path).
+  const [showEnd, setShowEnd] = useState(false)
+
+  // Finishing a lesson advances progress to at least lesson `index + 1` (forward-only) and returns to
+  // the path; if that completes the sixth lesson, the path hands off to the end-of-primer screen.
+  const completeLesson = useCallback(
+    (index: number) => {
+      setProgress((p) => Math.max(p, index + 1))
+      setOpenIndex(null)
+      if (index + 1 >= total) setShowEnd(true)
+    },
+    [total],
+  )
+
+  if (showEnd) {
+    return (
+      <EndOfPrimer
+        lessons={learnLessons}
+        onPlay={() => onNavigate('play')}
+        onBack={() => setShowEnd(false)}
+      />
+    )
+  }
 
   if (openIndex !== null) {
     const entry = learnLessons[openIndex]
@@ -163,8 +194,9 @@ function LearnBranch({ onNavigate }: { onNavigate: (tab: Tab) => void }): React.
         <LessonPlayer
           lesson={entry.lesson}
           n={entry.n}
-          total={learnLessons.length}
+          total={total}
           onBack={() => setOpenIndex(null)}
+          onComplete={() => completeLesson(openIndex)}
         />
       )
     }

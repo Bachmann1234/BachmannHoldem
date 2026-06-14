@@ -21,6 +21,12 @@ export interface LessonMeta {
   readonly subtitle: string
   /** A one-line description of the concept, shown on the path node and the recap. */
   readonly teaser: string
+  /**
+   * The single take-home rule for this lesson, surfaced as the `.teach-rule` callout in the read
+   * view. Only the continue-rule lesson carries one in the design; others omit it. Display-only copy,
+   * so it lives here in the shell rather than in the pure curriculum package.
+   */
+  readonly rule?: string
 }
 
 /** Per-lesson display copy, keyed by `Lesson.id` (verbatim from the design bundle). */
@@ -36,6 +42,7 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
   'foundations-equity-vs-price': {
     subtitle: 'equity vs price',
     teaser: 'Continue when equity beats the price.',
+    rule: "Continue when your equity beats the price; fold when it doesn't.",
   },
   'foundations-ev': {
     subtitle: 'counting the decision in chips',
@@ -78,3 +85,35 @@ export const learnLessons: readonly LearnLesson[] = FOUNDATIONS.map((lesson, i) 
   n: i + 1,
   meta: lessonMeta(lesson),
 }))
+
+/** A position label + subtitle for a preflop spot's seat ring — presentation copy derived from geometry. */
+export interface PositionLabel {
+  /** The headline position name, e.g. "Button" / "Under the gun". */
+  readonly label: string
+  /** A short qualifier, e.g. "you act last". */
+  readonly sub: string
+}
+
+/**
+ * Derive a human position label for a preflop spot from its seat geometry — the display copy the
+ * design's fixtures hand-wrote as `posLabel`/`posSub`, recreated here so it stays in step with the
+ * pure {@link PreflopSpot}'s `seat`/`buttonIndex`/`numPlayers` (the package carries no display copy).
+ *
+ * The chart's own late-position test is "on the button or the cutoff" (`buttonIndex - 1`), so we name
+ * those two seats explicitly and bucket the rest by where they sit in the betting order: first to act
+ * is under the gun, the seat just before the button is the cutoff, and the small/big blinds sit after
+ * the button. The subtitle leans on the same idea the position lesson teaches — acting later is the edge.
+ */
+export function positionLabel(
+  seat: number,
+  buttonIndex: number,
+  numPlayers: number,
+): PositionLabel {
+  const cutoff = (buttonIndex - 1 + numPlayers) % numPlayers
+  // Seats from the seat immediately after the button (UTG) round to the button, in betting order.
+  const seatsFromUtg = (seat - (buttonIndex + 1) + numPlayers) % numPlayers
+  if (seat === buttonIndex) return { label: 'Button', sub: 'you act last' }
+  if (seat === cutoff) return { label: 'Cutoff', sub: 'late position' }
+  if (seatsFromUtg === 0) return { label: 'Under the gun', sub: 'first to act' }
+  return { label: 'Early position', sub: `${numPlayers - 1} players act after you` }
+}

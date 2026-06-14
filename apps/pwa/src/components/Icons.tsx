@@ -115,6 +115,15 @@ export function CheckIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
   )
 }
 
+/** A four-point spark — the lesson's concept tag glyph (recreated from the design's `Icon.spark`). */
+export function SparkIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" />
+    </svg>
+  )
+}
+
 /** A padlock — a locked path node's medallion. */
 export function LockIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
   return (

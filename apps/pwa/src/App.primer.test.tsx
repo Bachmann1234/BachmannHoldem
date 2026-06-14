@@ -1,0 +1,66 @@
+// @vitest-environment jsdom
+/**
+ * App-level Foundations primer flow test (ticket 0047) — proves the lesson player integrates with the
+ * Learn shell: completing a lesson advances in-memory progress and returns to the path, and completing
+ * all six shows the end-of-primer hand-off whose Play CTA switches to the Play tab.
+ *
+ * Mirrors {@link App.nav.test}'s idiom (`render(<App .../>)`, `getByTestId`, `fireEvent`). Progress is
+ * in-memory this ticket (durable resume is 0048), so we drive every lesson in one mounted session.
+ */
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { FOUNDATIONS } from '@holdem/curriculum'
+import { App } from './App.js'
+
+afterEach(cleanup)
+
+/** Play one open lesson to the end: start the checks, then answer + advance through every spot. */
+function finishOpenLesson(spotCount: number): void {
+  fireEvent.click(screen.getByTestId('lesson-start'))
+  for (let s = 0; s < spotCount; s++) {
+    // Pick the first answer; correctness does not matter for advancing — the CTA always advances.
+    fireEvent.click(screen.getByTestId('answer-0'))
+    fireEvent.click(screen.getByTestId('result-cta'))
+  }
+}
+
+describe('App — Foundations primer flow', () => {
+  it('completing the current lesson advances progress and returns to the path', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    fireEvent.click(screen.getByTestId('tab-learn'))
+
+    // Open and finish lesson 1 (the equity lesson — a single spot).
+    fireEvent.click(screen.getByTestId('lesson-0'))
+    finishOpenLesson(FOUNDATIONS[0]!.spots.length)
+
+    // Back on the path, the progress meter advanced to 1 / 6 and lesson 2 is now unlocked.
+    const learn = screen.getByTestId('learn')
+    expect(learn).toBeTruthy()
+    expect(learn.textContent).toContain('1 / 6')
+    expect((screen.getByTestId('lesson-1') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('completing all six lessons shows the end-of-primer hand-off; its Play CTA switches tabs', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    fireEvent.click(screen.getByTestId('tab-learn'))
+
+    for (let i = 0; i < FOUNDATIONS.length; i++) {
+      fireEvent.click(screen.getByTestId(`lesson-${i}`))
+      finishOpenLesson(FOUNDATIONS[i]!.spots.length)
+    }
+
+    // The path hands off to the end-of-primer celebration.
+    const end = screen.getByTestId('end-of-primer')
+    expect(end).toBeTruthy()
+    // The recap lists all six lessons by title.
+    for (const lesson of FOUNDATIONS) {
+      expect(end.textContent).toContain(lesson.title)
+    }
+
+    // The Play CTA switches to the Play tab (the setup screen).
+    fireEvent.click(screen.getByTestId('endprimer-play'))
+    expect(screen.queryByTestId('end-of-primer')).toBeNull()
+    expect(screen.getByTestId('setup')).toBeTruthy()
+  })
+})

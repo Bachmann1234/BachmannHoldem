@@ -2,7 +2,7 @@
 id: 0047
 title: PWA lesson player — explain → check → grade → explain
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -23,19 +23,19 @@ off before this milestone's UI work. Build on the M4 "playful" design system
 
 ## Acceptance criteria
 
-- [ ] Reached from the Learn lesson list ([[0046-pwa-learn-nav]]): selecting a lesson opens its
+- [x] Reached from the Learn lesson list ([[0046-pwa-learn-nav]]): selecting a lesson opens its
       player. Renders the explanation, then the check spot with its answer **choices** as the player's
       tappable options.
-- [ ] On answering, the UI calls the pure engine's `grade` ([[0044-curriculum-engine]]) — it does
+- [x] On answering, the UI calls the pure engine's `grade` ([[0044-curriculum-engine]]) — it does
       **no** grading math itself — and shows the result: correct/incorrect, the right answer, and the
       explanation built from the deterministic coach numbers (reuse `@holdem/format` for any
       numbers/labels so the primer and the play coach phrase a verdict identically).
-- [ ] The player can advance through a lesson's spots and on to the next lesson; reaching the end of
+- [x] The player can advance through a lesson's spots and on to the next lesson; reaching the end of
       the sequence hands the player back toward free play / (future) M5 drills, per the epic's
       "completing the primer hands the player off."
-- [ ] Accessible like the rest of the PWA (focus management, keyboard, `data-testid`s for tests),
+- [x] Accessible like the rest of the PWA (focus management, keyboard, `data-testid`s for tests),
       matching the `CoachDrawer` a11y bar.
-- [ ] Tests: answering correctly and incorrectly each render the engine's verdict + explanation;
+- [x] Tests: answering correctly and incorrectly each render the engine's verdict + explanation;
       advancing moves to the next spot/lesson. `pnpm verify` green.
 
 ## Notes
