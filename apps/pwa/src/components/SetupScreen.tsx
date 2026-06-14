@@ -10,6 +10,8 @@
  */
 
 import { BOT_LABELS, MAX_SEATS, MIN_SEATS, type Msg, type SetupState } from '@holdem/session'
+import { TabBar } from './TabBar.js'
+import type { Tab } from './TabBar.js'
 
 /** Props for {@link SetupScreen}. */
 export interface SetupScreenProps {
@@ -19,10 +21,21 @@ export interface SetupScreenProps {
   readonly dispatch: (msg: Msg) => void
   /** Deal the first hand (shell-owned: shuffles a deck and dispatches `start-hand`). */
   readonly onStart: () => void
+  /** Navigate to another top-level tab — the setup screen is a lobby surface, so it shows the tab bar. */
+  readonly onNavigate: (tab: Tab) => void
 }
 
-/** Render the setup form: a seat-count stepper, one preset cycler per opponent, and a Deal CTA. */
-export function SetupScreen({ setup, dispatch, onStart }: SetupScreenProps): React.JSX.Element {
+/**
+ * Render the setup form: a seat-count stepper, one preset cycler per opponent, a Deal CTA, and — at
+ * its base — the top-level {@link TabBar} (this is a lobby surface, so Learn is one tap away from
+ * boot). The tab bar is *not* shown once a hand is live (that surface is immersive).
+ */
+export function SetupScreen({
+  setup,
+  dispatch,
+  onStart,
+  onNavigate,
+}: SetupScreenProps): React.JSX.Element {
   const setSeats = (seats: number): void => {
     if (seats >= MIN_SEATS && seats <= MAX_SEATS) dispatch({ type: 'set-seats', seats })
   }
@@ -98,6 +111,8 @@ export function SetupScreen({ setup, dispatch, onStart }: SetupScreenProps): Rea
           Deal in →
         </button>
       </div>
+
+      <TabBar active="play" onNavigate={onNavigate} />
     </div>
   )
 }

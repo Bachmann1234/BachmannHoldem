@@ -78,6 +78,9 @@ importers:
       '@holdem/coach':
         specifier: workspace:*
         version: link:../../packages/coach
+      '@holdem/curriculum':
+        specifier: workspace:*
+        version: link:../../packages/curriculum
       '@holdem/engine':
         specifier: workspace:*
         version: link:../../packages/engine

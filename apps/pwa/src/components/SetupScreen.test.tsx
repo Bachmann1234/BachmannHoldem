@@ -16,7 +16,14 @@ afterEach(cleanup)
 /** A harness wiring SetupScreen to the real reducer so edits re-render the live selection. */
 function Harness({ seats, onStart }: { seats: number; onStart?: () => void }): React.JSX.Element {
   const [model, dispatch] = useReducer(reducer, { seats }, createInitialModel)
-  return <SetupScreen setup={model.setup} dispatch={dispatch} onStart={onStart ?? (() => {})} />
+  return (
+    <SetupScreen
+      setup={model.setup}
+      dispatch={dispatch}
+      onStart={onStart ?? (() => {})}
+      onNavigate={() => {}}
+    />
+  )
 }
 
 describe('SetupScreen', () => {

@@ -2,7 +2,7 @@
 id: 0046
 title: PWA top-level navigation + Learn the fundamentals route
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -24,18 +24,18 @@ build). Build on the existing M4 "playful" design system in `apps/pwa/src/styles
 
 ## Acceptance criteria
 
-- [ ] A top-level navigation surface (home/menu) lets the player choose **Play** (the existing
+- [x] A top-level navigation surface (home/menu) lets the player choose **Play** (the existing
       free-play session) or **Learn the fundamentals** (the primer). Matches the agreed design.
-- [ ] The existing free-play flow is reachable unchanged from the new shell — the table setup →
+- [x] The existing free-play flow is reachable unchanged from the new shell — the table setup →
       play → summary loop and the hand-history/coach affordances behave exactly as before (no
       regression to [[0035-pwa-play-loop]]/[[0036-pwa-coach-panel]]/[[0037-pwa-hand-history]]).
-- [ ] A **Learn** route renders a lesson list/map built from the `FOUNDATIONS` sequence
+- [x] A **Learn** route renders a lesson list/map built from the `FOUNDATIONS` sequence
       ([[0045-foundations-primer-content]]) — each lesson shown with its concept and selectable. The
       individual lesson player is wired in [[0047-pwa-lesson-player]]; this ticket lands the
       list/route and the entry point into it.
-- [ ] Navigation state stays out of the poker `@holdem/session` reducer (it is app-shell UI, like the
+- [x] Navigation state stays out of the poker `@holdem/session` reducer (it is app-shell UI, like the
       coach-drawer open flag) — keep the session model unpolluted.
-- [ ] Tests (Testing Library, the existing PWA pattern): the menu renders both paths, choosing Play
+- [x] Tests (Testing Library, the existing PWA pattern): the menu renders both paths, choosing Play
       reaches the setup screen, choosing Learn reaches the lesson list. `pnpm verify` green.
 
 ## Notes

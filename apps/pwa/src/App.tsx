@@ -41,9 +41,13 @@ import { ActionBar } from './components/ActionBar.js'
 import { CoachDrawer } from './components/CoachDrawer.js'
 import { CoachFab } from './components/CoachFab.js'
 import { HistoryView } from './components/HistoryView.js'
+import { LearnView } from './components/LearnView.js'
+import { LessonPlayer } from './components/LessonPlayer.js'
 import { SetupScreen } from './components/SetupScreen.js'
 import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
+import type { Tab } from './components/TabBar.js'
+import { learnLessons } from './learn/lessonMeta.js'
 import {
   assembleRecord,
   IndexedDbHandHistoryStore,
@@ -51,6 +55,7 @@ import {
   type HeroDecision,
 } from './history/index.js'
 import './styles.css'
+import './primer.css'
 
 /** Default bot "thinking" delay (ms) before a bot's action dispatches — for feel. Tests pass `0`. */
 export const DEFAULT_BOT_DELAY_MS = 500
@@ -95,9 +100,25 @@ export interface AppProps {
 /**
  * The interactive app. A `sessionKey` keys the inner {@link Session} so "New table" remounts a
  * brand-new session (fresh reducer state + fresh bot/deck refs) without any reset plumbing.
+ *
+ * **Top-level navigation (ticket 0046)** lives here as app-shell state — `activeTab` (`'play'` |
+ * `'learn'`, boot lands on `'play'`), exactly like the coach-drawer open flag: it is UI, NOT poker
+ * state, so it deliberately stays out of the `@holdem/session` reducer (keeping the session model
+ * unpolluted). The `'play'` branch renders the unchanged {@link Session}; the `'learn'` branch renders
+ * the {@link LearnBranch} (the Foundations path + the placeholder lesson player). The bottom tab bar
+ * shows only on the lobby surfaces (the Play setup screen and the Learn path) — `onNavigate` is
+ * threaded down to both.
+ *
+ * Crucially the {@link Session} is kept *mounted* across tab switches (rendered hidden when Learn is
+ * active) so flipping to Learn and back never tears down a live hand — switching tabs is navigation,
+ * not "New table".
  */
 export function App(props: AppProps): React.JSX.Element {
   const [sessionKey, setSessionKey] = useState(0)
+  // Top-level nav: which path the player is on. App-shell UI state (like coachOpen) — never in the
+  // reducer. Boot lands on Play (the design's locked decision).
+  const [activeTab, setActiveTab] = useState<Tab>('play')
+  const onNavigate = useCallback((tab: Tab) => setActiveTab(tab), [])
   // The default store is created lazily ONCE and reused across "New table" remounts, so the history
   // log is one continuous record of the whole play session (the inner Session remounts; this does
   // not). Tests pass their own `historyStore` and never touch IndexedDB.
@@ -106,13 +127,51 @@ export function App(props: AppProps): React.JSX.Element {
     props.historyStore ?? (defaultStoreRef.current ??= new IndexedDbHandHistoryStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
-      <Session
-        key={sessionKey}
-        {...props}
-        historyStore={historyStore}
-        onNewTable={() => setSessionKey((k) => k + 1)}
-      />
+      {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn; just hide it. */}
+      <div hidden={activeTab !== 'play'}>
+        <Session
+          key={sessionKey}
+          {...props}
+          historyStore={historyStore}
+          onNavigate={onNavigate}
+          onNewTable={() => setSessionKey((k) => k + 1)}
+        />
+      </div>
+      {activeTab === 'learn' ? <LearnBranch onNavigate={onNavigate} /> : null}
     </div>
+  )
+}
+
+/**
+ * The Learn route (ticket 0046): the Foundations path, plus a placeholder {@link LessonPlayer} once a
+ * lesson is opened. Progress is **in-memory only this ticket** (durable on-device progress is ticket
+ * 0048): `progress` is the count of completed lessons (default 0 ⇒ lesson 1 is current). The open
+ * lesson is tracked by its index; `null` shows the path. The lesson player is tab-less (immersive),
+ * so the bottom tab bar only appears on the path itself.
+ */
+function LearnBranch({ onNavigate }: { onNavigate: (tab: Tab) => void }): React.JSX.Element {
+  // In-memory progress for 0046 — ticket 0048 swaps this for the on-device store. Default 0: nothing
+  // completed, so lesson 1 is the current/resume node and the rest are locked.
+  const [progress] = useState(0)
+  // Which lesson is open (index into `learnLessons`), or null for the path list.
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  if (openIndex !== null) {
+    const entry = learnLessons[openIndex]
+    if (entry !== undefined) {
+      return (
+        <LessonPlayer
+          lesson={entry.lesson}
+          n={entry.n}
+          total={learnLessons.length}
+          onBack={() => setOpenIndex(null)}
+        />
+      )
+    }
+  }
+
+  return (
+    <LearnView progress={progress} onOpenLesson={(i) => setOpenIndex(i)} onNavigate={onNavigate} />
   )
 }
 
@@ -126,6 +185,8 @@ function seatLabelFor(model: Model, seat: number): string {
 interface SessionProps extends AppProps {
   /** The hand-history store (resolved by {@link App} — always present here). */
   readonly historyStore: HandHistoryStore
+  /** Navigate to another top-level tab — forwarded to the lobby {@link SetupScreen}'s tab bar. */
+  readonly onNavigate: (tab: Tab) => void
   /** Start a brand-new session (the parent bumps the remount key). */
   readonly onNewTable: () => void
 }
@@ -137,6 +198,7 @@ function Session({
   makeBot = defaultMakeBot,
   botDelayMs = DEFAULT_BOT_DELAY_MS,
   historyStore,
+  onNavigate,
   onNewTable,
 }: SessionProps): React.JSX.Element {
   const [model, dispatch] = useReducer(reducer, initial, createInitialModel)
@@ -258,7 +320,14 @@ function Session({
 
   // --- Render the current phase ----------------------------------------------------------------
   if (phase === 'setup') {
-    return <SetupScreen setup={model.setup} dispatch={dispatch} onStart={beginHand} />
+    return (
+      <SetupScreen
+        setup={model.setup}
+        dispatch={dispatch}
+        onStart={beginHand}
+        onNavigate={onNavigate}
+      />
+    )
   }
 
   // The History affordance + overlay (ticket 0037): a button that reads recent hands back through the
