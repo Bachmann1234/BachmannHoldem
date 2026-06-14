@@ -1,8 +1,16 @@
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // The TUI app (ticket 0024) is the repo's first React/JSX. Component tests there use the
+  // react-jsx automatic runtime, so esbuild must transform JSX with that runtime (its default
+  // is the classic runtime, which would break `jsx: 'react-jsx'` sources).
+  esbuild: { jsx: 'automatic', jsxImportSource: 'react' },
   test: {
-    include: ['packages/**/src/**/*.test.ts', 'apps/**/src/**/*.test.ts'],
+    include: [
+      'packages/**/src/**/*.test.ts',
+      'apps/**/src/**/*.test.ts',
+      'apps/**/src/**/*.test.tsx',
+    ],
     // A few correctness oracles are deliberately exhaustive — the full C(52,5) hand-frequency
     // sweep and the multi-seed bot loops run in ~1s locally. But CI runs them under v8 coverage
     // instrumentation on a 2-core runner with every test file contending, which is several times

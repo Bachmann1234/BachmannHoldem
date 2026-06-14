@@ -2,7 +2,7 @@
 id: 0028
 title: TUI live coach panel
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -17,15 +17,15 @@ and rationale. This is the TUI rendering of what `apps/cli` prints as a `── 
 
 ## Acceptance criteria
 
-- [ ] A coach-panel component that renders a `DecisionVerdict` (and, preflop, a
+- [x] A coach-panel component that renders a `DecisionVerdict` (and, preflop, a
       `StartingHandVerdict`) as laid-out Ink components: equity & pot odds as percents, EV as a
       signed chip number, the EV-correct action, and a colour-coded good/leak/break-even headline.
-- [ ] The verdict is computed via `coachDecision(ctx, action)` (and `classifyStartingHand`
+- [x] The verdict is computed via `coachDecision(ctx, action)` (and `classifyStartingHand`
       preflop) from the hero's spot — the `DecisionContext` captured **before** the action is
       applied (while it is still the hero's turn, as `decisionContext` requires) — and shown after
       the hero acts. Coaching is advisory: a verdict error degrades to a notice, never crashes the
       app.
-- [ ] The panel updates in place as the hand progresses. Component is `ink-testing-library`-tested
+- [x] The panel updates in place as the hand progresses. Component is `ink-testing-library`-tested
       across good / leak / break-even and a preflop tier; `pnpm verify` green.
 
 ## Notes

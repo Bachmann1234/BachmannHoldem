@@ -2,7 +2,7 @@
 id: 0029
 title: TUI multiway session loop + table setup
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -19,14 +19,14 @@ from "one playable hand" into the real play experience, at a realistic table rat
 
 ## Acceptance criteria
 
-- [ ] A multiway session loop: stacks persist across hands, the **button rotates** among the live
+- [x] A multiway session loop: stacks persist across hands, the **button rotates** among the live
       seats, each hand gets a freshly shuffled deck dealt to the seats still holding chips, and the
       app prompts to play again or quit. A player who busts is removed; the session ends when only
       the hero (or one player) remains, or the hero busts/quits, with a final summary.
-- [ ] A table-setup screen: choose the **number of seats** (default 6-max, down to heads-up) and
+- [x] A table-setup screen: choose the **number of seats** (default 6-max, down to heads-up) and
       assign each opponent seat a `@holdem/bots` personality (`PERSONALITIES`) — sensible defaults
       (e.g. a varied spread; heads-up defaults to TAG) so it is one keypress to just play.
-- [ ] The full client is playable end to end at a multiway table with the table view, action bar,
+- [x] The full client is playable end to end at a multiway table with the table view, action bar,
       and coach panel working together. `pnpm verify` green; the session/seating/selection state
       lives in the reducer and is unit-tested (incl. button rotation and bust removal).
 

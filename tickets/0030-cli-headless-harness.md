@@ -2,7 +2,7 @@
 id: 0030
 title: Slim the CLI to a headless scriptable harness
 type: chore
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -19,14 +19,14 @@ driver.
 
 ## Acceptance criteria
 
-- [ ] `pnpm play` launches the **TUI** (`apps/tui`). The slimmed `apps/cli` runs non-interactively
+- [x] `pnpm play` launches the **TUI** (`apps/tui`). The slimmed `apps/cli` runs non-interactively
       under its own script (e.g. `pnpm sim` / `pnpm play:headless`): given a seed, a **seat count**
       (heads-up through 6-max), and/or a scripted list of hero actions, it plays a hand against the
       bots and prints a plain transcript (state + actions + coach verdicts), then exits.
-- [ ] The interactive readline loop (`LineReader`, the `question`/`prompt` plumbing) is removed;
+- [x] The interactive readline loop (`LineReader`, the `question`/`prompt` plumbing) is removed;
       whatever pure helpers remain useful (the `parseAction` grammar, percent/EV formatting) are
       kept or moved to a shared home rather than duplicated with the TUI. No dead code left behind.
-- [ ] README and `docs/ROADMAP.md` updated so `pnpm play` → TUI and the CLI's new headless role is
+- [x] README and `docs/ROADMAP.md` updated so `pnpm play` → TUI and the CLI's new headless role is
       documented accurately. `pnpm verify` green; the CLI's remaining pure helpers stay tested.
 
 ## Notes

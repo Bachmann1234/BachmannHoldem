@@ -1,11 +1,11 @@
 {
-  "name": "@holdem/cli",
+  "name": "@holdem/tui",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Headless, scriptable engine harness: plays one hand vs the bots from a seed + scripted hero actions and prints a deterministic transcript — a smoke-test driver, not the play UI.",
+  "description": "Full-screen Ink (React-for-the-terminal) play client over the pure poker packages — the M3.5 shell.",
   "scripts": {
-    "sim": "tsx src/sim.ts",
+    "dev": "tsx src/main.tsx",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -13,9 +13,12 @@
     "@holdem/coach": "workspace:*",
     "@holdem/engine": "workspace:*",
     "@holdem/format": "workspace:*",
-    "@holdem/odds": "workspace:*"
+    "ink": "^7.0.6",
+    "react": "^19.2.7"
   },
   "devDependencies": {
+    "@types/react": "^19.2.17",
+    "ink-testing-library": "^4.0.0",
     "tsx": "^4.22.4"
   }
 }

@@ -2,7 +2,7 @@
 id: 0025
 title: TUI app scaffold + Ink/MVU render loop
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -17,14 +17,14 @@ launches, drives the **real** `@holdem/engine`, and renders a single in-progress
 
 ## Acceptance criteria
 
-- [ ] `apps/tui` exists as a sibling to `apps/cli`: `package.json` (Ink + React deps + a dev script
+- [x] `apps/tui` exists as a sibling to `apps/cli`: `package.json` (Ink + React deps + a dev script
       via `tsx`), `tsconfig.json` (ESM + JSX for React, referencing the pure packages it uses), and
       wired into the root `tsconfig.json` references.
-- [ ] An MVU core: a single `Model` (engine `HandState` + UI state) and a pure `reducer(model, msg)`
+- [x] An MVU core: a single `Model` (engine `HandState` + UI state) and a pure `reducer(model, msg)`
       with a typed message union — the Bubble Tea mental model, in React. The root Ink component
       renders the model; no game logic lives in components. Model the table generically for **N
       seats** — do not bake in a heads-up (2-seat) assumption; the milestone seats up to 6.
-- [ ] Running the app (e.g. `pnpm --filter @holdem/tui dev`) renders a static snapshot of one hand
+- [x] Running the app (e.g. `pnpm --filter @holdem/tui dev`) renders a static snapshot of one hand
       created via `createHand` and exits cleanly. `pnpm verify` green (typecheck/lint of the new
       app included; the app is excluded from the pure-package coverage gate).
 

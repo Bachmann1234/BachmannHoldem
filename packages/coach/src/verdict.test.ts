@@ -27,9 +27,11 @@ function ctx(over: {
   board?: readonly Card[]
   pot: number
   toCall: number
+  numActive?: number
 }): DecisionContext {
   const board = over.board ?? []
   const legal: LegalActions = { fold: true, check: false, call: null, bet: null, raise: null }
+  const numActive = over.numActive ?? 2
   return {
     seat: 0,
     holeCards: over.holeCards,
@@ -45,8 +47,8 @@ function ctx(over: {
     bigBlind: 2,
     buttonIndex: 0,
     isButton: true,
-    numPlayers: 2,
-    numActive: 2,
+    numPlayers: numActive,
+    numActive,
     opponents: [],
   }
 }
@@ -57,12 +59,17 @@ function ctx(over: {
  * a hard-coded literal so they stay correct if the Monte-Carlo internals shift, while still
  * pinning the coach's own determinism.
  */
-function coachEquity(holeCards: readonly [Card, Card], board: readonly Card[] = []): number {
+function coachEquity(
+  holeCards: readonly [Card, Card],
+  board: readonly Card[] = [],
+  numActive = 2,
+): number {
   return estimateEquity({
     holeCards,
     board,
     opponentRange: COACH_ASSUMED_RANGE,
     seed: COACH_SEED,
+    opponentCount: numActive - 1,
   }).equity
 }
 
@@ -236,6 +243,64 @@ describe('coachDecision — determinism', () => {
       seed: COACH_SEED,
     }).equity
     expect(coachDecision(spot, CALL).equity).toBe(standalone)
+  })
+})
+
+describe('coachDecision — multiway equity read (numActive)', () => {
+  it('heads-up (numActive 2) equals the unchanged single-villain read', () => {
+    const holeCards = hole('AsAh')
+    const spot = ctx({ holeCards, pot: 100, toCall: 50, numActive: 2 })
+    // coachEquity with default numActive 2 == opponentCount 1 == the original behaviour.
+    expect(coachDecision(spot, CALL).equity).toBe(coachEquity(holeCards))
+  })
+
+  it('reported equity falls as the table grows (2-way → 3-way → 6-way) for a fixed hand', () => {
+    const holeCards = hole('AsAh')
+    const board = parseCards('Kd 7c 2h')
+    const heads = coachDecision(ctx({ holeCards, board, pot: 100, toCall: 50, numActive: 2 }), CALL)
+    const threeWay = coachDecision(
+      ctx({ holeCards, board, pot: 100, toCall: 50, numActive: 3 }),
+      CALL,
+    )
+    const sixWay = coachDecision(
+      ctx({ holeCards, board, pot: 100, toCall: 50, numActive: 6 }),
+      CALL,
+    )
+    expect(threeWay.equity).toBeLessThan(heads.equity)
+    expect(sixWay.equity).toBeLessThan(threeWay.equity)
+  })
+
+  it('a 6-way read is deterministic and matches a standalone multiway read', () => {
+    const holeCards = hole('AsAh')
+    const board = parseCards('Kd 7c 2h')
+    const spot = ctx({ holeCards, board, pot: 100, toCall: 50, numActive: 6 })
+    expect(coachDecision(spot, CALL).equity).toBe(coachEquity(holeCards, board, 6))
+  })
+
+  it('a hand that is +EV heads-up but −EV multiway flips good → leak at the bigger table', () => {
+    // A speculative hand on a coordinated board: decent equity vs one villain, much thinner
+    // against five. Priced so the call clears the threshold heads-up but not 6-way.
+    const holeCards = hole('Th9h')
+    const board = parseCards('8h 7c 2d') // open-ended + backdoor flush draw
+    const pot = 100
+    const toCall = 60 // threshold = 60/160 = 0.375
+
+    const heads = coachDecision(ctx({ holeCards, board, pot, toCall, numActive: 2 }), CALL)
+    const sixWay = coachDecision(ctx({ holeCards, board, pot, toCall, numActive: 6 }), CALL)
+
+    // Heads-up the draw is good to continue; six-way the same price is a leak.
+    expect(heads.equity).toBeGreaterThan(heads.potOddsThreshold)
+    expect(heads.verdict).toBe('good')
+    expect(sixWay.equity).toBeLessThan(sixWay.potOddsThreshold)
+    expect(sixWay.verdict).toBe('leak')
+  })
+
+  it('propagates a RangeError on a degenerate spot with no live opponents (numActive 1)', () => {
+    // A real DecisionContext always has numActive >= 2 (a decision needs an opponent), but guard
+    // the contract: numActive 1 ⇒ opponentCount 0, which estimateEquity rejects rather than
+    // reading a no-villain equity. The throw surfaces (the TUI catches it as an advisory notice).
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50, numActive: 1 })
+    expect(() => coachDecision(spot, CALL)).toThrow(RangeError)
   })
 })
 
