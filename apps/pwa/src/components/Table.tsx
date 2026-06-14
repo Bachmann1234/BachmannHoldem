@@ -33,10 +33,21 @@ export interface TableProps {
   readonly seatLabel: SeatLabel
   /** The session hand number, for the top bar. */
   readonly handNumber: number
+  /**
+   * Optional overlay rendered inside the felt, on top of the seats — the coach FAB (ticket 0036)
+   * lives here so its `position:absolute` anchors to the felt, exactly like the design's `.coach-fab`.
+   */
+  readonly overlay?: React.ReactNode
 }
 
 /** Render the top bar, the felt, the centred pot/board, every seat, and the wager chips. */
-export function Table({ hand, heroSeat, seatLabel, handNumber }: TableProps): React.JSX.Element {
+export function Table({
+  hand,
+  heroSeat,
+  seatLabel,
+  handNumber,
+  overlay,
+}: TableProps): React.JSX.Element {
   const complete = isComplete(hand)
   const count = hand.players.length
   const layout = SEAT_LAYOUTS[count] ?? SEAT_LAYOUTS[6]!
@@ -103,6 +114,8 @@ export function Table({ hand, heroSeat, seatLabel, handNumber }: TableProps): Re
               position={layout[p.seat] ?? CENTER}
             />
           ))}
+
+          {overlay}
         </div>
       </div>
     </div>

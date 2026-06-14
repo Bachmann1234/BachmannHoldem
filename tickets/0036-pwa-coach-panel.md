@@ -2,7 +2,7 @@
 id: 0036
 title: PWA inline coach panel (DOM)
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: high
 created: 2026-06-13
@@ -29,17 +29,17 @@ hero to act and check back.
 
 ## Acceptance criteria
 
-- [ ] A coach FAB (with the post-action ✓/!/· dot) opens a bottom drawer rendering all three
+- [x] A coach FAB (with the post-action ✓/!/· dot) opens a bottom drawer rendering all three
       `CoachResult` states: `none` (placeholder prompting "open during your turn"), `verdict` (the
       `DecisionVerdict` laid out — equity + win/lose bar, pot odds, EV metric cards, the good/leak
       call with encouraging copy — plus the preflop chart verdict when present), and `error` (the
       one-line advisory notice — coaching never crashes the hand).
-- [ ] Uses `@holdem/format` coach value formatters for every number/label (no re-formatting in the
+- [x] Uses `@holdem/format` coach value formatters for every number/label (no re-formatting in the
       component); updates in place as the hand progresses and shows the hero's last decision while
       bots act.
-- [ ] Mobile layout integrates with the table without obscuring play (e.g. a panel/sheet per the
+- [x] Mobile layout integrates with the table without obscuring play (e.g. a panel/sheet per the
       approved design); legible at phone width.
-- [ ] Component-tested across the three states; `pnpm verify` green.
+- [x] Component-tested across the three states; `pnpm verify` green.
 
 ## Notes
 

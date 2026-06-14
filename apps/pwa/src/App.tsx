@@ -24,7 +24,7 @@
  * tests pass `0` and never depend on the wall clock.
  */
 
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { isComplete, legalActions, type Action, type Card, type LegalActions } from '@holdem/engine'
 import {
   decisionContext,
@@ -46,6 +46,8 @@ import {
   type SessionPlayer,
 } from '@holdem/session'
 import { ActionBar } from './components/ActionBar.js'
+import { CoachDrawer } from './components/CoachDrawer.js'
+import { CoachFab } from './components/CoachFab.js'
 import { SetupScreen } from './components/SetupScreen.js'
 import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
@@ -120,6 +122,19 @@ function Session({
   onNewTable,
 }: SessionProps): React.JSX.Element {
   const [model, dispatch] = useReducer(reducer, initial, createInitialModel)
+
+  // The coach drawer's open/closed state is pure UI — component-local, never in the reducer model.
+  // Stable handlers so the drawer's focus-management effect only re-runs on an actual open/close.
+  const [coachOpen, setCoachOpen] = useState(false)
+  const openCoach = useCallback(() => setCoachOpen(true), [])
+  const closeCoach = useCallback(() => setCoachOpen(false), [])
+
+  // Close the drawer when a fresh hand is dealt: the reducer resets `coach` to `'none'` at
+  // `start-hand`, so a left-open sheet would otherwise flip from the graded verdict to the empty
+  // placeholder mid-view. Closing it keeps the review tied to the hand it graded.
+  useEffect(() => {
+    if (model.coach.kind === 'none') setCoachOpen(false)
+  }, [model.coach])
 
   // The bot instances live in a ref (shell machinery the render never reads), keyed by stable player
   // id and created ONCE per session — each carries its own PRNG and is reused every hand.
@@ -202,6 +217,7 @@ function Session({
           heroSeat={heroSeat}
           handNumber={model.handNumber}
           seatLabel={(seat) => seatLabelFor(model, seat)}
+          overlay={<CoachFab coach={model.coach} onOpen={openCoach} />}
         />
       ) : null}
       {hand !== null ? (
@@ -216,6 +232,7 @@ function Session({
           onQuit={() => dispatch({ type: 'quit' })}
         />
       ) : null}
+      <CoachDrawer coach={model.coach} open={coachOpen} onClose={closeCoach} />
     </div>
   )
 }

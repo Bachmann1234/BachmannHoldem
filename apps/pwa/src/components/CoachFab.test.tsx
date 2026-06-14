@@ -1,0 +1,72 @@
+// @vitest-environment jsdom
+/**
+ * CoachFab component test (ticket 0036): the corner FAB's ring reflects `model.coach` — `?` when no
+ * decision is graded (`none`/`error`), and a quiet ✓/!/· dot per the post-action verdict — and
+ * clicking it opens the drawer. Pure presentational: we hand it plain `CoachResult` records (the
+ * shape the reducer stores), never an engine `HandState`.
+ */
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { DecisionVerdict } from '@holdem/coach'
+import type { CoachResult } from '@holdem/session'
+import { CoachFab } from './CoachFab.js'
+
+afterEach(cleanup)
+
+/** A `verdict` CoachResult with the given verdict tag (other fields are plausible filler). */
+function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
+  return {
+    kind: 'verdict',
+    verdict: {
+      equity: 0.6,
+      potOddsThreshold: 0.33,
+      callEv: 4,
+      correctDecision: 'continue',
+      heroContinued: true,
+      verdict: tag,
+    },
+  }
+}
+
+describe('CoachFab — ring reflects the coach state', () => {
+  it('shows "?" when no decision is graded yet (none)', () => {
+    render(<CoachFab coach={{ kind: 'none' }} onOpen={vi.fn()} />)
+    const ring = screen.getByTestId('coach-fab-ring')
+    expect(ring.textContent).toBe('?')
+    expect(ring.className).toContain('ring-neutral')
+  })
+
+  it('shows "?" for an error result', () => {
+    render(<CoachFab coach={{ kind: 'error', message: 'boom' }} onOpen={vi.fn()} />)
+    expect(screen.getByTestId('coach-fab-ring').textContent).toBe('?')
+  })
+
+  it('shows ✓ (good) coloured good', () => {
+    render(<CoachFab coach={verdictResult('good')} onOpen={vi.fn()} />)
+    const ring = screen.getByTestId('coach-fab-ring')
+    expect(ring.textContent).toBe('✓')
+    expect(ring.className).toContain('ring-good')
+  })
+
+  it('shows ! (leak) coloured bad', () => {
+    render(<CoachFab coach={verdictResult('leak')} onOpen={vi.fn()} />)
+    const ring = screen.getByTestId('coach-fab-ring')
+    expect(ring.textContent).toBe('!')
+    expect(ring.className).toContain('ring-leak')
+  })
+
+  it('shows · (breakEven) coloured neutral/accent', () => {
+    render(<CoachFab coach={verdictResult('breakEven')} onOpen={vi.fn()} />)
+    const ring = screen.getByTestId('coach-fab-ring')
+    expect(ring.textContent).toBe('·')
+    expect(ring.className).toContain('ring-neutral')
+  })
+
+  it('opens the drawer when clicked', () => {
+    const onOpen = vi.fn()
+    render(<CoachFab coach={{ kind: 'none' }} onOpen={onOpen} />)
+    fireEvent.click(screen.getByTestId('coach-fab'))
+    expect(onOpen).toHaveBeenCalledTimes(1)
+  })
+})
