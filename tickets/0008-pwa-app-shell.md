@@ -2,7 +2,7 @@
 id: 0008
 title: 'Epic: PWA app shell'
 type: epic
-status: in-progress
+status: done
 milestone: M4
 priority: high
 created: 2026-06-13
@@ -15,10 +15,13 @@ already-tested engine/odds/bots/coach packages.
 
 ## Acceptance criteria
 
-- [ ] React + Vite + `vite-plugin-pwa` — installable to home screen, works offline
-- [ ] Poker-table UI: play vs bots with inline coaching feedback
-- [ ] Local hand-history storage (IndexedDB)
-- [ ] Deployed to free static hosting over HTTPS
+- [x] React + Vite + `vite-plugin-pwa` — installable to home screen, works offline ([[0033-pwa-scaffold]])
+- [x] Poker-table UI: play vs bots with inline coaching feedback ([[0034-pwa-table-view]] /
+      [[0035-pwa-play-loop]] / [[0036-pwa-coach-panel]])
+- [x] Local hand-history storage (IndexedDB) ([[0037-pwa-hand-history]])
+- [x] Deployed to free static hosting over HTTPS — Cloudflare Pages deploy automation + config landed
+      ([[0038-pwa-deploy]]); the live first deploy + Android install check are an owner follow-up
+      (Cloudflare project + secrets), documented in the README.
 
 ## Notes
 
