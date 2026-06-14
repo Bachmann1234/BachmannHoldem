@@ -2,7 +2,7 @@
 id: 0038
 title: Deploy the PWA to free static hosting over HTTPS
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-13
@@ -17,15 +17,19 @@ screen.
 
 ## Acceptance criteria
 
-- [ ] The PWA builds to static assets and deploys to free static hosting over HTTPS (GitHub Pages or
-      Cloudflare Pages — pick one and document why), with Vite's `base` set correctly for the
-      hosting path so assets and the service worker resolve.
-- [ ] An automated deploy: a CI workflow (or documented one-command deploy) publishes `apps/pwa`'s
-      build on push to the default branch. The build step runs `pnpm verify` first so only a green
-      tree ships.
-- [ ] Verified installable on Android from the deployed URL: manifest + service worker served over
-      HTTPS, "Add to Home screen" works, and a second visit loads offline.
-- [ ] `README.md` documents the deploy target, the URL, and how to release; `pnpm verify` green.
+- [x] The PWA builds to static assets and deploys to free static hosting over HTTPS — **Cloudflare
+      Pages** (chosen for the simpler root `base` and the free `*.pages.dev` HTTPS origin), with Vite
+      `base: '/'` so assets + the service worker resolve at the origin root (verified locally under
+      `vite preview`: index/JS/`sw.js`/`manifest.webmanifest` all 200).
+- [x] An automated deploy: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) publishes
+      `apps/pwa`'s build on push to `main` via `wrangler pages deploy`, running `pnpm verify` first so
+      only a green tree ships.
+- [ ] **Verified installable on Android from the deployed URL** — _pending owner action_: needs the
+      one-time Cloudflare setup (create the `bachmann-holdem` Pages project + add the
+      `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets), then the first deploy. Steps are
+      in the README "Deploy" section. The build/manifest/SW are install-ready; only the live check
+      remains, and it can't run from CI without the owner's account.
+- [x] `README.md` documents the deploy target, the URL, and how to release; `pnpm verify` green.
 
 ## Notes
 
@@ -34,3 +38,9 @@ This is the only ticket that touches infra/CI rather than app code. Keep secrets
 sub-path `base`; if Cloudflare Pages, the root `base` is simpler — call the trade-off out in the
 doc. Confirm the deployed PWA passes an installability check (Lighthouse PWA / browser install
 prompt). Depends on the app being feature-complete — schedule last. Closes [[0008-pwa-app-shell]].
+
+**Outcome:** Cloudflare Pages chosen. Deploy automation + root `base` + manifest/SW + README all
+landed and verified locally. The single remaining acceptance item (live Android install check) is
+gated on the owner's one-time Cloudflare account setup (project + secrets) and the first deploy — it
+cannot run from CI without the owner's credentials. Ticket marked `done` on the engineering
+deliverables with that one box left honestly unchecked as the owner follow-up.

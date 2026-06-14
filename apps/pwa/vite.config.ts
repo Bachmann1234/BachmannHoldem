@@ -2,15 +2,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// First Vite/DOM-React app in the repo (ticket 0033). Design-agnostic scaffold: prove the
-// toolchain, the model→DOM wiring, and the PWA install/offline plumbing. Table visuals land in
-// later M4 tickets.
-//
-// `base: './'` keeps the built asset URLs relative so `vite preview` (and a future static deploy)
-// resolve them without a hardcoded subpath — deploy-path tuning (e.g. a GitHub-Pages prefix) is a
-// later ticket.
+// The PWA's Vite build (tickets 0033–0038). Deploy target is Cloudflare Pages, served at the ROOT
+// of a `*.pages.dev` origin (ticket 0038), so `base: '/'` is the correct absolute path: the service
+// worker then registers at `/sw.js` with scope `/`, controlling the whole origin, and the manifest
+// `start_url`/`scope` are likewise root. (`vite preview` also serves at root, so local preview
+// matches production.)
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [
     react(),
     VitePWA({
@@ -27,8 +25,8 @@ export default defineConfig({
         background_color: '#0d0f13',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: './',
-        scope: './',
+        start_url: '/',
+        scope: '/',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
