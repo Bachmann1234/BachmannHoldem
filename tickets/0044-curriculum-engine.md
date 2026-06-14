@@ -2,7 +2,7 @@
 id: 0044
 title: '@holdem/curriculum — the spot → ask → grade → explain engine'
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -22,27 +22,27 @@ hand: a pure grader the UI shells render.
 
 ## Acceptance criteria
 
-- [ ] New pure package `packages/curriculum` (`@holdem/curriculum`), sibling shape to
+- [x] New pure package `packages/curriculum` (`@holdem/curriculum`), sibling shape to
       `packages/coach`/`packages/format`: `package.json` (deps on `@holdem/engine`, `@holdem/bots`,
       `@holdem/coach`; whatever of `@holdem/odds`/`@holdem/format` the grader needs), `tsconfig.json`
       with project references, `src/index.ts` exporting the public API.
-- [ ] A **spot** model: a self-contained, serialisable description of one retrieval check — a prompt,
+- [x] A **spot** model: a self-contained, serialisable description of one retrieval check — a prompt,
       a small set of answer **choices** the player picks from, and the engine inputs needed to grade
       it (e.g. a `DecisionContext` + the `Action` each choice maps to, for coach-graded spots).
-- [ ] A **grade** function that, given a spot and the player's chosen answer, returns a result
+- [x] A **grade** function that, given a spot and the player's chosen answer, returns a result
       carrying: correct/incorrect, the chosen-vs-correct answer, the underlying coach verdict (so the
       `concept` tag from [[0043-coach-concept-tag]] flows through), and an **explanation** built from
       the deterministic numbers. Coach-graded spots run `coachDecision` / the preflop chart — they do
       **not** carry a hand-authored answer key. Document the seam clearly enough that an M5 drill spot
       drops into the same `grade` with no new engine code.
-- [ ] A **lesson** model: an ordered grouping of a short explanation (the ~30s teach) plus one or
+- [x] A **lesson** model: an ordered grouping of a short explanation (the ~30s teach) plus one or
       more spots, tagged with the `Concept` it teaches. (Content is the next ticket; here just the
       type + any sequencing helpers, e.g. "next unanswered spot".)
-- [ ] Wired into the build: root `tsconfig.json` references `packages/curriculum`; `vitest.config.ts`
+- [x] Wired into the build: root `tsconfig.json` references `packages/curriculum`; `vitest.config.ts`
       coverage `include` gains `packages/curriculum/src/**` (gate it like every pure package). Tests
       cover grading a correct and an incorrect answer for a coach-graded spot, and the
       explanation/verdict round-trip. `pnpm verify` green above thresholds.
-- [ ] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
+- [x] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
 
 ## Notes
 
