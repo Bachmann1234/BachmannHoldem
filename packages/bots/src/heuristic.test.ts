@@ -372,6 +372,11 @@ describe('HeuristicOpponent — determinism', () => {
   })
 })
 
+// These multi-seed self-play loops run a seeded Monte-Carlo equity read per decision, so they are
+// the slow tests the global `testTimeout` floor in vitest.config.ts was deliberately raised "well
+// past" 5s to cover. They therefore inherit that floor rather than pinning their own inline timeout
+// — an inline value below the floor (the old `30000`) silently shrank the budget under it and
+// tripped on the loaded 2-core CI runner under coverage instrumentation.
 describe('HeuristicOpponent — robustness: full hands run to completion legally', () => {
   function buildDeck(n: number, button: number, holesBySeat: string[], board: string): Card[] {
     const sbIndex = n === 2 ? button : (button + 1) % n
@@ -402,7 +407,7 @@ describe('HeuristicOpponent — robustness: full hands run to completion legally
       })
       expect(final.street).toBe('complete')
     }
-  }, 30000)
+  })
 
   it('HeuristicOpponent vs a reference bot completes across many seeds', async () => {
     const refs: Opponent[] = [callingStation, rock]
@@ -414,7 +419,7 @@ describe('HeuristicOpponent — robustness: full hands run to completion legally
       })
       expect(final.street).toBe('complete')
     }
-  }, 30000)
+  })
 
   it('all four personalities complete a self-play hand across seeds', async () => {
     const personalities = [TIGHT_AGGRESSIVE, LOOSE_AGGRESSIVE, TIGHT_PASSIVE, LOOSE_PASSIVE]
@@ -427,5 +432,5 @@ describe('HeuristicOpponent — robustness: full hands run to completion legally
         expect(final.street).toBe('complete')
       }
     }
-  }, 30000)
+  })
 })
