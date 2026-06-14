@@ -24,8 +24,10 @@
  * coach CLI wiring ([[0023-coach-cli-wiring]]).
  */
 
-import { formatCard, type Card } from '@holdem/engine'
+import { formatCard, type Action, type Card } from '@holdem/engine'
+import type { DecisionContext } from '@holdem/bots'
 import { parseRange, type Combo, type Range } from '@holdem/odds'
+import type { ActionVerdict } from './verdict.js'
 
 /**
  * The strength ladder a starting hand classifies into, strongest first.
@@ -204,4 +206,94 @@ export function classifyStartingHand(holeCards: readonly [Card, Card]): Starting
     }
   }
   return { tier: 'trash', rationale: TIER_RATIONALE.trash }
+}
+
+/**
+ * What the starting-hand chart recommends doing with the holding in this spot:
+ *
+ * - `'open'` — the chart says to put chips in (enter the pot / continue).
+ * - `'fold'` — the chart says to give the hand up.
+ *
+ * This is the chart's *prescription* (position-aware for {@link PreflopTier.marginal}); the hero is
+ * then graded on whether their action agreed with it — see {@link gradePreflop}.
+ */
+export type PreflopAdvice = 'open' | 'fold'
+
+/**
+ * A graded preflop decision — the chart-based analogue of the postflop {@link DecisionVerdict}
+ * (ticket [[BUG-0001]]).
+ *
+ * Preflop, pot-odds-vs-equity is the *wrong* lens: it ignores position, fold equity, and implied
+ * odds, so it folds textbook opens like AJs on the button. So we grade preflop off the
+ * starting-hand chart instead — `classifyStartingHand` gives the tier, the chart's open/fold
+ * guidance (position-aware for the marginal tier) gives the {@link advice}, and the hero is `good`
+ * when their action matched that guidance and a `leak` when it did not. A flat, serialisable value
+ * with no equity/EV fields — there is deliberately no pot-odds math here to contradict the chart.
+ */
+export interface PreflopVerdict {
+  /** The strength tier the holding classifies into (its single strongest match). */
+  readonly tier: PreflopTier
+  /** A short, human-readable line of open/fold guidance — the teaching takeaway. */
+  readonly rationale: string
+  /** What the chart recommends in this spot (position-aware for the `marginal` tier). */
+  readonly advice: PreflopAdvice
+  /** Whether the hero put chips in (any non-fold) or folded. */
+  readonly heroContinued: boolean
+  /**
+   * The grade: `'good'` when the hero's action matched the chart {@link advice}, `'leak'` when it
+   * did not. (`'breakEven'` is part of the shared {@link ActionVerdict} union but unused preflop —
+   * the chart gives a crisp open/fold call, not a coin-flip band.)
+   */
+  readonly verdict: ActionVerdict
+}
+
+/**
+ * Whether the hero is in *late position* — on the button or the cutoff (the seat immediately before
+ * the button). This is a seat-geometry property: the cutoff is `buttonIndex - 1` (mod
+ * {@link DecisionContext.numPlayers}), so it falls straight out of the button index without any
+ * range or fold reasoning. Heads-up (two seats) both seats count as late — the standard read that
+ * the marginal tier is playable heads-up.
+ *
+ * Late position is the one piece of context the chart needs to grade the `marginal` tier, whose
+ * guidance is "open only in late position; fold to pressure".
+ */
+function isLatePosition(ctx: DecisionContext): boolean {
+  const cutoff = (ctx.buttonIndex - 1 + ctx.numPlayers) % ctx.numPlayers
+  return ctx.seat === ctx.buttonIndex || ctx.seat === cutoff
+}
+
+/**
+ * The chart's open/fold prescription for a tier in this spot. Tiers the chart always plays
+ * (`premium` / `strong` / `playable`) say `'open'`; the `marginal` tier opens only in late
+ * position and otherwise folds; `trash` always folds.
+ */
+function adviceFor(tier: PreflopTier, latePosition: boolean): PreflopAdvice {
+  if (tier === 'trash') return 'fold'
+  if (tier === 'marginal') return latePosition ? 'open' : 'fold'
+  return 'open'
+}
+
+/**
+ * Grade one *preflop* decision off the starting-hand chart — the preflop counterpart to
+ * {@link coachDecision} (which stays the postflop lens). Classify the hole cards into a
+ * {@link PreflopTier}, take the chart's position-aware open/fold {@link PreflopAdvice} for the spot,
+ * and score the hero `'good'` when their action agreed with it, `'leak'` when it did not.
+ *
+ * Deliberately ignores pot odds and equity: preflop those under-rate position, fold equity, and
+ * implied odds and would fold clear opens (the bug this fixes). Postflop continues to use
+ * {@link coachDecision}; the reducer routes preflop here and everything else there.
+ *
+ * **Scope (first cut).** "Play the tier" is treated as continue-vs-fold against whatever the hero
+ * faces — the chart is an *opening* chart, so this also lets a charted hand continue facing a raise.
+ * Tightening ranges versus a raise/3-bet (flatting vs. 3-betting) is a follow-up, not this fix.
+ *
+ * Throws {@link RangeError} (via {@link classifyStartingHand}) on malformed hole cards.
+ */
+export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdict {
+  const { tier, rationale } = classifyStartingHand(ctx.holeCards)
+  const advice = adviceFor(tier, isLatePosition(ctx))
+  const heroContinued = action.type !== 'fold'
+  // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
+  const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'
+  return { tier, rationale, advice, heroContinued, verdict }
 }

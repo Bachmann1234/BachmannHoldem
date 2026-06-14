@@ -9,21 +9,21 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DecisionVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { CoachDrawer } from './CoachDrawer.js'
 
 afterEach(cleanup)
 
-/** Build a `verdict` CoachResult around a `DecisionVerdict`, optionally with a preflop rationale. */
-function verdictResult(
-  verdict: DecisionVerdict,
-  rationale?: string,
-): Extract<CoachResult, { kind: 'verdict' }> {
-  return rationale === undefined
-    ? { kind: 'verdict', verdict }
-    : { kind: 'verdict', verdict, preflop: { tier: 'premium', rationale } }
+/** Build a postflop `verdict` CoachResult around a `DecisionVerdict`. */
+function verdictResult(verdict: DecisionVerdict): Extract<CoachResult, { kind: 'verdict' }> {
+  return { kind: 'verdict', verdict }
+}
+
+/** Build a preflop `preflop` CoachResult around a `PreflopVerdict`. */
+function preflopResult(verdict: PreflopVerdict): Extract<CoachResult, { kind: 'preflop' }> {
+  return { kind: 'preflop', verdict }
 }
 
 /** A facing-a-bet verdict: equity beats the price, a positive call EV, graded good. */
@@ -104,20 +104,48 @@ describe('CoachDrawer — verdict state', () => {
     expect(screen.getByTestId('metric-potodds').textContent).toBe('—')
   })
 
-  it('renders the preflop starting-hand rationale when present', () => {
+  it('shows no preflop starting-hand line postflop (the chart is preflop only)', () => {
+    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
+    expect(screen.queryByTestId('coach-preflop')).toBeNull()
+  })
+})
+
+describe('CoachDrawer — preflop state', () => {
+  /** A premium hand the hero correctly opened — graded off the chart. */
+  const PREFLOP_GOOD: PreflopVerdict = {
+    tier: 'premium',
+    rationale: 'Premium holding — always raise; you want chips in.',
+    advice: 'open',
+    heroContinued: true,
+    verdict: 'good',
+  }
+
+  it('renders the chart rationale and the shared good headline', () => {
+    render(<CoachDrawer coach={preflopResult(PREFLOP_GOOD)} open onClose={vi.fn()} />)
+    expect(screen.getByTestId('coach-verdict').className).toContain('good')
+    expect(screen.getByText(VERDICT_LABEL.good)).toBeTruthy()
+    expect(screen.getByTestId('coach-preflop').textContent).toContain('Premium holding')
+  })
+
+  it('flags folding a chart-open hand as a leak', () => {
     render(
       <CoachDrawer
-        coach={verdictResult(GOOD, 'Premium — open for a raise.')}
+        coach={preflopResult({ ...PREFLOP_GOOD, heroContinued: false, verdict: 'leak' })}
         open
         onClose={vi.fn()}
       />,
     )
-    expect(screen.getByTestId('coach-preflop').textContent).toContain('Premium — open for a raise.')
+    expect(screen.getByTestId('coach-verdict').className).toContain('leak')
+    expect(screen.getByText(VERDICT_LABEL.leak)).toBeTruthy()
   })
 
-  it('omits the preflop line when absent (postflop decision)', () => {
-    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
-    expect(screen.queryByTestId('coach-preflop')).toBeNull()
+  it('shows no pot-odds metric cards preflop (the chart drives the verdict, not equity)', () => {
+    // BUG-0001: preflop must not render the equity / pot-odds / EV cards that would contradict
+    // the chart verdict.
+    render(<CoachDrawer coach={preflopResult(PREFLOP_GOOD)} open onClose={vi.fn()} />)
+    expect(screen.queryByTestId('metric-equity')).toBeNull()
+    expect(screen.queryByTestId('metric-potodds')).toBeNull()
+    expect(screen.queryByTestId('metric-ev')).toBeNull()
   })
 })
 

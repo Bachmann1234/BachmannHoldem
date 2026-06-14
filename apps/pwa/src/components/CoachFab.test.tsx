@@ -63,6 +63,23 @@ describe('CoachFab — ring reflects the coach state', () => {
     expect(ring.className).toContain('ring-neutral')
   })
 
+  it('reads a preflop chart grade the same as a postflop verdict (✓ good)', () => {
+    const coach: CoachResult = {
+      kind: 'preflop',
+      verdict: {
+        tier: 'premium',
+        rationale: 'Premium holding — always raise; you want chips in.',
+        advice: 'open',
+        heroContinued: true,
+        verdict: 'good',
+      },
+    }
+    render(<CoachFab coach={coach} onOpen={vi.fn()} />)
+    const ring = screen.getByTestId('coach-fab-ring')
+    expect(ring.textContent).toBe('✓')
+    expect(ring.className).toContain('ring-good')
+  })
+
   it('opens the drawer when clicked', () => {
     const onOpen = vi.fn()
     render(<CoachFab coach={{ kind: 'none' }} onOpen={onOpen} />)

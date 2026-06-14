@@ -37,8 +37,14 @@ import {
 } from '@holdem/engine'
 import { mulberry32 } from '@holdem/odds'
 import { decisionContext, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
-import { coachDecision, classifyStartingHand } from '@holdem/coach'
-import { parseAction, renderState, renderResult, renderCoachFeedback } from './table.js'
+import { coachDecision, gradePreflop } from '@holdem/coach'
+import {
+  parseAction,
+  renderState,
+  renderResult,
+  renderCoachFeedback,
+  renderPreflopCoach,
+} from './table.js'
 
 const HERO = 0
 const SMALL_BLIND = 1
@@ -111,9 +117,12 @@ function emit(line: string): void {
 function coachHero(state: HandState, action: Action): void {
   try {
     const ctx = decisionContext(state, HERO)
-    const verdict = coachDecision(ctx, action)
-    const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
-    emit(renderCoachFeedback(verdict, preflop))
+    // Preflop is graded off the starting-hand chart, postflop off the pot-odds math (BUG-0001).
+    if (ctx.street === 'preflop') {
+      emit(renderPreflopCoach(gradePreflop(ctx, action)))
+    } else {
+      emit(renderCoachFeedback(coachDecision(ctx, action)))
+    }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     emit(`\n(Coaching unavailable for this spot — ${reason})`)

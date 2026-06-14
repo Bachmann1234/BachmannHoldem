@@ -9,8 +9,8 @@
  * the pure core:
  * the per-hand **deck shuffle** and the **bots' decisions**. The shell shuffles a fresh deck and
  * dispatches it in via `start-hand`; the reducer builds the compacted stacks + button and calls the
- * deterministic `createHand` (see {@link dealHand}). The coach grading (`coachDecision` /
- * `classifyStartingHand`) is pure, seeded, and deterministic, so it may — and does — stay here.
+ * deterministic `createHand` (see {@link dealHand}). The coach grading (`gradePreflop` preflop /
+ * `coachDecision` postflop) is pure, seeded, and deterministic, so it may — and does — stay here.
  *
  * **The session state machine.** The reducer owns every phase transition (`setup` → `playing` →
  * `hand-over` → `playing` … → `game-over`), the setup selection edits, the per-hand seat
@@ -20,7 +20,7 @@
 
 import { applyAction, isComplete, type Action, type Card } from '@holdem/engine'
 import { decisionContext } from '@holdem/bots'
-import { coachDecision, classifyStartingHand } from '@holdem/coach'
+import { coachDecision, gradePreflop } from '@holdem/coach'
 import {
   applyHandResult,
   buildSessionPlayers,
@@ -199,15 +199,18 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
  * Grade the hero's decision via `@holdem/coach`, returning the {@link CoachResult} to store —
  * the capture-before-apply ordering + advisory try/catch a terminal coach loop uses.
  * The caller has guaranteed it is the hero's turn on `model.hand`, so the context captures cleanly;
- * the verdict math lives entirely in the coach. Preflop we also hand back the starting-hand chart
- * classification. Any throw degrades to an `'error'` notice — coaching never crashes the hand.
+ * the verdict math lives entirely in the coach. **Preflop** is graded off the starting-hand chart
+ * (`gradePreflop`), **postflop** off the pot-odds math (`coachDecision`) — the two lenses are
+ * distinct because preflop pot-odds-vs-equity folds clear opens (ticket [[BUG-0001]]). Any throw
+ * degrades to an `'error'` notice — coaching never crashes the hand.
  */
 function coachHero(model: Model, action: Action): CoachResult {
   try {
     const ctx = decisionContext(model.hand!, model.heroSeat)
-    const verdict = coachDecision(ctx, action)
-    const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
-    return { kind: 'verdict', verdict, preflop }
+    if (ctx.street === 'preflop') {
+      return { kind: 'preflop', verdict: gradePreflop(ctx, action) }
+    }
+    return { kind: 'verdict', verdict: coachDecision(ctx, action) }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     return { kind: 'error', message: `Coaching unavailable for this spot — ${reason}` }

@@ -133,7 +133,7 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
     let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck: deck1 })
     // Grade the hero, then check the hand down to a showdown → hand-over with a stored verdict.
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
-    expect(model.coach.kind).toBe('verdict')
+    expect(model.coach.kind).toBe('preflop') // the first hero decision is graded off the chart
     model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
     for (let i = 0; i < 6 && model.phase === 'playing'; i++) {
       model = reducer(model, { type: 'apply-action', action: { type: 'check' } })

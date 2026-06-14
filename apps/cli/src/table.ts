@@ -18,7 +18,7 @@ import {
   type HandState,
   type PlayerState,
 } from '@holdem/engine'
-import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 
 /** Re-exported for the harness so it has one import surface (`from './table.js'`). */
@@ -82,27 +82,17 @@ export function renderResult(state: HandState, heroSeat: number): string {
 }
 
 /**
- * Render the coach's feedback on the hero's decision in the existing `── Section ──` /
+ * Render the coach's feedback on a *postflop* decision in the existing `── Section ──` /
  * two-space-indented style of {@link renderState} / {@link renderResult}.
  *
- * Always shows the postflop-math view of the spot the hero faced: the estimated equity, the
- * pot-odds threshold it is judged against, the chip EV of calling, the EV-correct action
- * (continue vs. fold), and the good/leak/break-even verdict — all taken verbatim from the
- * {@link DecisionVerdict} the coach computed (the harness does no math of its own), formatted with
- * the shared `@holdem/format` helpers. When the decision was preflop, pass the
- * {@link StartingHandVerdict} too and its starting-hand chart tier + rationale lead the block,
- * mirroring how a learner reaches for the chart first preflop and the pot-odds math postflop.
+ * Shows the postflop-math view of the spot the hero faced: the estimated equity, the pot-odds
+ * threshold it is judged against, the chip EV of calling, the EV-correct action (continue vs. fold),
+ * and the good/leak/break-even verdict — all taken verbatim from the {@link DecisionVerdict} the
+ * coach computed (the harness does no math of its own), formatted with the shared `@holdem/format`
+ * helpers. Preflop is graded off the chart instead — see {@link renderPreflopCoach}.
  */
-export function renderCoachFeedback(
-  verdict: DecisionVerdict,
-  preflop?: StartingHandVerdict,
-): string {
+export function renderCoachFeedback(verdict: DecisionVerdict): string {
   const lines = ['', `── Coach ${'─'.repeat(39)}`]
-  if (preflop) {
-    // The rationale is a self-contained, tier-named sentence (e.g. "Premium holding — …"),
-    // so we render it as-is rather than prefixing `cap(tier)` and doubling the tier word.
-    lines.push(`  Starting hand: ${preflop.rationale}`)
-  }
   lines.push(
     `  Equity ${pct(verdict.equity)}  vs pot odds ${pct(verdict.potOddsThreshold)}` +
       `  EV(call) ${signedChips(verdict.callEv)}`,
@@ -110,4 +100,23 @@ export function renderCoachFeedback(
   lines.push(`  EV-correct: ${verdict.correctDecision}`)
   lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
   return lines.join('\n')
+}
+
+/**
+ * Render the coach's feedback on a *preflop* decision off the starting-hand chart, in the same
+ * `── Coach ──` block style.
+ *
+ * Preflop is graded by the chart, not pot odds (ticket BUG-0001): the rationale is a self-contained,
+ * tier-named sentence (e.g. "Premium holding — …"), rendered as-is, followed by the good/leak
+ * headline. There is deliberately no equity / pot-odds / EV-correct line — the pot-odds math
+ * under-rates position and fold equity preflop and would fold clear opens, so showing it would only
+ * contradict the chart verdict above it.
+ */
+export function renderPreflopCoach(verdict: PreflopVerdict): string {
+  return [
+    '',
+    `── Coach ${'─'.repeat(39)}`,
+    `  Starting hand: ${verdict.rationale}`,
+    `  ${VERDICT_LABEL[verdict.verdict]}`,
+  ].join('\n')
 }

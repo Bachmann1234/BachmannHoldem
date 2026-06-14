@@ -23,7 +23,7 @@
  */
 
 import { createHand, makeDeck, type Card, type HandState } from '@holdem/engine'
-import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 
 /** Default table size for the milestone — 6-max (hero plus five opponents). */
 export const DEFAULT_SEATS = 6
@@ -63,20 +63,18 @@ export const BOT_LABELS: Readonly<Record<BotKind, string>> = {
  *
  * - `'none'` — no hero decision has been graded yet (the opening frames of a hand, before the
  *   hero first acts). The panel renders a dim placeholder.
- * - `'verdict'` — a graded decision: the `@holdem/coach` {@link DecisionVerdict} the panel
- *   lays out (equity / pot odds / EV / good-leak), plus the preflop {@link StartingHandVerdict}
- *   when the decision was preflop. The panel does *no* verdict math of its own.
+ * - `'verdict'` — a graded *postflop* decision: the `@holdem/coach` {@link DecisionVerdict} the
+ *   panel lays out (equity / pot odds / EV / good-leak). The panel does *no* verdict math of its own.
+ * - `'preflop'` — a graded *preflop* decision off the starting-hand chart: the
+ *   {@link PreflopVerdict} (tier rationale + good/leak). Preflop is graded by the chart, not pot
+ *   odds (ticket [[BUG-0001]]), so it carries no equity/EV fields to contradict the chart.
  * - `'error'` — coaching is strictly advisory, so any throw from the coach (a malformed spot
  *   the verdict math rejects) degrades to this one-line notice rather than crashing the hand.
  */
 export type CoachResult =
   | { readonly kind: 'none' }
-  | {
-      readonly kind: 'verdict'
-      readonly verdict: DecisionVerdict
-      /** The starting-hand chart classification — present only for a preflop decision. */
-      readonly preflop?: StartingHandVerdict
-    }
+  | { readonly kind: 'verdict'; readonly verdict: DecisionVerdict }
+  | { readonly kind: 'preflop'; readonly verdict: PreflopVerdict }
   | { readonly kind: 'error'; readonly message: string }
 
 /**

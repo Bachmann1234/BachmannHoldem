@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { parseCards, type Card } from '@holdem/engine'
+import { parseCards, type Action, type Card, type LegalActions } from '@holdem/engine'
+import type { DecisionContext } from '@holdem/bots'
 
 import {
   classifyStartingHand,
+  gradePreflop,
   PREFLOP_CHART,
   type PreflopTier,
   type StartingHandVerdict,
@@ -13,6 +15,52 @@ function hole(cards: string): readonly [Card, Card] {
   const [a, b] = parseCards(`${cards.slice(0, 2)} ${cards.slice(2, 4)}`)
   return [a!, b!]
 }
+
+/**
+ * Build a preflop {@link DecisionContext} for grading. Only the fields {@link gradePreflop} reads —
+ * `holeCards` and the seat geometry that determines late position (`seat` / `buttonIndex` /
+ * `numPlayers`) — matter; the rest are plausible filler so the context type-checks.
+ */
+function preflopCtx(over: {
+  holeCards: readonly [Card, Card]
+  seat?: number
+  buttonIndex?: number
+  numPlayers?: number
+}): DecisionContext {
+  const seat = over.seat ?? 0
+  const numPlayers = over.numPlayers ?? 2
+  const buttonIndex = over.buttonIndex ?? 0
+  const legal: LegalActions = {
+    fold: true,
+    check: false,
+    call: { amount: 2 },
+    bet: null,
+    raise: null,
+  }
+  return {
+    seat,
+    holeCards: over.holeCards,
+    board: [],
+    street: 'preflop',
+    legalActions: legal,
+    pot: 3,
+    currentBet: 2,
+    toCall: 2,
+    stack: 1000,
+    committed: 0,
+    smallBlind: 1,
+    bigBlind: 2,
+    buttonIndex,
+    isButton: seat === buttonIndex,
+    numPlayers,
+    numActive: numPlayers,
+    opponents: [],
+  }
+}
+
+const FOLD: Action = { type: 'fold' }
+const CALL: Action = { type: 'call' }
+const RAISE: Action = { type: 'raise', amount: 6 }
 
 /** Classify a glued two-card string and return just the tier. */
 function tierOf(cards: string): PreflopTier {
@@ -161,5 +209,70 @@ describe('PREFLOP_CHART — the declared teaching artifact', () => {
     expect(tierOf('TsTh')).not.toBe('trash')
     expect(tierOf('7h6h')).not.toBe('trash')
     expect(tierOf('KsJh')).not.toBe('trash')
+  })
+})
+
+describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
+  it('opening a charted hand is GOOD; folding it is a LEAK (the bug: AJs on the button)', () => {
+    // The exact spot in the ticket: AJs folded to the button is a clear open, not a fold.
+    const ctx = preflopCtx({ holeCards: hole('AhJh') })
+    expect(gradePreflop(ctx, CALL).verdict).toBe('good')
+    expect(gradePreflop(ctx, RAISE).verdict).toBe('good')
+    expect(gradePreflop(ctx, FOLD).verdict).toBe('leak')
+  })
+
+  it('premium / strong / playable are all "open" regardless of position', () => {
+    // Even in early position (seat 1 of 3, button on seat 0), the chart opens these tiers.
+    const early = { seat: 1, buttonIndex: 0, numPlayers: 3 }
+    expect(gradePreflop(preflopCtx({ holeCards: hole('AsAh'), ...early }), CALL).advice).toBe(
+      'open',
+    )
+    expect(gradePreflop(preflopCtx({ holeCards: hole('KsQs'), ...early }), CALL).advice).toBe(
+      'open',
+    )
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7h6h'), ...early }), CALL).advice).toBe(
+      'open',
+    )
+  })
+
+  it('trash is "fold": folding is GOOD, entering is a LEAK', () => {
+    const ctx = preflopCtx({ holeCards: hole('7h2c') })
+    expect(gradePreflop(ctx, FOLD).verdict).toBe('good')
+    expect(gradePreflop(ctx, CALL).verdict).toBe('leak')
+  })
+
+  it('marginal opens only in late position (button/cutoff), folds in early position', () => {
+    const marginal = hole('KsJd') // KJo — marginal tier
+    // Button (seat 0) and cutoff (seat 2) of a 3-handed table are late position → open.
+    expect(
+      gradePreflop(
+        preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 3 }),
+        CALL,
+      ).advice,
+    ).toBe('open')
+    expect(
+      gradePreflop(
+        preflopCtx({ holeCards: marginal, seat: 2, buttonIndex: 0, numPlayers: 3 }),
+        CALL,
+      ).advice,
+    ).toBe('open')
+    // Early position (seat 1) → the chart folds it.
+    const early = preflopCtx({ holeCards: marginal, seat: 1, buttonIndex: 0, numPlayers: 3 })
+    expect(gradePreflop(early, CALL).advice).toBe('fold')
+    expect(gradePreflop(early, CALL).verdict).toBe('leak') // opening it early is the leak
+    expect(gradePreflop(early, FOLD).verdict).toBe('good') // folding it early is correct
+  })
+
+  it('carries the tier and rationale through from the chart', () => {
+    const v = gradePreflop(preflopCtx({ holeCards: hole('AsAh') }), CALL)
+    const chart = classifyStartingHand(hole('AsAh'))
+    expect(v.tier).toBe(chart.tier)
+    expect(v.rationale).toBe(chart.rationale)
+    expect(v.heroContinued).toBe(true)
+  })
+
+  it('throws on a malformed holding (the same card twice), like classifyStartingHand', () => {
+    const dup = parseCards('As As') as [Card, Card]
+    expect(() => gradePreflop(preflopCtx({ holeCards: dup }), CALL)).toThrow(RangeError)
   })
 })
