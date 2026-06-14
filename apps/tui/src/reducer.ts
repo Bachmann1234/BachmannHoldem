@@ -7,12 +7,22 @@
  * The action-input ticket (0027) adds the first real message: `'apply-action'`. Its case is a
  * thin, pure wrapper over the engine's `applyAction` — the only mutation of the hand — so all the
  * non-pure concerns (parsing keystrokes, the bot's PRNG) stay in the app shell and never leak into
- * the reducer. Later tickets (coach panel, multi-hand session) extend the {@link Msg} union and add
- * cases here. The reducer wraps engine calls only; it owns no poker rules of its own.
+ * the reducer.
+ *
+ * The coach-panel ticket (0028) extends that same case to *also* grade the hero's decision. This
+ * belongs in the reducer because `coachDecision` / `classifyStartingHand` are **pure, seeded,
+ * deterministic** functions (no I/O, no `Math.random`) — so grading here keeps the coach panel a
+ * pure render of stored model state, unit-testable without Ink. The ordering is load-bearing: the
+ * coach's `DecisionContext` must be captured from the **pre-`applyAction`** hand, while it is still
+ * the hero's turn (`decisionContext` throws once the turn has moved on), so we capture *then* apply.
+ * Coaching is strictly advisory — every coach call is wrapped so a throw degrades to a stored notice
+ * rather than crashing the hand. The reducer wraps engine/coach calls only; it owns no poker rules.
  */
 
 import { applyAction, type Action } from '@holdem/engine'
-import type { Model } from './model.js'
+import { decisionContext } from '@holdem/bots'
+import { coachDecision, classifyStartingHand } from '@holdem/coach'
+import type { CoachResult, Model } from './model.js'
 
 /**
  * The messages the reducer understands. A discriminated union on `type`, dispatched by the
@@ -37,8 +47,35 @@ export function reducer(model: Model, msg: Msg): Model {
   switch (msg.type) {
     case 'noop':
       return model
-    case 'apply-action':
-      return { ...model, hand: applyAction(model.hand, msg.action) }
+    case 'apply-action': {
+      // Grade the hero's decision BEFORE mutating the hand. If it was the hero's turn on the
+      // pre-apply hand, this is a hero decision: capture the coach's view of the spot now (while
+      // `decisionContext` still accepts it — it throws once the turn moves on), then apply. A bot
+      // action leaves the existing grade untouched, so the panel keeps showing the hero's last
+      // decision as play proceeds around the table.
+      const coach = model.hand.toAct === model.heroSeat ? coachHero(model, msg.action) : model.coach
+      return { ...model, hand: applyAction(model.hand, msg.action), coach }
+    }
+  }
+}
+
+/**
+ * Grade the hero's decision via `@holdem/coach`, returning the {@link CoachResult} to store —
+ * mirrors `apps/cli/src/play.ts`'s `coachHero` (capture-before-apply ordering + advisory
+ * try/catch). The caller has guaranteed it is the hero's turn on `model.hand`, so the context
+ * captures cleanly; the verdict math lives entirely in the coach (we do none here). Preflop we
+ * also hand back the starting-hand chart classification. Any throw (a malformed spot the verdict
+ * math rejects) degrades to an `'error'` notice — coaching never crashes the hand.
+ */
+function coachHero(model: Model, action: Action): CoachResult {
+  try {
+    const ctx = decisionContext(model.hand, model.heroSeat)
+    const verdict = coachDecision(ctx, action)
+    const preflop = ctx.street === 'preflop' ? classifyStartingHand(ctx.holeCards) : undefined
+    return { kind: 'verdict', verdict, preflop }
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    return { kind: 'error', message: `Coaching unavailable for this spot — ${reason}` }
   }
 }
 

@@ -14,6 +14,7 @@
  */
 
 import { createHand, makeDeck, type Card, type HandState } from '@holdem/engine'
+import type { DecisionVerdict, StartingHandVerdict } from '@holdem/coach'
 
 /** The hero's seat index. The human always sits at seat 0; all other seats are opponents. */
 export const HERO_SEAT = 0
@@ -27,17 +28,48 @@ export const BIG_BLIND = 2
 export const STARTING_STACK = 200
 
 /**
+ * The coach's view of the hero's *most recent* decision — the advisory state the
+ * {@link CoachPanel} renders (ticket 0028). It is a small, serialisable union with three
+ * states, computed by the pure reducer from the spot captured *before* the action was applied:
+ *
+ * - `'none'` — no hero decision has been graded yet (the opening frames of a hand, before the
+ *   hero first acts). The panel renders a dim placeholder.
+ * - `'verdict'` — a graded decision: the `@holdem/coach` {@link DecisionVerdict} the panel
+ *   lays out (equity / pot odds / EV / good-leak), plus the preflop {@link StartingHandVerdict}
+ *   when the decision was preflop. The panel does *no* verdict math of its own.
+ * - `'error'` — coaching is strictly advisory, so any throw from the coach (a malformed spot
+ *   the verdict math rejects) degrades to this one-line notice rather than crashing the hand.
+ */
+export type CoachResult =
+  | { readonly kind: 'none' }
+  | {
+      readonly kind: 'verdict'
+      readonly verdict: DecisionVerdict
+      /** The starting-hand chart classification — present only for a preflop decision. */
+      readonly preflop?: StartingHandVerdict
+    }
+  | { readonly kind: 'error'; readonly message: string }
+
+/**
  * The application model: the live hand plus any UI-only state.
  *
- * For this read-only scaffold the only UI-only field is {@link Model.heroSeat}; later
- * tickets (action input, coach panel, multi-hand session) extend this shape — the reducer
- * is the single place that does so, keeping the components dumb.
+ * UI-only fields carry no poker logic (all rules stay in `@holdem/engine` / `@holdem/coach`):
+ * {@link Model.heroSeat} (which seat is the human) and {@link Model.coach} (the coach's grade
+ * of the hero's last decision, advanced by the reducer's `apply-action` case). Later tickets
+ * (multi-hand session) extend this shape — the reducer is the single place that does so,
+ * keeping the components dumb.
  */
 export interface Model {
   /** The engine's immutable snapshot of the hand in progress. */
   readonly hand: HandState
   /** Which seat the human occupies (UI-only — the engine is seat-agnostic). */
   readonly heroSeat: number
+  /**
+   * The coach's grade of the hero's most recent decision (ticket 0028). Starts at `'none'`
+   * and is replaced each time the *hero* acts; bot actions leave it in place so the panel
+   * keeps showing the hero's last decision as the hand progresses around the table.
+   */
+  readonly coach: CoachResult
 }
 
 /** Options for {@link createInitialModel}; all default to the scaffold's demo settings. */
@@ -81,5 +113,6 @@ export function createInitialModel(options: InitialModelOptions = {}): Model {
     bigBlind: BIG_BLIND,
     deck: options.deck ?? shuffledDeck(),
   })
-  return { hand, heroSeat: HERO_SEAT }
+  // No hero decision has been graded yet — the coach panel starts on its placeholder state.
+  return { hand, heroSeat: HERO_SEAT, coach: { kind: 'none' } }
 }

@@ -16,6 +16,7 @@ import { Box, Text } from 'ink'
 import type { Model } from './model.js'
 import type { Dispatch } from './reducer.js'
 import { Table } from './components/Table.js'
+import { CoachPanel } from './components/CoachPanel.js'
 
 /** Props for {@link App}: the model to render and the dispatch the loop will use later. */
 export interface AppProps {
@@ -24,14 +25,19 @@ export interface AppProps {
   readonly dispatch: Dispatch
 }
 
-/** The root view: the live table for the current model. */
+/** The root view: the live table plus the coach panel for the current model. */
 export function App({ model }: AppProps): React.JSX.Element {
-  const { hand, heroSeat } = model
+  const { hand, heroSeat, coach } = model
   return (
     <Box flexDirection="column">
       <Text bold>Bachmann Hold'em — TUI</Text>
       <Box marginTop={1}>
         <Table hand={hand} heroSeat={heroSeat} />
+      </Box>
+      {/* The live coach read of the hero's last decision, below the table, updating in place as
+          the hand progresses (ticket 0028). It renders stored model state only — no math here. */}
+      <Box marginTop={1}>
+        <CoachPanel coach={coach} />
       </Box>
     </Box>
   )

@@ -66,6 +66,9 @@ importers:
       '@holdem/bots':
         specifier: workspace:*
         version: link:../../packages/bots
+      '@holdem/coach':
+        specifier: workspace:*
+        version: link:../../packages/coach
       '@holdem/engine':
         specifier: workspace:*
         version: link:../../packages/engine
