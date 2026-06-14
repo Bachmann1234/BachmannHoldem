@@ -8,7 +8,7 @@
  * calls are the read-only `potTotal` / `isComplete` / `describeHand`.
  */
 
-import { describeHand, isComplete, potTotal, type HandState } from '@holdem/engine'
+import { describeHand, handWinners, isComplete, potTotal, type HandState } from '@holdem/engine'
 import { Card } from './Card.js'
 import { CENTER } from './layout.js'
 
@@ -59,33 +59,31 @@ export interface ResultBannerProps {
 
 /**
  * The showdown / fold-win banner for a completed hand: who won, for how much, and (at a showdown)
- * the winning hand description. Reads `payouts` / `showdownHands` / `endReason` — no game logic.
+ * the winning hand description. Reads `handWinners` / `pots` / `showdownHands` / `endReason` — no game logic.
  */
 export function ResultBanner({ hand, heroSeat }: ResultBannerProps): React.JSX.Element | null {
   if (!isComplete(hand)) return null
 
-  // The winner(s): seats that collected chips. (Uncalled-bet returns also show as payouts, but on
-  // a completed hand the seat that collected the pot is the meaningful winner for the banner.)
-  const winners = hand.players
-    .filter((p) => (hand.payouts[p.seat] ?? 0) > 0)
-    .sort((a, b) => (hand.payouts[b.seat] ?? 0) - (hand.payouts[a.seat] ?? 0))
+  // The winner(s): the seats the engine actually awarded a pot to. Reading `handWinners`
+  // (not `payouts > 0`) keeps a returned uncalled bet from counting as a win (BUG-0002).
+  const winners = handWinners(hand)
   const top = winners[0]
   if (top === undefined) return null
 
-  const heroWon = winners.some((p) => p.seat === heroSeat)
+  const heroWon = winners.includes(heroSeat)
   const split = winners.length > 1
-  const amount = winners.reduce((sum, p) => sum + (hand.payouts[p.seat] ?? 0), 0)
+  const amount = hand.pots.reduce((sum, pot) => sum + pot.amount, 0)
 
   let who: string
   if (split) who = 'Split pot'
-  else if (top.seat === heroSeat) who = 'You win'
-  else who = `Seat ${top.seat} wins`
+  else if (top === heroSeat) who = 'You win'
+  else who = `Seat ${top} wins`
 
   let what: string
   if (hand.endReason === 'fold') {
     what = `Everyone else folded · ${amount}`
   } else {
-    const hv = hand.showdownHands[top.seat]
+    const hv = hand.showdownHands[top]
     what = `${hv ? describeHand(hv) : ''} · ${amount}`
   }
 

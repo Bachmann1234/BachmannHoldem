@@ -4,15 +4,15 @@
  * Purely presentational: it mirrors `apps/cli/src/table.ts` `renderResult`. When the hand reached
  * a showdown it lists every non-folded player's hole cards (coloured by suit) and the
  * {@link describeHand} description of their evaluated {@link HandState.showdownHands} value; when
- * everyone else folded it says so. Then it shows the payouts — each seat that collected chips and
- * how many, read straight from {@link HandState.payouts}.
+ * everyone else folded it says so. Then it lists the winners — each seat that won a pot and how
+ * much, read from {@link handWinnings} (not `payouts`, which also counts returned uncalled bets).
  *
  * No game logic: the only engine call is the read-only `describeHand`. The hand is assumed
  * complete (the caller renders this only when {@link isComplete} is true).
  */
 
 import { Box, Text } from 'ink'
-import { describeHand, type HandState } from '@holdem/engine'
+import { describeHand, handWinnings, type HandState } from '@holdem/engine'
 import { CardPair } from './Card.js'
 import { seatName } from './Seat.js'
 
@@ -25,7 +25,7 @@ export interface ResultProps {
 /** Render the showdown hands (or fold note) and the payouts for a completed hand. */
 export function Result({ hand, heroSeat }: ResultProps): React.JSX.Element {
   const contenders = hand.players.filter((p) => p.status !== 'folded')
-  const winners = hand.players.filter((p) => (hand.payouts[p.seat] ?? 0) > 0)
+  const winnings = handWinnings(hand)
   return (
     <Box flexDirection="column">
       <Text bold>── Result ──</Text>
@@ -46,9 +46,9 @@ export function Result({ hand, heroSeat }: ResultProps): React.JSX.Element {
       ) : (
         <Text>Everyone else folded.</Text>
       )}
-      {winners.map((p) => (
-        <Text key={p.seat}>
-          {seatName(p.seat, heroSeat)} collect {hand.payouts[p.seat]}
+      {Object.entries(winnings).map(([seat, won]) => (
+        <Text key={seat}>
+          {seatName(Number(seat), heroSeat)} collect {won}
         </Text>
       ))}
     </Box>

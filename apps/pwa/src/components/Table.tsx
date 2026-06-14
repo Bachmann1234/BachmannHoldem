@@ -15,7 +15,7 @@
  * (`You`, `Seat 1 (TAG)`) come from the session model via `seatToId` → `players`.
  */
 
-import { isComplete, type HandState } from '@holdem/engine'
+import { handWinners, isComplete, type HandState } from '@holdem/engine'
 import { Center } from './Center.js'
 import { Seat } from './Seat.js'
 import { CENTER, lerp, SEAT_LAYOUTS } from './layout.js'
@@ -52,10 +52,9 @@ export function Table({
   const count = hand.players.length
   const layout = SEAT_LAYOUTS[count] ?? SEAT_LAYOUTS[6]!
   const heroStack = hand.players[heroSeat]?.stack ?? 0
-  // Seats that win chips at showdown — used to ring their (revealed) cards green.
-  const winnerSeats = new Set(
-    hand.players.filter((p) => (hand.payouts[p.seat] ?? 0) > 0).map((p) => p.seat),
-  )
+  // Seats that actually won a pot — used to ring their (revealed) cards green. Reads
+  // `handWinners` (not `payouts > 0`) so a returned uncalled bet isn't ringed (BUG-0002).
+  const winnerSeats = new Set(handWinners(hand))
 
   return (
     <div className="app">

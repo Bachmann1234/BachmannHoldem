@@ -56,10 +56,17 @@ export interface PlayerState {
   lastActionBet: number
 }
 
-/** A (side) pot: an amount and the seats eligible to win it. */
+/** A (side) pot: an amount, the seats eligible to win it, and (once resolved) the winners. */
 export interface Pot {
   amount: number
   eligibleSeats: number[]
+  /**
+   * The eligible seat(s) this pot was actually awarded to. Empty until the hand
+   * completes; more than one seat means the pot was split. This is the *truth* of who
+   * won — presentation layers must read it rather than inferring winners from
+   * {@link HandState.payouts} (which also counts returned uncalled bets).
+   */
+  winningSeats: number[]
 }
 
 /**
@@ -425,6 +432,7 @@ function finalize(state: HandState, reason: EndReason): void {
 
   for (const pot of pots) {
     const winners = decideWinners(state, pot.eligibleSeats)
+    pot.winningSeats = winners
     distribute(state, pot.amount, winners)
   }
 
@@ -457,7 +465,7 @@ function collectPots(players: PlayerState[]): {
         returns[seat] = (returns[seat] ?? 0) + slice
       } else {
         const eligible = contributors.filter((p) => p.status !== 'folded').map((p) => p.seat)
-        raw.push({ amount: slice * contributors.length, eligibleSeats: eligible })
+        raw.push({ amount: slice * contributors.length, eligibleSeats: eligible, winningSeats: [] })
       }
     }
     prev = level
@@ -477,7 +485,8 @@ function collectPots(players: PlayerState[]): {
   for (const pot of live) {
     const last = merged[merged.length - 1]
     if (last && sameSeats(last.eligibleSeats, pot.eligibleSeats)) last.amount += pot.amount
-    else merged.push({ amount: pot.amount, eligibleSeats: [...pot.eligibleSeats] })
+    else
+      merged.push({ amount: pot.amount, eligibleSeats: [...pot.eligibleSeats], winningSeats: [] })
   }
   return { pots: merged, returns }
 }
@@ -507,21 +516,37 @@ function decideWinners(state: HandState, eligibleSeats: number[]): number[] {
 
 /** Pay a pot to its winner(s); odd chips go to seats nearest left of the button. */
 function distribute(state: HandState, amount: number, winners: number[]): void {
-  const n = state.players.length
+  const shares = splitPot(amount, winners, state.buttonIndex, state.players.length)
+  for (const [seat, won] of Object.entries(shares)) {
+    const s = Number(seat)
+    state.players[s]!.stack += won
+    state.payouts[s] = (state.payouts[s] ?? 0) + won
+  }
+}
+
+/**
+ * Split `amount` among `winners`, giving any odd chip(s) to the seats nearest left of
+ * the button. Pure — the single source of truth for how a pot is divided, shared by the
+ * live {@link distribute} and the read-only {@link handWinnings} selector.
+ */
+function splitPot(
+  amount: number,
+  winners: number[],
+  buttonIndex: number,
+  n: number,
+): Record<number, number> {
+  if (winners.length === 0) return {}
   const ordered = [...winners].sort(
-    (a, b) => ((a - state.buttonIndex - 1 + n) % n) - ((b - state.buttonIndex - 1 + n) % n),
+    (a, b) => ((a - buttonIndex - 1 + n) % n) - ((b - buttonIndex - 1 + n) % n),
   )
   const share = Math.floor(amount / winners.length)
   let remainder = amount - share * winners.length
+  const out: Record<number, number> = {}
   for (const seat of ordered) {
-    let won = share
-    if (remainder > 0) {
-      won++
-      remainder--
-    }
-    state.players[seat]!.stack += won
-    state.payouts[seat] = (state.payouts[seat] ?? 0) + won
+    out[seat] = share + (remainder > 0 ? 1 : 0)
+    if (remainder > 0) remainder--
   }
+  return out
 }
 
 /**
@@ -542,7 +567,11 @@ function clone(state: HandState): HandState {
     currentBet: state.currentBet,
     minRaise: state.minRaise,
     lastRaiseLevel: state.lastRaiseLevel,
-    pots: state.pots.map((pot) => ({ amount: pot.amount, eligibleSeats: [...pot.eligibleSeats] })),
+    pots: state.pots.map((pot) => ({
+      amount: pot.amount,
+      eligibleSeats: [...pot.eligibleSeats],
+      winningSeats: [...pot.winningSeats],
+    })),
     payouts: { ...state.payouts },
     showdownHands: { ...state.showdownHands },
     endReason: state.endReason,
@@ -562,4 +591,32 @@ export function currentActor(state: HandState): PlayerState | null {
 /** Whether the hand has finished. */
 export function isComplete(state: HandState): boolean {
   return state.street === 'complete'
+}
+
+/**
+ * The seats that won at least one (side) pot, as the truth of "who won the hand".
+ * Empty until the hand completes. Use this for result banners and winning-card
+ * highlights — never `payouts > 0`, which also counts returned uncalled bets.
+ */
+export function handWinners(state: HandState): number[] {
+  const seats = new Set<number>()
+  for (const pot of state.pots) for (const seat of pot.winningSeats) seats.add(seat)
+  return [...seats]
+}
+
+/**
+ * Seat -> chips won from contested pots, with side pots and odd-chip splits resolved.
+ * Empty until the hand completes. Unlike {@link HandState.payouts}, this excludes
+ * returned uncalled bets, so it is the chips a seat actually *won* (BUG-0002).
+ */
+export function handWinnings(state: HandState): Record<number, number> {
+  const out: Record<number, number> = {}
+  for (const pot of state.pots) {
+    const shares = splitPot(pot.amount, pot.winningSeats, state.buttonIndex, state.players.length)
+    for (const [seat, won] of Object.entries(shares)) {
+      const s = Number(seat)
+      out[s] = (out[s] ?? 0) + won
+    }
+  }
+  return out
 }

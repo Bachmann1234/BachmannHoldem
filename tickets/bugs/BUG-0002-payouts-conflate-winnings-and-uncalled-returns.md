@@ -2,7 +2,7 @@
 id: BUG-0002
 title: payouts conflate pot winnings with uncalled-bet returns, so UIs mis-detect winners
 type: bug
-status: open
+status: done
 severity: low
 milestone: M4
 created: 2026-06-14
@@ -44,3 +44,19 @@ displayed amount adds the unrelated uncalled return.
 - **Severity low:** requires the specific all-in/uncalled-overbet geometry at a showdown; the common
   showdown path renders correctly. Pre-existing in the TUI; surfaced (not introduced) by 0034.
 - Surface to the milestone review ([[0008-pwa-app-shell]]) for scheduling against the engine.
+
+## Resolution
+
+The engine now exposes the truth so no UI re-derives poker math:
+
+- `Pot.winningSeats` records the seat(s) each (side) pot was actually awarded to, populated at
+  `finalize`.
+- `handWinners(state)` — the union of winning seats — and `handWinnings(state)` — exact per-seat
+  chips won (side pots + odd-chip splits resolved, uncalled returns excluded) — are exported
+  selectors. `handWinnings` and the live `distribute` share one pure `splitPot` helper, so the
+  odd-chip rule has a single source of truth.
+- Both React shells (`Center.tsx` banner, `Table.tsx` winner ring) plus the CLI/TUI result views
+  now read `handWinners`/`handWinnings` instead of `payouts > 0`. `payouts` is unchanged (still
+  winnings + returns, for stack reconciliation) but documented as not-for-winner-detection.
+- Regression coverage: an engine test (returned overbet is not a win) and a PWA `Table` test (only
+  the real winner's cards are ringed in the all-in-overbet showdown).

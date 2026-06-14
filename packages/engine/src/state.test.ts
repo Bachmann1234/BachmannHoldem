@@ -4,6 +4,7 @@ import {
   applyAction,
   createHand,
   currentActor,
+  handWinners,
   isComplete,
   legalActions,
   potTotal,
@@ -146,9 +147,10 @@ describe('side pots', () => {
     // Main pot: 20 x 3 = 60, contested by all three -> seat0's royal wins.
     // Side pot: 30 x 2 = 60, contested by seat1 & seat2 -> seat1's straight wins.
     expect(s.pots).toEqual([
-      { amount: 60, eligibleSeats: [0, 1, 2] },
-      { amount: 60, eligibleSeats: [1, 2] },
+      { amount: 60, eligibleSeats: [0, 1, 2], winningSeats: [0] },
+      { amount: 60, eligibleSeats: [1, 2], winningSeats: [1] },
     ])
+    expect(handWinners(s)).toEqual([0, 1])
     expect(s.players[0]!.stack).toBe(60)
     expect(s.players[1]!.stack).toBe(60)
     expect(s.players[2]!.stack).toBe(50)
@@ -165,7 +167,7 @@ describe('side pots', () => {
     s = applyAction(s, { type: 'check' }) // BB (seat2) checks its option
     for (let i = 0; i < 6; i++) s = applyAction(s, { type: 'check' }) // check it down
 
-    expect(s.pots).toEqual([{ amount: 5, eligibleSeats: [0, 2] }])
+    expect(s.pots).toEqual([{ amount: 5, eligibleSeats: [0, 2], winningSeats: [0, 2] }])
     // 5 chips split two ways -> 2 each plus a 1-chip remainder to the first eligible
     // seat clockwise from the button (seat2 here).
     expect(s.payouts).toEqual({ 0: 2, 2: 3 })
@@ -206,9 +208,26 @@ describe('uncalled bets', () => {
     s = applyAction(s, { type: 'fold' }) // BB folds
 
     // Only the called portion (matching the BB's 2) forms a pot; the other 48 is returned.
-    expect(s.pots).toEqual([{ amount: 4, eligibleSeats: [0] }])
+    expect(s.pots).toEqual([{ amount: 4, eligibleSeats: [0], winningSeats: [0] }])
     expect(s.players[0]!.stack).toBe(102) // net +2 (won the big blind), not +50
     expect(s.players[1]!.stack).toBe(98)
+  })
+
+  it('does not count a returned uncalled overbet as a win (BUG-0002)', () => {
+    // Hero (seat0) shoves more than the short stack can call; the short stack calls
+    // all-in for less and wins at showdown. The uncalled excess is returned to the
+    // hero, so hero's payout is > 0 even though hero lost the pot.
+    const deck = buildDeck(2, 0, ['2c 7d', 'As Ad'], 'Ah Kd Qc Js 9h')
+    let s = createHand(config({ stacks: [100, 30], deck }))
+    s = applyAction(s, { type: 'raise', amount: 100 }) // hero (button/SB) shoves 100
+    s = applyAction(s, { type: 'call' }) // short stack calls all-in for 30
+    expect(isComplete(s)).toBe(true)
+
+    // One contested pot of 60, won by the short stack (seat1) with aces.
+    expect(s.pots).toEqual([{ amount: 60, eligibleSeats: [0, 1], winningSeats: [1] }])
+    // Hero still has a positive payout — the 70 returned overbet — but is NOT a winner.
+    expect(s.payouts[0]).toBeGreaterThan(0)
+    expect(handWinners(s)).toEqual([1])
   })
 })
 

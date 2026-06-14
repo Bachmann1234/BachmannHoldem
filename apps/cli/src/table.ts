@@ -13,6 +13,7 @@
 import {
   formatCard,
   describeHand,
+  handWinnings,
   potTotal,
   isComplete,
   type HandState,
@@ -74,9 +75,9 @@ export function renderResult(state: HandState, heroSeat: number): string {
   } else {
     lines.push('  Everyone else folded.')
   }
-  for (const p of state.players) {
-    const won = state.payouts[p.seat] ?? 0
-    if (won > 0) lines.push(`  ${who(p.seat)} collect ${won}`)
+  // Winners read from `handWinnings`, not `payouts` — a returned uncalled bet is not a win (BUG-0002).
+  for (const [seat, won] of Object.entries(handWinnings(state))) {
+    lines.push(`  ${who(Number(seat))} collect ${won}`)
   }
   return lines.join('\n')
 }

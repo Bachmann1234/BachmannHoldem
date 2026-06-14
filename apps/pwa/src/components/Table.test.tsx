@@ -15,6 +15,7 @@ import {
   createHand,
   isComplete,
   makeDeck,
+  parseCards,
   type Card as EngineCard,
   type HandState,
 } from '@holdem/engine'
@@ -25,6 +26,20 @@ afterEach(cleanup)
 /** A fresh ordered deck (the engine is deterministic — it just deals from the front). */
 function freshDeck(): EngineCard[] {
   return makeDeck()
+}
+
+/**
+ * Build a deck that deals exactly the given hole cards and board (mirrors the engine test's
+ * helper): hole cards one at a time, two rounds, starting at the small blind.
+ */
+function buildDeck(n: number, button: number, holesBySeat: string[], board: string): EngineCard[] {
+  const sbIndex = n === 2 ? button : (button + 1) % n
+  const holes = holesBySeat.map((s) => parseCards(s))
+  const order: EngineCard[] = []
+  for (let round = 0; round < 2; round++) {
+    for (let k = 0; k < n; k++) order.push(holes[(sbIndex + k) % n]![round]!)
+  }
+  return [...order, ...parseCards(board)]
 }
 
 /** Render a table for the given hand with a trivial `Seat N`/`You` label provider. */
@@ -157,5 +172,23 @@ describe('Table position tags', () => {
     // and the other seat is the BB.
     expect(within(getByTestId('seat-0')).getByText('BTN')).toBeTruthy()
     expect(within(getByTestId('seat-1')).getByText('BB')).toBeTruthy()
+  })
+})
+
+describe('Table winner highlight (BUG-0002)', () => {
+  it('rings only the actual winner when the loser had an uncalled overbet returned', () => {
+    // Hero (seat 0) shoves 100 over a 30-chip short stack; the short stack calls all-in and
+    // wins with trip aces. The uncalled 70 is returned to the hero, so hero's payout is > 0 —
+    // but hero is NOT a winner and must not be ringed green (the bug ringed both seats).
+    const deck = buildDeck(2, 0, ['2c 7d', 'As Ad'], 'Ah Kd Qc Js 9h')
+    let hand = createHand({ stacks: [100, 30], buttonIndex: 0, smallBlind: 1, bigBlind: 2, deck })
+    hand = applyAction(hand, { type: 'raise', amount: 100 }) // hero shoves
+    hand = applyAction(hand, { type: 'call' }) // short stack calls all-in for 30
+    expect(isComplete(hand)).toBe(true)
+
+    const { getByTestId } = renderTable(hand, 0)
+    // Only seat 1's cards carry the winning highlight; hero's (seat 0) do not.
+    expect(getByTestId('seat-1').querySelectorAll('.winning')).toHaveLength(2)
+    expect(getByTestId('seat-0').querySelectorAll('.winning')).toHaveLength(0)
   })
 })
