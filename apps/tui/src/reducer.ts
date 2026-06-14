@@ -5,7 +5,8 @@
  * full session + setup state machine — be unit-tested without rendering anything (`reducer.test.ts`).
  *
  * **Purity.** The reducer holds no `Math.random`, no I/O, no bot calls, no PRNG. The two non-pure
- * concerns of a session live in the shell (Root), exactly as `apps/cli/src/play.ts` keeps them:
+ * concerns of a session live in the shell (Root), the way a terminal play loop keeps them out of
+ * the pure core:
  * the per-hand **deck shuffle** and the **bots' decisions**. The shell shuffles a fresh deck and
  * dispatches it in via `start-hand`; the reducer builds the compacted stacks + button and calls the
  * deterministic `createHand` (see {@link dealHand}). The coach grading (`coachDecision` /
@@ -196,7 +197,7 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
 
 /**
  * Grade the hero's decision via `@holdem/coach`, returning the {@link CoachResult} to store —
- * mirrors `apps/cli/src/play.ts`'s `coachHero` (capture-before-apply ordering + advisory try/catch).
+ * the capture-before-apply ordering + advisory try/catch a terminal coach loop uses.
  * The caller has guaranteed it is the hero's turn on `model.hand`, so the context captures cleanly;
  * the verdict math lives entirely in the coach. Preflop we also hand back the starting-hand chart
  * classification. Any throw degrades to an `'error'` notice — coaching never crashes the hand.

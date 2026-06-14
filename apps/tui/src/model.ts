@@ -32,7 +32,7 @@ export const DEFAULT_SEATS = 6
 export const MIN_SEATS = 2
 export const MAX_SEATS = 6
 
-/** Blinds and starting stack for a session. Mirrors `apps/cli/src/play.ts`. */
+/** Blinds and starting stack for a session. */
 export const SMALL_BLIND = 1
 export const BIG_BLIND = 2
 export const STARTING_STACK = 200
@@ -173,8 +173,8 @@ export function defaultOpponents(seats: number): BotKind[] {
 }
 
 /**
- * Fisher–Yates shuffle of a fresh deck. The engine is deterministic and never shuffles, so —
- * exactly as `apps/cli/src/play.ts` does — the shuffle lives in the app shell. `Math.random` is
+ * Fisher–Yates shuffle of a fresh deck. The engine is deterministic and never shuffles, so the
+ * shuffle lives in the app shell (the non-pure concern stays out of the reducer). `Math.random` is
  * fine for a play client; determinism that matters lives in tests, which dispatch their own decks
  * into the reducer via a `start-hand` message.
  */

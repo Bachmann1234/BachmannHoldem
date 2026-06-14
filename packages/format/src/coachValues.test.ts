@@ -33,6 +33,12 @@ describe('signedChips', () => {
     expect(signedChips(0.04)).toBe('0')
     expect(signedChips(-0)).toBe('0')
   })
+
+  it('rounds to one decimal *before* the bare-0 check (the boundary just past zero)', () => {
+    // A value that rounds to ±0.1 is NOT near-zero — it keeps its sign and tenth.
+    expect(signedChips(-0.051)).toBe('-0.1')
+    expect(signedChips(0.051)).toBe('+0.1')
+  })
 })
 
 describe('VERDICT_LABEL', () => {

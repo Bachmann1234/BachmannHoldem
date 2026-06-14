@@ -4,7 +4,7 @@ import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
   // Don't lint build output, deps, or coverage.
-  { ignores: ['**/dist/**', '**/build/**', '**/.svelte-kit/**', '**/coverage/**'] },
+  { ignores: ['**/dist/**', '**/build/**', '**/coverage/**'] },
 
   // Base JS + TypeScript recommended rules (syntactic — no type-aware pass yet, keeps it fast).
   js.configs.recommended,

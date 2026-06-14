@@ -94,9 +94,6 @@ importers:
       ink-testing-library:
         specifier: ^4.0.0
         version: 4.0.0(@types/react@19.2.17)
-      react-devtools-core:
-        specifier: ^6.1.2
-        version: 6.1.5
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
@@ -2376,6 +2373,7 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+    optional: true
 
   react-reconciler@0.33.0(react@19.2.7):
     dependencies:
@@ -2427,7 +2425,8 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.8.4: {}
+  shell-quote@1.8.4:
+    optional: true
 
   siginfo@2.0.0: {}
 
@@ -2605,7 +2604,8 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.2.0
 
-  ws@7.5.11: {}
+  ws@7.5.11:
+    optional: true
 
   ws@8.21.0: {}
 

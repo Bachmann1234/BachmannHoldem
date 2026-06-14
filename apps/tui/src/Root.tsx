@@ -6,8 +6,8 @@
  *
  * MVU discipline: the model lives in `useReducer(reducer, …)` and the *only* way it changes is a
  * dispatched {@link Msg}. The reducer is pure — it owns the whole session/setup state machine — so
- * the two non-pure concerns it must not hold live here in the shell, exactly as
- * `apps/cli/src/play.ts` keeps them:
+ * the two non-pure concerns it must not hold live here in the shell, the way a terminal play loop
+ * keeps them out of the pure core:
  *
  * - **The deck shuffle.** The engine is deterministic and never shuffles. So when a hand needs to be
  *   dealt (after setup, and on play-again) the shell shuffles a fresh deck (Fisher–Yates with

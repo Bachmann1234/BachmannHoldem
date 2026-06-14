@@ -5,8 +5,10 @@ coaching on odds and betting strategy, with the goal of actually getting better 
 
 ## Stack
 
-- **TypeScript PWA**, client-only — no backend. Runs offline after first load.
-- **React** for the app shell, **Vite** + `vite-plugin-pwa` for build + service worker.
+- **TypeScript**, client-only — no backend. Two frontends share the pure poker packages: an
+  **Ink (React-for-the-terminal) TUI** — the current play experience (`pnpm play`) — and the
+  installable **PWA** to come. Both run offline.
+- **React** for both shells, **Vite** + `vite-plugin-pwa` for the PWA build + service worker.
 - **pnpm** workspace monorepo, **Vitest** for tests.
 - Equity simulations run in a **Web Worker** to keep the UI smooth.
 - Deployed as static files to free static hosting (GitHub Pages / Cloudflare Pages / etc.).
@@ -21,7 +23,8 @@ milliseconds (no browser needed).
 packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)
 packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
 packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
-packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)   <- you are here
+packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)
+packages/format   action-input grammar + coach value formatters       (pure TS)
 apps/tui          Ink (React-for-the-terminal) play client — the play UI   (Node)
 apps/cli          headless scriptable engine harness — deterministic smoke-test  (Node)
 apps/pwa          React PWA — the only Android/web-aware module

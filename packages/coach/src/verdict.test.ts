@@ -294,6 +294,14 @@ describe('coachDecision — multiway equity read (numActive)', () => {
     expect(sixWay.equity).toBeLessThan(sixWay.potOddsThreshold)
     expect(sixWay.verdict).toBe('leak')
   })
+
+  it('propagates a RangeError on a degenerate spot with no live opponents (numActive 1)', () => {
+    // A real DecisionContext always has numActive >= 2 (a decision needs an opponent), but guard
+    // the contract: numActive 1 ⇒ opponentCount 0, which estimateEquity rejects rather than
+    // reading a no-villain equity. The throw surfaces (the TUI catches it as an advisory notice).
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50, numActive: 1 })
+    expect(() => coachDecision(spot, CALL)).toThrow(RangeError)
+  })
 })
 
 // Exercise the imported CallSpot type so the test's intent (we reason about call spots) is
