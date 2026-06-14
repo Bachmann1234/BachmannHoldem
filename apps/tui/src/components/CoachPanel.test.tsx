@@ -7,13 +7,15 @@
  * end-to-end, and then assert on the panel's `lastFrame()`. They lock in the three verdict colours'
  * headlines (good / leak / break-even), the preflop starting-hand line, the laid-out numbers, and
  * the advisory-error degradation. `lastFrame()` strips ANSI, so colour is asserted through the text
- * the headline carries (and the pure formatters), never on escape bytes.
+ * the headline carries, never on escape bytes. The pure value formatters it renders with
+ * (`pct` / `signedChips` / `VERDICT_LABEL`) are unit-tested at their shared home in `@holdem/format`
+ * (ticket 0030 moved them there), so this file covers only the panel's rendering.
  */
 
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
 import { parseCards, type Card, type HandState } from '@holdem/engine'
-import { CoachPanel, pct, signedChips } from './CoachPanel.js'
+import { CoachPanel } from './CoachPanel.js'
 import { createInitialModel, type Model } from '../model.js'
 import { reducer } from '../reducer.js'
 
@@ -51,24 +53,6 @@ function frameAfter(model: Model, actions: Parameters<typeof reducer>[1][]): str
   const next = actions.reduce((m, msg) => reducer(m, msg), model)
   return plain(render(<CoachPanel coach={next.coach} />).lastFrame()!)
 }
-
-describe('CoachPanel formatters', () => {
-  it('formats a fraction as a one-decimal percent', () => {
-    expect(pct(0.625)).toBe('62.5%')
-    expect(pct(0.25)).toBe('25.0%')
-    expect(pct(0)).toBe('0.0%')
-  })
-
-  it('formats a chip EV as a clean signed number, with a bare unsigned 0 near zero', () => {
-    expect(signedChips(4)).toBe('+4') // whole chips drop the .0
-    expect(signedChips(-1.5)).toBe('-1.5')
-    expect(signedChips(2.328)).toBe('+2.3')
-    // Near-zero EV is a bare, unsigned `0` — never `-0`, never `+0.0` (the CLI's contract).
-    expect(signedChips(-0.04)).toBe('0')
-    expect(signedChips(0)).toBe('0')
-    expect(signedChips(-0)).toBe('0')
-  })
-})
 
 describe('CoachPanel placeholder / error states', () => {
   it('renders a dim placeholder before any decision is graded', () => {

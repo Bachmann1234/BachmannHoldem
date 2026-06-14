@@ -9,6 +9,8 @@
   "references": [
     { "path": "../../packages/bots" },
     { "path": "../../packages/coach" },
-    { "path": "../../packages/engine" }
+    { "path": "../../packages/engine" },
+    { "path": "../../packages/format" },
+    { "path": "../../packages/odds" }
   ]
 }

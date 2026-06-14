@@ -22,7 +22,8 @@ packages/engine   cards, 7-card hand evaluator, game state machine   (pure TS)
 packages/odds     equity simulation (Web Worker), pot odds, EV        (pure TS)
 packages/bots     heuristic opponents (range + pot-odds driven)       (pure TS)
 packages/coach    deterministic coaching verdicts (good / leak)       (pure TS)   <- you are here
-apps/cli          terminal hand runner — the engine's feedback loop   (Node)
+apps/tui          Ink (React-for-the-terminal) play client — the play UI   (Node)
+apps/cli          headless scriptable engine harness — deterministic smoke-test  (Node)
 apps/pwa          React PWA — the only Android/web-aware module
 ```
 
@@ -41,7 +42,22 @@ pnpm test:watch    # watch mode
 pnpm typecheck     # tsc project references build
 pnpm lint          # eslint
 pnpm format        # prettier --write
-pnpm play          # play hands in the terminal vs. the bot, with per-decision coaching
+pnpm play          # launch the Ink TUI: play a table vs. the bots, with a live coach panel
+pnpm sim           # headless harness: play one scripted hand and print a deterministic transcript
+```
+
+`pnpm play` launches the full-screen Ink TUI (`apps/tui`) — the interactive play experience.
+`pnpm sim` runs the slim non-interactive `apps/cli` harness: it plays a single hand against the
+bots from a seed and a scripted list of hero actions, printing a plain, greppable transcript (table
+state, every action, the coach verdict per hero decision, the result) and then exiting. It is a
+deterministic smoke-test driver — same args ⇒ identical transcript — not a play UI:
+
+```bash
+pnpm sim -- --seed=1 --seats=6 --hero=c,k,k,k
+#   --seed=<int>    seeds the deck shuffle + the bots (default 1)
+#   --seats=<2..6>  hero (seat 0) plus N-1 bots (default 6)
+#   --hero=<list>   comma/space-separated actions in the input grammar; when exhausted the hero
+#                   takes the cheapest legal continue, so a bare `pnpm sim` is a zero-config run
 ```
 
 `pnpm verify` is exactly what the pre-push hook and CI run, so a clean `verify` means a green push.

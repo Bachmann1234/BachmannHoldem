@@ -1,14 +1,14 @@
 /**
- * Unit tests for the pure input module (ticket 0027). These exercise the keystroke/grammar →
- * `Action` mapping exhaustively *without Ink* — every verb, amount bounds, illegal-here, all-in,
- * bare-verb-minimum, and garbage — plus the character-by-character {@link interpretKey} state
- * machine. The action bar's `useInput` is a thin wrapper over these, so they are the real coverage
- * of the input rules.
+ * Unit tests for the TUI's terminal-specific input piece (ticket 0027): the character-by-character
+ * {@link interpretKey} state machine. The verb/amount grammar it builds on (`parseAction` /
+ * `renderLegal`) is exhaustively covered at its shared home in `@holdem/format`
+ * (`packages/format/src/action.test.ts`), where it moved when the two clients' copies were
+ * consolidated (ticket 0030); this file only covers the keystroke machine that is unique to the TUI.
  */
 
 import { describe, it, expect } from 'vitest'
 import type { LegalActions } from '@holdem/engine'
-import { interpretKey, parseAction, renderLegal, type KeyFlags } from './input.js'
+import { interpretKey, type KeyFlags } from './input.js'
 
 /** Legal actions for a spot where the hero faces a bet: fold/call, and may raise (not bet). */
 const FACING_BET: LegalActions = {
@@ -29,104 +29,6 @@ const OPEN: LegalActions = {
 }
 
 const noKey: KeyFlags = {}
-
-describe('parseAction — verbs', () => {
-  it('parses fold (letter and word)', () => {
-    expect(parseAction('f', FACING_BET)).toEqual({ ok: true, action: { type: 'fold' } })
-    expect(parseAction('fold', FACING_BET)).toEqual({ ok: true, action: { type: 'fold' } })
-  })
-
-  it('parses check (k / check)', () => {
-    expect(parseAction('k', OPEN)).toEqual({ ok: true, action: { type: 'check' } })
-    expect(parseAction('check', OPEN)).toEqual({ ok: true, action: { type: 'check' } })
-  })
-
-  it('parses call (c / call)', () => {
-    expect(parseAction('c', FACING_BET)).toEqual({ ok: true, action: { type: 'call' } })
-    expect(parseAction('call', FACING_BET)).toEqual({ ok: true, action: { type: 'call' } })
-  })
-})
-
-describe('parseAction — bet/raise amounts', () => {
-  it('parses an explicit bet amount in several spellings', () => {
-    for (const input of ['b50', 'b 50', 'bet 50', 'bet50']) {
-      expect(parseAction(input, OPEN)).toEqual({ ok: true, action: { type: 'bet', amount: 50 } })
-    }
-  })
-
-  it('bare bet/raise means the minimum', () => {
-    expect(parseAction('b', OPEN)).toEqual({ ok: true, action: { type: 'bet', amount: 2 } })
-    expect(parseAction('r', FACING_BET)).toEqual({
-      ok: true,
-      action: { type: 'raise', amount: 20 },
-    })
-  })
-
-  it('parses an explicit raise-to amount', () => {
-    expect(parseAction('r 75', FACING_BET)).toEqual({
-      ok: true,
-      action: { type: 'raise', amount: 75 },
-    })
-  })
-
-  it('rejects amounts outside the legal range', () => {
-    expect(parseAction('b1', OPEN)).toEqual({ ok: false, error: 'Bet must be to 2-100.' })
-    expect(parseAction('b101', OPEN)).toEqual({ ok: false, error: 'Bet must be to 2-100.' })
-    expect(parseAction('r10', FACING_BET)).toEqual({ ok: false, error: 'Raise must be to 20-200.' })
-  })
-})
-
-describe('parseAction — all-in shortcut', () => {
-  it('a/allin/shove means the max bet when betting is legal', () => {
-    for (const input of ['a', 'allin', 'shove']) {
-      expect(parseAction(input, OPEN)).toEqual({ ok: true, action: { type: 'bet', amount: 100 } })
-    }
-  })
-
-  it('a means the max raise when raising is legal', () => {
-    expect(parseAction('a', FACING_BET)).toEqual({
-      ok: true,
-      action: { type: 'raise', amount: 200 },
-    })
-  })
-
-  it('a is illegal when neither bet nor raise is available', () => {
-    const noAggression: LegalActions = {
-      fold: true,
-      check: true,
-      call: null,
-      bet: null,
-      raise: null,
-    }
-    expect(parseAction('a', noAggression)).toEqual({
-      ok: false,
-      error: 'All-in is not legal here.',
-    })
-  })
-})
-
-describe('parseAction — illegal here and garbage', () => {
-  it('rejects a verb that is not legal in this spot', () => {
-    expect(parseAction('k', FACING_BET)).toEqual({ ok: false, error: 'Check is not legal here.' })
-    expect(parseAction('c', OPEN)).toEqual({ ok: false, error: 'Call is not legal here.' })
-    expect(parseAction('b', FACING_BET)).toEqual({ ok: false, error: 'Bet is not legal here.' })
-    expect(parseAction('r', OPEN)).toEqual({ ok: false, error: 'Raise is not legal here.' })
-  })
-
-  it('rejects unparseable / empty / unknown input', () => {
-    expect(parseAction('', OPEN).ok).toBe(false)
-    expect(parseAction('   ', OPEN).ok).toBe(false)
-    expect(parseAction('xyz', OPEN)).toEqual({ ok: false, error: 'Unknown action "xyz".' })
-    expect(parseAction('!!', OPEN).ok).toBe(false)
-  })
-})
-
-describe('renderLegal', () => {
-  it('lists only the legal options with amounts', () => {
-    expect(renderLegal(FACING_BET)).toBe('(f)old  (c)all 10  (r)aise to 20-200  (a)llin')
-    expect(renderLegal(OPEN)).toBe('(k)check  (b)et 2-100  (a)llin')
-  })
-})
 
 describe('interpretKey — one-shot verbs', () => {
   it('fires a zero-amount verb immediately on its letter', () => {

@@ -3,15 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Thin terminal harness to play a hand against a heuristic bot — the M0–M3 feedback loop.",
+  "description": "Headless, scriptable engine harness: plays one hand vs the bots from a seed + scripted hero actions and prints a deterministic transcript — a smoke-test driver, not the play UI.",
   "scripts": {
-    "play": "tsx src/play.ts",
+    "sim": "tsx src/sim.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
     "@holdem/bots": "workspace:*",
     "@holdem/coach": "workspace:*",
-    "@holdem/engine": "workspace:*"
+    "@holdem/engine": "workspace:*",
+    "@holdem/format": "workspace:*",
+    "@holdem/odds": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.22.4"

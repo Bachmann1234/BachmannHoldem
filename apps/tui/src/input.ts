@@ -1,105 +1,21 @@
 /**
- * The pure keystroke/grammar → validated engine `Action` mapping for the TUI action bar
- * (ticket 0027). This is the *whole* of the TUI's input rules and it is kept free of Ink: the
+ * The pure keystroke → validated engine `Action` mapping for the TUI action bar (ticket 0027). The
  * `useInput` hook in {@link file://./components/ActionBar.tsx} is a thin wrapper that only feeds
- * keystrokes in and dispatches the `Action` that comes out, so every grammar/legality decision is
- * a pure, unit-tested function here.
+ * keystrokes in and dispatches the `Action` that comes out, so every grammar/legality decision is a
+ * pure, unit-tested function — either here or in `@holdem/format`.
  *
- * The verb/amount grammar deliberately mirrors `apps/cli/src/table.ts`'s `parseAction` semantics
- * exactly — single-letter or full-word verbs (f/k/c/b/r/a), an optional amount, bare bet/raise =
- * the minimum, and a/allin/shove = the maximum — so the two clients accept the same input. Apps
- * must not depend on one another, so it is re-implemented (not imported) here.
- *
- * NOTE (ticket 0030): the CLI keeps its own `parseAction` for now; 0030 owns de-duplicating both
- * copies into a shared home. This module is kept cleanly separable (no Ink, no app-shell state) so
- * that consolidation is a straight lift.
+ * The verb/amount grammar itself ({@link parseAction} + {@link renderLegal}) now lives in the shared
+ * `@holdem/format` package, so the TUI and the headless CLI accept identical input and can never
+ * drift (ticket 0030 consolidated the two former copies). This module re-exports them and keeps the
+ * genuinely terminal-specific piece — {@link interpretKey}, the character-by-character amount-entry
+ * state machine — which builds on `parseAction`.
  */
 
 import type { Action, LegalActions } from '@holdem/engine'
+import { parseAction } from '@holdem/format'
 
-/** Result of parsing a line of input: a legal action, or a message to show as a gentle hint. */
-export type ParseResult = { ok: true; action: Action } | { ok: false; error: string }
-
-/**
- * Parse a line of input against the legal actions. Accepts single-letter or full-word verbs and
- * an optional amount (`b50`, `b 50`, `bet 50`); for bet/raise a missing amount means the minimum,
- * and `a`/`allin`/`shove` means the maximum. Mirrors `apps/cli/src/table.ts`'s `parseAction`.
- *
- * The returned action is always guaranteed legal against `legal`, so the caller can dispatch it
- * straight into `applyAction` (which throws on an illegal move) without re-checking.
- */
-export function parseAction(input: string, legal: LegalActions): ParseResult {
-  const m = input
-    .trim()
-    .toLowerCase()
-    .match(/^([a-z]+)\s*(\d+)?$/)
-  if (!m) return { ok: false, error: 'Could not read that — try again.' }
-  const verb = m[1]!
-  const amount = m[2] === undefined ? null : Number(m[2])
-
-  const illegal = (name: string): ParseResult => ({
-    ok: false,
-    error: `${name} is not legal here.`,
-  })
-
-  switch (verb) {
-    case 'f':
-    case 'fold':
-      return legal.fold ? { ok: true, action: { type: 'fold' } } : illegal('Fold')
-    case 'k':
-    case 'check':
-      return legal.check ? { ok: true, action: { type: 'check' } } : illegal('Check')
-    case 'c':
-    case 'call':
-      return legal.call ? { ok: true, action: { type: 'call' } } : illegal('Call')
-    case 'a':
-    case 'allin':
-    case 'shove':
-      if (legal.bet) return { ok: true, action: { type: 'bet', amount: legal.bet.max } }
-      if (legal.raise) return { ok: true, action: { type: 'raise', amount: legal.raise.max } }
-      return illegal('All-in')
-    case 'b':
-    case 'bet':
-      return amountAction('bet', legal.bet, amount)
-    case 'r':
-    case 'raise':
-      return amountAction('raise', legal.raise, amount)
-    default:
-      return { ok: false, error: `Unknown action "${verb}".` }
-  }
-}
-
-function amountAction(
-  type: 'bet' | 'raise',
-  range: { min: number; max: number } | null,
-  amount: number | null,
-): ParseResult {
-  if (!range) return { ok: false, error: `${cap(type)} is not legal here.` }
-  const to = amount ?? range.min // bare verb means the minimum
-  if (to < range.min || to > range.max) {
-    return { ok: false, error: `${cap(type)} must be to ${range.min}-${range.max}.` }
-  }
-  return { ok: true, action: { type, amount: to } }
-}
-
-function cap(s: string): string {
-  return s[0]!.toUpperCase() + s.slice(1)
-}
-
-/**
- * A one-line, human-readable menu of the legal actions, with amounts — the action bar's prompt.
- * Mirrors `renderLegal` in `apps/cli/src/table.ts`.
- */
-export function renderLegal(legal: LegalActions): string {
-  const parts: string[] = []
-  if (legal.fold) parts.push('(f)old')
-  if (legal.check) parts.push('(k)check')
-  if (legal.call) parts.push(`(c)all ${legal.call.amount}`)
-  if (legal.bet) parts.push(`(b)et ${legal.bet.min}-${legal.bet.max}`)
-  if (legal.raise) parts.push(`(r)aise to ${legal.raise.min}-${legal.raise.max}`)
-  if (legal.bet || legal.raise) parts.push('(a)llin')
-  return parts.join('  ')
-}
+// Re-exported so existing imports (`from './input.js'`) and the action bar keep one import surface.
+export { parseAction, renderLegal, type ParseResult } from '@holdem/format'
 
 /**
  * The outcome of interpreting a single keystroke against the in-progress amount buffer. A pure

@@ -11,6 +11,7 @@
   "references": [
     { "path": "../../packages/engine" },
     { "path": "../../packages/bots" },
-    { "path": "../../packages/coach" }
+    { "path": "../../packages/coach" },
+    { "path": "../../packages/format" }
   ]
 }
