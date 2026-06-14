@@ -2,7 +2,7 @@
 id: 0042
 title: 'Epic: Foundations primer — how to think about a hand'
 type: epic
-status: in-progress
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -31,23 +31,23 @@ preceded the coach (M3).
 
 ## Acceptance criteria
 
-- [ ] A standalone **"Learn the fundamentals"** path in the PWA (its own tab/route), separate from
+- [x] A standalone **"Learn the fundamentals"** path in the PWA (its own tab/route), separate from
       free play and the M5 drill sets.
-- [ ] A short sequence of concept lessons covering the models the coach already uses internally:
+- [x] A short sequence of concept lessons covering the models the coach already uses internally:
       **equity**, **pot odds**, **equity-vs-price (the continue rule)**, **EV / break-even**,
       **position**, and **ranges / board texture**.
-- [ ] Each lesson is taught by **retrieval, not prose**: a ~30-second explanation followed by an
+- [x] Each lesson is taught by **retrieval, not prose**: a ~30-second explanation followed by an
       interactive check the player answers (e.g. "25% equity, 33% price — call or fold?"), graded
       with an explanation — per the "test, don't re-read" evidence in
       [../docs/LEARNING-APPROACH.md](../docs/LEARNING-APPROACH.md).
-- [ ] Lessons reuse the spot → ask → grade → explain machinery the M5 drills will share (don't
+- [x] Lessons reuse the spot → ask → grade → explain machinery the M5 drills will share (don't
       build a parallel engine); the concept checks are graded by the same deterministic coach math,
       not hand-authored answer keys where the coach can rule.
-- [ ] **Enabling primitive:** the coach verdict (`DecisionVerdict`) carries a `concept` tag naming
+- [x] **Enabling primitive:** the coach verdict (`DecisionVerdict`) carries a `concept` tag naming
       the idea a decision exercises, so the play coach, the primer, and future drills cross-link
       ("this is the pot-odds idea from Foundations"). Pure addition — no change to the existing math
       or the layering (`@holdem/coach` stays pure).
-- [ ] Lesson content/progress is local-only (no backend); completing the primer hands the player
+- [x] Lesson content/progress is local-only (no backend); completing the primer hands the player
       off to free play and, when it exists, M5 drills.
 
 ## Decomposition (`/work-milestone M4.5`, 2026-06-14)
