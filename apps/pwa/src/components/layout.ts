@@ -4,7 +4,14 @@
  * (`SEAT_LAYOUTS` / `CENTER` / `lerp`). Layout-only: no game logic.
  */
 
-/** Seat coordinates as `[x%, y%]` of the felt, keyed by seat count. Index 0 = hero (bottom). */
+/**
+ * Seat coordinates as `[x%, y%]` of the felt, keyed by seat count. Index 0 = hero (bottom).
+ *
+ * Invariant: no seat sits in the board's vertical band (~40–50%, around {@link CENTER}'s `y=45`).
+ * The board is a fixed-width 5-card row, so on a narrow phone it spans most of the felt width at
+ * that latitude — any seat level with it has its info pill / revealed cards overlap the community
+ * cards. Side seats therefore go above (e.g. the 3/4-max upper arc) or below (5/6-max lower wings).
+ */
 export const SEAT_LAYOUTS: Readonly<Record<number, ReadonlyArray<readonly [number, number]>>> = {
   2: [
     [50, 80],
@@ -17,9 +24,9 @@ export const SEAT_LAYOUTS: Readonly<Record<number, ReadonlyArray<readonly [numbe
   ],
   4: [
     [50, 81],
-    [12, 44],
+    [16, 31],
     [50, 16],
-    [88, 44],
+    [84, 31],
   ],
   5: [
     [50, 82],
