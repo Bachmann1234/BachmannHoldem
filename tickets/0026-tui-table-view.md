@@ -2,7 +2,7 @@
 id: 0026
 title: TUI table view components
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -18,14 +18,14 @@ with real flexbox-laid-out components.
 
 ## Acceptance criteria
 
-- [ ] Pure presentational Ink components (no game logic, no input) that, given the model's
+- [x] Pure presentational Ink components (no game logic, no input) that, given the model's
       `HandState` + hero seat, render: street header, board cards, pot total, **all N seats** (each
       with name, stack, current bet, button/folded/all-in/to-act marks), and the hero's hole cards.
       Lay the seats out so a full 6-max table stays readable.
-- [ ] Hero hole cards are shown; **every opponent's cards stay hidden (`?? ??`) until showdown**,
+- [x] Hero hole cards are shown; **every opponent's cards stay hidden (`?? ??`) until showdown**,
       matching the current CLI's reveal rule. Suit colour (e.g. red hearts/diamonds) via
       `chalk`/Ink colour.
-- [ ] A showdown/result view (winning hand + payouts) for a completed hand. Components are
+- [x] A showdown/result view (winning hand + payouts) for a completed hand. Components are
       covered with `ink-testing-library` snapshot/behaviour tests; `pnpm verify` green.
 
 ## Notes
