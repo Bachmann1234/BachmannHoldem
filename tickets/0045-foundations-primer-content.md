@@ -2,7 +2,7 @@
 id: 0045
 title: Foundations primer content — the six concept lessons
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: high
 created: 2026-06-14
@@ -22,23 +22,23 @@ feedback loop (coach + drills + M6), not in more reading.
 
 ## Acceptance criteria
 
-- [ ] A `FOUNDATIONS` lesson sequence (exported from `@holdem/curriculum`) covering the six models the
+- [x] A `FOUNDATIONS` lesson sequence (exported from `@holdem/curriculum`) covering the six models the
       coach uses: **equity**, **pot odds**, **equity-vs-price (the continue rule)**, **EV /
       break-even**, **position**, and **ranges / board texture** — each tagged with its `Concept`
       ([[0043-coach-concept-tag]]).
-- [ ] Each lesson: a tight ~30-second explanation string (plain, beginner-pitched, no jargon dump)
+- [x] Each lesson: a tight ~30-second explanation string (plain, beginner-pitched, no jargon dump)
       plus at least one retrieval-check spot. The spots are built on real `DecisionContext`s and
       graded by the coach math through the engine (e.g. equity-vs-price: "you hold X, 25% equity, the
       price is 33% — call or fold?" graded by `coachDecision`), **not** hand-authored answer keys
       wherever the coach can rule.
-- [ ] For the concepts the coach cannot grade as a continue-decision (position; board texture under
+- [x] For the concepts the coach cannot grade as a continue-decision (position; board texture under
       ranges), use the preflop chart where it fits (position → opening-range tightness) and a clearly
       flagged minimal declarative check only as a last resort — documented in the lesson, kept to a
       minimum, and never contradicting the coach.
-- [ ] Tests: every primer spot grades to the answer the coach actually returns (so a future coach
+- [x] Tests: every primer spot grades to the answer the coach actually returns (so a future coach
       retune can't silently desync the lesson), and each explanation/choice set is well-formed.
       `pnpm verify` green above thresholds.
-- [ ] Purity preserved (content is pure data in the pure package): no UI/DOM/Node/network.
+- [x] Purity preserved (content is pure data in the pure package): no UI/DOM/Node/network.
 
 ## Notes
 

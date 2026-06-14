@@ -12,3 +12,4 @@
 export * from './spot.js'
 export * from './grade.js'
 export * from './lesson.js'
+export * from './foundations.js'
