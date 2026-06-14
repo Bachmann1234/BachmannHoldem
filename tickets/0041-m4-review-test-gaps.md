@@ -2,7 +2,7 @@
 id: 0041
 title: Close two M4 test gaps (bet-amount clamp, reducer coach-error branch)
 type: task
-status: todo
+status: done
 milestone: M4
 priority: low
 created: 2026-06-14

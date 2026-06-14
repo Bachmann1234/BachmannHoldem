@@ -139,6 +139,77 @@ describe('ActionBar — check spot (postflop, no bet)', () => {
   })
 })
 
+describe('ActionBar — bet-size clamp (ticket 0041)', () => {
+  it('clamps a stale bet-to down into the legal range when the raise max shrinks', () => {
+    // A deep hero whose raise can go all the way to 200.
+    const wide = createHand({
+      stacks: [200, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: makeDeck(),
+    })
+    const seat = wide.toAct! // SB (heads-up button) acts first preflop
+    const wideLegal = legalActions(wide)
+
+    const onAction = vi.fn<(a: Action) => void>()
+    const { rerender } = render(
+      <ActionBar
+        hand={wide}
+        legal={wideLegal}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={onAction}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    // Push the slider all the way to the wide max (200).
+    act(() => screen.getByRole('button', { name: 'all-in' }).click())
+    const betTo = () => Number(screen.getByTestId('bet-to').textContent!.trim().split(/\s+/)[0])
+    expect(betTo()).toBe(wideLegal.raise!.max)
+
+    // The same decision point (preflop, same seat to act, same 2-chip bet to match) but a shorter
+    // hero stack → the legal raise max drops to 50. The reseed effect keys on
+    // (isHeroTurn, street, toAct, currentBet) — all unchanged — so it does NOT re-fire, leaving
+    // `betTo` stale at 200, above the new max. The render-time clamp must rescue it.
+    const short = createHand({
+      stacks: [50, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: makeDeck(),
+    })
+    const shortLegal = legalActions(short)
+    expect(shortLegal.raise!.max).toBe(50)
+    expect(shortLegal.raise!.max).toBeLessThan(wideLegal.raise!.max)
+
+    rerender(
+      <ActionBar
+        hand={short}
+        legal={shortLegal}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={onAction}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    // The displayed "to" amount is clamped down to the new max...
+    expect(betTo()).toBe(shortLegal.raise!.max)
+    // ...and committing sends the clamped amount, never the stale over-max value.
+    act(() => screen.getByRole('button', { name: /^Raise to/ }).click())
+    const action = onAction.mock.calls.at(-1)![0]
+    expect(action.type).toBe('raise')
+    if (action.type === 'raise') {
+      expect(action.amount).toBe(shortLegal.raise!.max)
+      expect(action.amount).toBeLessThanOrEqual(shortLegal.raise!.max)
+    }
+  })
+})
+
 describe('ActionBar — non-hero / between-hands states', () => {
   it('shows a Waiting placeholder when it is not the hero turn', () => {
     const hand = freshHand()
