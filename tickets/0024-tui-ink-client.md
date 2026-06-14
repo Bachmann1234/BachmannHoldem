@@ -2,7 +2,7 @@
 id: 0024
 title: 'Epic: Ink TUI play client'
 type: epic
-status: in-progress
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -28,17 +28,17 @@ the cheap `printf … | …`-style smoke-test path stays, while the real correct
 
 ## Acceptance criteria
 
-- [ ] A new `apps/tui` Ink app renders a live poker table (board, hero hole cards, pot, every
+- [x] A new `apps/tui` Ink app renders a live poker table (board, hero hole cards, pot, every
       seat's stack, button, whose turn, street) and is fully playable at a **configurable table —
       default 6-max (you plus five `@holdem/bots` opponents), down to heads-up** — across a
       multi-hand session.
-- [ ] A live **coach panel** shows the deterministic `@holdem/coach` verdict per hero decision
+- [x] A live **coach panel** shows the deterministic `@holdem/coach` verdict per hero decision
       (equity / pot odds / EV / good-leak) plus the preflop chart tier — reusing `coachDecision`
       and `classifyStartingHand`, not re-deriving anything — with the equity read **honest for the
       live table size** (see [[0031-coach-multiway-equity]]).
-- [ ] `pnpm play` launches the TUI; the slimmed `apps/cli` keeps a non-interactive scriptable
+- [x] `pnpm play` launches the TUI; the slimmed `apps/cli` keeps a non-interactive scriptable
       mode under its own script. README/ROADMAP updated to match.
-- [ ] `pnpm verify` stays green: the pure-package coverage gate is untouched (the TUI app, like
+- [x] `pnpm verify` stays green: the pure-package coverage gate is untouched (the TUI app, like
       the CLI and the future PWA, is excluded from it) and TUI components have their own
       `ink-testing-library` component tests.
 
