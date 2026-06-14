@@ -2,7 +2,7 @@
 id: 0027
 title: TUI interactive action bar
 type: feature
-status: todo
+status: done
 milestone: M3.5
 priority: medium
 created: 2026-06-13
@@ -17,13 +17,13 @@ and the MVU loop advances the hand.
 
 ## Acceptance criteria
 
-- [ ] An action-bar component showing the hero's legal actions (with amounts) from
+- [x] An action-bar component showing the hero's legal actions (with amounts) from
       `legalActions(state)`, and a `useInput` handler that maps keystrokes to a chosen `Action`,
       including a bet/raise amount-entry affordance and an all-in shortcut.
-- [ ] Only legal actions are selectable; an illegal/garbled keystroke is ignored or shown as a
+- [x] Only legal actions are selectable; an illegal/garbled keystroke is ignored or shown as a
       gentle hint, never crashes. The chosen `Action` is dispatched through the reducer and applied
       with `applyAction`, advancing the model; the bot acts on its turn.
-- [ ] One full hand is playable start to finish in the TUI. The input→action mapping logic is
+- [x] One full hand is playable start to finish in the TUI. The input→action mapping logic is
       pure and unit-tested (reuse or mirror `apps/cli/src/table.ts`'s `parseAction` grammar);
       `pnpm verify` green.
 

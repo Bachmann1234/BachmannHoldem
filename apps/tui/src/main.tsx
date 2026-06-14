@@ -1,27 +1,26 @@
 /**
- * Entry point for `pnpm --filter @holdem/tui dev` (ticket 0025).
+ * Entry point for `pnpm --filter @holdem/tui dev` (tickets 0025 / 0027).
  *
- * For this scaffold it builds the initial model (one real hand from `@holdem/engine`), renders a
- * single static snapshot via Ink, and exits cleanly — there is no input loop yet. Rendering one
- * frame and then unmounting is the idiomatic one-shot Ink pattern; `waitUntilExit` resolves once
- * the instance has torn down, so the process ends instead of hanging on the live terminal.
- *
- * Later tickets replace this with the interactive session: `useReducer(reducer, initialModel)`
- * inside the component tree, input handlers dispatching messages, and bots acting between the
- * hero's turns. The scaffold deliberately keeps `dispatch` a no-op.
+ * Mounts the interactive {@link Root}: a live MVU loop where the hero plays one hand against the
+ * bots through the on-screen action bar. `render(<Root/>)` keeps the app mounted and
+ * `waitUntilExit()` resolves once `Root` calls `useApp().exit()` — which happens when the hero
+ * presses `q` or the single hand completes. The multi-hand session (stacks carry, button rotates,
+ * play-again) is ticket 0029.
  */
 
+import process from 'node:process'
 import { render } from 'ink'
-import { App } from './App.js'
-import { createInitialModel } from './model.js'
+import { Root } from './Root.js'
 
 async function main(): Promise<void> {
-  const model = createInitialModel()
-  // No interaction yet: dispatch is the identity loop. The reducer is exercised by its tests.
-  const instance = render(<App model={model} dispatch={() => {}} />)
-  // Render the static frame, then tear down so the process exits cleanly rather than hanging.
-  instance.unmount()
+  const instance = render(<Root />)
   await instance.waitUntilExit()
+  // The app has fully torn down (the frame is flushed and the terminal restored) by the time
+  // `waitUntilExit` resolves. On a real TTY, Ink can leave the raw-mode input stream resumed and
+  // referenced, which keeps Node's event loop alive and would otherwise hang the process after the
+  // hand ends. We have nothing left to do, so exit explicitly — satisfying the "must not hang"
+  // requirement without depending on every listener having been unref'd.
+  process.exit(0)
 }
 
 void main()

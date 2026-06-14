@@ -8,5 +8,5 @@
     "jsxImportSource": "react"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../../packages/engine" }]
+  "references": [{ "path": "../../packages/engine" }, { "path": "../../packages/bots" }]
 }

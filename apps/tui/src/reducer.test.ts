@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { makeDeck, type Card } from '@holdem/engine'
+import { makeDeck, potTotal, type Card } from '@holdem/engine'
 import { createInitialModel } from './model.js'
 import { reducer } from './reducer.js'
 
@@ -25,6 +25,25 @@ describe('reducer', () => {
     const before = JSON.stringify(model.hand)
     reducer(model, { type: 'noop' })
     expect(JSON.stringify(model.hand)).toBe(before)
+  })
+
+  it('applies a legal action through the engine, advancing the hand into a fresh model', () => {
+    const model = createInitialModel({ seats: 2, deck: FIXED_DECK })
+    const next = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    // A fresh model + fresh hand (immutable), with the call reflected in the pot.
+    expect(next).not.toBe(model)
+    expect(next.hand).not.toBe(model.hand)
+    expect(potTotal(next.hand)).toBeGreaterThan(potTotal(model.hand))
+    // The original model is untouched.
+    expect(JSON.stringify(model.hand)).toBe(
+      JSON.stringify(createInitialModel({ seats: 2, deck: FIXED_DECK }).hand),
+    )
+  })
+
+  it('throws (does not swallow) when handed an illegal action — the shell must pre-validate', () => {
+    const model = createInitialModel({ seats: 2, deck: FIXED_DECK })
+    // Preflop facing the big blind, the SB cannot check — the engine throws, by design.
+    expect(() => reducer(model, { type: 'apply-action', action: { type: 'check' } })).toThrow()
   })
 })
 

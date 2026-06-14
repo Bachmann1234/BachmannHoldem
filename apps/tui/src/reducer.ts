@@ -4,32 +4,41 @@
  * which keeps the Ink components purely presentational and lets the whole update logic be
  * unit-tested without rendering anything (see `reducer.test.ts`).
  *
- * For this read-only scaffold the message set is intentionally minimal — there is no input yet
- * — but the shape is established so later tickets (action input, coach panel, multi-hand
- * session) extend the {@link Msg} union and add cases here rather than leaking logic into
- * components. The reducer wraps engine calls only; it owns no poker rules of its own.
+ * The action-input ticket (0027) adds the first real message: `'apply-action'`. Its case is a
+ * thin, pure wrapper over the engine's `applyAction` — the only mutation of the hand — so all the
+ * non-pure concerns (parsing keystrokes, the bot's PRNG) stay in the app shell and never leak into
+ * the reducer. Later tickets (coach panel, multi-hand session) extend the {@link Msg} union and add
+ * cases here. The reducer wraps engine calls only; it owns no poker rules of its own.
  */
 
+import { applyAction, type Action } from '@holdem/engine'
 import type { Model } from './model.js'
 
 /**
  * The messages the reducer understands. A discriminated union on `type`, dispatched by the
  * view; the reducer pattern-matches and returns the next model.
  *
- * Today the only message is `'noop'` (identity — proves the loop and gives later tickets a
- * place to grow from). Future tickets add `'hero-action'`, `'advance'`, `'new-hand'`, etc.
+ * - `'noop'` — identity (proves the loop; a place later tickets grow from).
+ * - `'apply-action'` — apply an already-validated engine {@link Action} (the hero's keystroke,
+ *   parsed and legality-checked by `src/input.ts`, or a bot's `decide` result) to the hand. The
+ *   shell guarantees the action is legal; `applyAction` throws on an illegal move.
  */
-export type Msg = { readonly type: 'noop' }
+export type Msg =
+  | { readonly type: 'noop' }
+  | { readonly type: 'apply-action'; readonly action: Action }
 
 /**
- * Advance the model in response to a message. Pure: it never mutates its inputs and returns the
- * next model (here, unchanged — the scaffold renders one static frame). The `switch` is
- * exhaustive so adding a `Msg` variant without handling it is a compile error.
+ * Advance the model in response to a message. Pure and synchronous: it never mutates its inputs
+ * (`applyAction` returns a fresh immutable {@link HandState}), holds no PRNG or I/O, and returns the
+ * next model. The `switch` is exhaustive so adding a `Msg` variant without handling it is a compile
+ * error.
  */
 export function reducer(model: Model, msg: Msg): Model {
   switch (msg.type) {
     case 'noop':
       return model
+    case 'apply-action':
+      return { ...model, hand: applyAction(model.hand, msg.action) }
   }
 }
 
