@@ -33,10 +33,13 @@ verbatim (ROADMAP: "only the terminal-vs-DOM render layer differs"). Extract tha
 build the DOM layer on top. And per LEARNING-APPROACH, the coach (decision-quality feedback) is the
 asset the table exists to serve — keep it first-class, not buried.
 
-**Design-in-the-loop (the M4 exception):** the table/controls/coach-panel tickets are gated on a
-confirmed visual direction (a designer in the loop) before implementation — see
-[[0034-pwa-table-view]] / [[0035-pwa-play-loop]] / [[0036-pwa-coach-panel]]. The plumbing tickets
-([[0032-session-core-package]], [[0033-pwa-scaffold]]) are design-agnostic.
+**Design-in-the-loop (the M4 exception):** the visual direction is **confirmed and captured** in
+[`docs/design/m4-pwa/`](../docs/design/m4-pwa/DESIGN-NOTES.md) (a Claude Design handoff the user
+landed on: **Playful · green · encouraging · 2–6-max · on-demand coach drawer · four-color classic
+cards**, dark-first, phone-first). The design-gated UI tickets ([[0034-pwa-table-view]] /
+[[0035-pwa-play-loop]] / [[0036-pwa-coach-panel]]) build to it; the plumbing tickets
+([[0032-session-core-package]], [[0033-pwa-scaffold]]) are design-agnostic. The prototype's
+throwaway poker engine is reference-only — the app runs on our `@holdem/*` packages.
 
 Broken into per-feature tickets, in dependency order:
 

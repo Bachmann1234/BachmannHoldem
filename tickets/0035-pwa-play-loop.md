@@ -17,8 +17,11 @@ loop, play-again/quit, and an end-of-session summary. This is the DOM analog of 
 same two non-pure concerns kept in the shell (the per-hand deck **shuffle** and the **bots'
 decisions**), only the render/input layer is DOM instead of Ink.
 
-Design-sensitive: the action controls and setup are touch UI that must follow the approved design.
-Do not start until the design direction is confirmed.
+Design-sensitive: the action controls and setup are touch UI built to the **confirmed** direction in
+`docs/design/m4-pwa/` — the `.actionbar` (bet slider + min/½/pot/all-in size buttons + Fold /
+Check-Call / Bet-Raise + "Deal next hand →" CTA) in `styles.css`/`app.jsx`. The prototype gated table
+size behind a "Players" tweak; we ship a **real setup screen** editing the session `SetupState`
+instead. Ignore the prototype's betting engine — drive everything through the shared reducer.
 
 ## Acceptance criteria
 
