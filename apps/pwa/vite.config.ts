@@ -36,6 +36,8 @@ export default defineConfig({
             type: 'image/png',
             purpose: 'maskable',
           },
+          // Vector copy for crisp rendering at any size where the platform supports it.
+          { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml' },
         ],
       },
       // Precache the built app shell (html/js/css + icons) so a second visit works fully offline.

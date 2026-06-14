@@ -10,15 +10,6 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
-  // Plain Node scripts (build-time tooling, e.g. the PWA icon generator) run on Node, not in a
-  // browser/test program, so give them the Node globals they use (`Buffer`, `console`, `process`).
-  {
-    files: ['**/scripts/**/*.mjs'],
-    languageOptions: {
-      globals: { Buffer: 'readonly', console: 'readonly', process: 'readonly' },
-    },
-  },
-
   // Turn off stylistic rules that Prettier owns. Must come last.
   prettier,
 )
