@@ -11,6 +11,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@holdem/bots": "workspace:*",
     "@holdem/engine": "workspace:*",
     "@holdem/session": "workspace:*",
     "react": "^19.2.7",

@@ -115,6 +115,38 @@ body {
   }
 }
 
+/* The playing-phase shell: the `Table`'s own `.app` (topbar + felt) grows to fill, and the
+   `ActionBar` pins to the bottom as a sibling footer. Reuses the `.app` chrome (max-width, borders,
+   100dvh, column) and reflows the nested `.app` to a growable region rather than a second viewport. */
+.app-stack {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+@media (min-width: 900px) {
+  .app-stack {
+    max-width: 540px;
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 40px 120px rgba(0, 0, 0, 0.6);
+  }
+}
+.app-stack > .app {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  width: 100%;
+  border: none;
+}
+
 /* ============ top bar ============ */
 .topbar {
   flex: 0 0 auto;
@@ -547,4 +579,364 @@ body {
 }
 .card.back.sm .back-mark {
   font-size: 11px;
+}
+
+/* ============ action flash (a seat's most recent action) ============ */
+.action-flash {
+  position: absolute;
+  top: -13px;
+  z-index: 4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+  animation: pop 0.2s ease-out;
+}
+.action-flash.aggressive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.action-flash.fold {
+  color: var(--bad);
+}
+
+/* ============ action bar (ticket 0035) ============ */
+.actionbar {
+  flex: 0 0 auto;
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: linear-gradient(0deg, var(--bg), var(--bg) 70%, transparent);
+}
+.bet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bet-amount {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  min-width: 58px;
+}
+.bet-amount span {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.sizes {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.size-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: 0.12s;
+}
+.size-btn:hover {
+  border-color: var(--line-2);
+  color: var(--text);
+}
+.size-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+.slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  cursor: grab;
+}
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 9px;
+}
+.btn {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 14px 10px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: 0.14s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  letter-spacing: -0.01em;
+}
+.btn small {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+.btn.fold:hover {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.btn.call:hover {
+  border-color: var(--text-2);
+}
+.btn.raise {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+[data-dir='playful'] .btn.raise {
+  box-shadow: 0 6px 18px var(--accent-soft);
+}
+.btn.raise small {
+  opacity: 0.85;
+}
+.next-cta {
+  grid-column: 1 / -1;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-size: 15px;
+}
+[data-dir='playful'] .next-cta {
+  box-shadow: 0 6px 20px var(--accent-soft);
+}
+.quit-cta {
+  grid-column: 1 / -1;
+  font-size: 13px;
+}
+
+/* ============ setup screen (ticket 0035) ============ */
+.setup {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.setup-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setup-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.setup-sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.setup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.setup-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.setup-label .hint {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stepper-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: 0.12s;
+}
+.stepper-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.stepper-value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+}
+.preset-pill {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  min-width: 92px;
+  text-align: center;
+  transition: 0.12s;
+}
+.preset-pill:hover {
+  filter: brightness(1.12);
+}
+.setup-cta {
+  margin-top: auto;
+  width: 100%;
+}
+
+/* ============ session summary (ticket 0035) ============ */
+.summary {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px 18px calc(22px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.summary-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.summary-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.summary-headline {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.summary-headline.win {
+  color: var(--good);
+}
+.summary-headline.lose {
+  color: var(--bad);
+}
+.summary-meta {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.standings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.standing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 12px 16px;
+}
+.standing.busted {
+  opacity: 0.55;
+}
+.standing-name {
+  font-size: 14px;
+  font-weight: 650;
+}
+.standing-name .tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--bad);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+}
+.standing-stack {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.standing.busted .standing-stack {
+  color: var(--text-3);
+}
+.summary-cta {
+  margin-top: auto;
+  width: 100%;
 }

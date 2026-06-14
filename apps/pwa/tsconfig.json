@@ -12,5 +12,9 @@
   // browser program or break the composite build; it is still linted/formatted by the repo's flat
   // config (which is syntactic, not type-aware) and typechecked by Vite itself at build time.
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
-  "references": [{ "path": "../../packages/engine" }, { "path": "../../packages/session" }]
+  "references": [
+    { "path": "../../packages/engine" },
+    { "path": "../../packages/session" },
+    { "path": "../../packages/bots" }
+  ]
 }

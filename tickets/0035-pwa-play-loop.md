@@ -2,7 +2,7 @@
 id: 0035
 title: PWA play loop — setup, action controls, bot turns, session
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: high
 created: 2026-06-13
@@ -25,17 +25,17 @@ instead. Ignore the prototype's betting engine — drive everything through the 
 
 ## Acceptance criteria
 
-- [ ] A setup screen (touch controls) edits the shared `SetupState` (seat count 2–6, a bot preset per
+- [x] A setup screen (touch controls) edits the shared `SetupState` (seat count 2–6, a bot preset per
       opponent) and starts the first hand — dispatching the same `set-seats` / `cycle-opponent` /
       `start-hand` messages the reducer already owns.
-- [ ] Hero action controls render the legal actions for the current spot (`legalActions`) — fold /
+- [x] Hero action controls render the legal actions for the current spot (`legalActions`) — fold /
       check / call / bet / raise with a bet-size control honouring min/max — and dispatch validated
       `apply-action` messages. Active only on the hero's turn.
-- [ ] The bot-turn effect routes the acting seat → its stable player → that player's persistent
+- [x] The bot-turn effect routes the acting seat → its stable player → that player's persistent
       `Opponent` (one instance per id in a ref, as in `Root`), dispatching one decision per state;
       several bots act between hero turns. Deck shuffle (`shuffledDeck`) and bot PRNGs stay in the
       shell — the reducer stays pure.
-- [ ] Between-hands play-again / quit, and a session summary at `game-over`. A full hand is playable
+- [x] Between-hands play-again / quit, and a session summary at `game-over`. A full hand is playable
       end-to-end on a phone. `pnpm verify` green (component tests for the controls + a smoke test of
       a scripted session via injected decks/bots, mirroring `Root.test`).
 

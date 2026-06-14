@@ -61,10 +61,10 @@ _Instrument Serif_ only in the unused Editorial direction.
   (`Seat 1 (TAG)`). Either is fine cosmetically — match our `SessionPlayer.label` unless the user
   wants flavour names.
 - **Live pre-decision coach read.** The drawer's "Live read · your turn" mode shows equity / pot
-  odds / EV / a recommendation **before** the hero acts. Our `CoachResult` currently grades a chosen
-  action **after** the fact (capture-before-apply). **Open question for [[0036-pwa-coach-panel]]:**
-  do we ship only the post-action verdict (no coach-package change), or add a pre-action read (a
-  `@holdem/coach` API addition, arguably out of M4 scope)? Resolve before building the drawer.
+  odds / EV / a recommendation **before** the hero acts. Our `CoachResult` grades a chosen action
+  **after** the fact (capture-before-apply). **Decided (2026-06-14): post-action verdict only for
+  M4** — the pre-action read is deferred to a later `@holdem/coach` ticket. See
+  [[0036-pwa-coach-panel]].
 - **Encouraging copy.** The verdict prose tone is a UI concern; `@holdem/coach` yields the
   structured `DecisionVerdict`, the encouraging wording wraps it (a small formatter — keep it shared
   in `@holdem/format` if it touches numbers, else PWA-local).

@@ -21,11 +21,11 @@ all of that lives in `@holdem/coach` and is already computed by the reducer.
 Design-sensitive but **direction confirmed** — build the drawer to the design. **Coach tone:
 encouraging** (the warm copy variant in the design's `TONE_COPY`).
 
-**Open question to resolve first (see `DESIGN-NOTES.md`):** the design's drawer has a "Live read ·
-your turn" mode showing equity/odds/EV/recommendation _before_ the hero acts, but our `CoachResult`
-currently grades a chosen action _after_ the fact. Decide: ship only the post-action verdict (no
-coach-package change), or add a pre-action read (a `@holdem/coach` API addition, likely out of M4
-scope). Confirm with the user before building the live-read path.
+**Resolved (user decision, 2026-06-14): post-action verdict only.** Ship the drawer over the existing
+post-action `CoachResult` (good/leak verdict + equity/pot-odds/EV metrics + preflop chart). Do NOT
+add a pre-action "live read" — that needs a `@holdem/coach` API addition and is deferred to a later
+coach-package ticket, keeping M4 "just the UI." The drawer's empty/`none` state simply prompts the
+hero to act and check back.
 
 ## Acceptance criteria
 
