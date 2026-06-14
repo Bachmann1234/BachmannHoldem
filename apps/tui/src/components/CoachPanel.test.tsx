@@ -35,6 +35,15 @@ function plain(frame: string): string {
 }
 
 /**
+ * A `'playing'` model with the given deck dealt — the reducer's `start-hand` from a fresh setup is
+ * how the live app deals, so we drive it the same way (keeping the coach grading exercised exactly
+ * as in production). The hero is seat 0, on the button (heads-up SB), to act first.
+ */
+function dealtModel(seats: number, deck: Card[]): Model {
+  return reducer(createInitialModel({ seats }), { type: 'start-hand', deck })
+}
+
+/**
  * Drive a model through the reducer's `apply-action` so the coach grades the spot exactly as the
  * live app does — capturing the `DecisionContext` before applying — and return the resulting frame.
  */
@@ -82,7 +91,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
   it('preflop: shows the starting-hand tier line and a GREEN good headline (AA continues)', () => {
     // Hero AA in the SB/button (seat 0), to act first heads-up; calling a premium is a good play.
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    const model = createInitialModel({ seats: 2, deck })
+    const model = dealtModel(2, deck)
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     // The starting-hand chart tier leads, rendered as the self-contained rationale sentence.
     expect(frame).toContain('Starting hand: Premium holding')
@@ -94,7 +103,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
 
   it('preflop: folding a premium is a RED leak headline', () => {
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    const model = createInitialModel({ seats: 2, deck })
+    const model = dealtModel(2, deck)
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'fold' } }])
     expect(frame).toContain('Starting hand: Premium holding')
     expect(frame).toContain('Leak — the math pointed the other way.')
@@ -103,7 +112,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
   it('postflop: calling a big bet with trash is a RED leak (EV-correct fold)', () => {
     // Hero 72o on a missed board, faces a half-pot bet — a clearly −EV continue.
     const deck = buildDeck(2, 0, ['7s 2d', 'Kd Qc'], 'Ac Jh 9c Th 5s')
-    let model = createInitialModel({ seats: 2, deck })
+    let model = dealtModel(2, deck)
     // SB(seat0) completes, BB checks → flop; the bot seat (1) bets; then hero calls.
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
     model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
@@ -118,7 +127,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
   it('postflop: a coin-flip-priced call is a YELLOW break-even, EV rendered as a bare 0', () => {
     // Hero T9s on a J82-Q-5 board faces a tiny bet that prices the call right on the threshold.
     const deck = buildDeck(2, 0, ['Th 9h', 'Ad Ac'], 'Jc 8d 2s Qs 5c')
-    let model = createInitialModel({ seats: 2, deck })
+    let model = dealtModel(2, deck)
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
     model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
     model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 6 } })
@@ -133,7 +142,7 @@ describe('CoachPanel through the reducer: ordering + advisory contract', () => {
   it('a bot action leaves the hero last grade in place', () => {
     // Grade the hero, then apply a bot action; the stored verdict must persist for the panel.
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    let model = createInitialModel({ seats: 2, deck })
+    let model = dealtModel(2, deck)
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero (seat0) graded
     expect(model.coach.kind).toBe('verdict')
     const heroGrade = model.coach
@@ -143,7 +152,7 @@ describe('CoachPanel through the reducer: ordering + advisory contract', () => {
 
   it('the initial model starts with no graded decision', () => {
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    expect(createInitialModel({ seats: 2, deck }).coach).toEqual({ kind: 'none' })
+    expect(dealtModel(2, deck).coach).toEqual({ kind: 'none' })
   })
 
   it('a coach throw on a malformed spot degrades to a stored error notice (never crashes)', () => {
@@ -151,13 +160,13 @@ describe('CoachPanel through the reducer: ordering + advisory contract', () => {
     // (the same card twice) makes `classifyStartingHand` / the equity read throw. The reducer must
     // catch it, store an `'error'`, and still apply the action (the hand continues).
     const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    const base = createInitialModel({ seats: 2, deck })
+    const base = dealtModel(2, deck)
     const corruptHole = parseCards('As As') as [Card, Card]
     const corrupt: Model = {
       ...base,
       hand: {
-        ...base.hand,
-        players: base.hand.players.map((p) =>
+        ...base.hand!,
+        players: base.hand!.players.map((p) =>
           p.seat === base.heroSeat ? { ...p, holeCards: corruptHole } : p,
         ),
       } as HandState,

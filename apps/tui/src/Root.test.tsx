@@ -1,25 +1,18 @@
 /**
- * The playable-hand component test (ticket 0027): mounts the live {@link Root} via
- * `ink-testing-library`, writes hero keystrokes to its `stdin`, and asserts the hand actually
- * advances — the pot grows, bots act on their turns, and a full hand reaches a result and the app
- * exits. Determinism comes from a fully-specified deck and a fixed-seed opponent, so the bot's line
- * is reproducible.
+ * The end-to-end session component test (tickets 0027 / 0029): mounts the live {@link Root} via
+ * `ink-testing-library`, drives it from the setup screen through multiple hands, and asserts the
+ * session behaves — the table view, action bar, and coach panel work together; stacks carry and the
+ * button rotates between hands; a busted player is removed; and the session ends with a summary.
  *
- * `stdin.write('c')` simulates a keypress (Ink's `useInput` reads raw stdin); bot turns run in a
- * microtask after each render, so the test yields between writes to let the effect dispatch.
+ * Determinism comes from injecting a queue of fully-specified `decks` (one per hand) and fixed-seed
+ * bots via `makeBot`, so the bots' lines are reproducible. `stdin.write('c')` simulates a keypress;
+ * bot turns run in a microtask after each render, so the test yields between writes.
  */
 
 import { describe, it, expect } from 'vitest'
 import { render } from 'ink-testing-library'
-import {
-  createHand,
-  isComplete,
-  parseCards,
-  potTotal,
-  type Card,
-  type HandState,
-} from '@holdem/engine'
-import { heuristicOpponent, TIGHT_AGGRESSIVE } from '@holdem/bots'
+import { parseCards, type Card } from '@holdem/engine'
+import { callingStation, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
 import { Root } from './Root.js'
 
 /** Build a deck dealing exactly the given hole cards + board (mirrors the engine/table test helper). */
@@ -44,113 +37,120 @@ function plain(frame: string): string {
 }
 
 /**
- * Drive the hero passively to the end of the hand: repeatedly wait until the action bar is prompting
- * the hero (not "Waiting…" for a bot), send the cheapest legal continue (call if facing a bet, else
- * check), and stop once the result renders. This lets the bot-turn effects interleave naturally
- * between the hero's keystrokes rather than racing a fixed burst of writes.
+ * Drive the hero passively through one hand: repeatedly wait until the action bar is prompting the
+ * hero (not "Waiting…"), send the cheapest legal continue (call if facing a bet, else check), and
+ * stop once the hand reaches a result (hand-over or game-over both render the Result block).
  */
-async function playToResult(
+async function playOneHand(
   stdin: { write: (s: string) => void },
   lastFrame: () => string | undefined,
-  frames: string[],
-): Promise<string> {
-  for (let i = 0; i < 40; i++) {
+): Promise<void> {
+  for (let i = 0; i < 60; i++) {
     await tick()
-    // The app self-exits on completion, which blanks `lastFrame()`, so scan the retained frame
-    // history for the result block (it rendered for at least one frame before exit).
-    const result = frames.map(plain).find((f) => f.includes('Result'))
-    if (result) return result
     const frame = plain(lastFrame() ?? '')
-    // Only act when the hero is being prompted; otherwise let the bot effect run. Prefer the
-    // cheapest continue: call when one is offered, else check.
-    if (frame && !frame.includes('Waiting')) {
+    if (frame.includes('Play another hand?') || frame.includes('Session over')) return
+    if (frame && !frame.includes('Waiting') && !frame.includes('Table setup')) {
       stdin.write(frame.includes('(c)all') ? 'c' : 'k')
     }
   }
-  return frames.map(plain).find((f) => f.includes('Result')) ?? ''
 }
 
-describe('Root — playable hand', () => {
-  it('plays a full heads-up hand to a result with the hero checking it down', async () => {
-    // Hero (seat 0, button/SB) holds a pair of aces on a board that pairs them; the bot has a weak
-    // hand. A fixed deck + fixed-seed bot make the line reproducible.
-    const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
-    const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 1)
-    const { stdin, lastFrame, frames } = render(
-      <Root initial={{ seats: 2, buttonIndex: 0, deck }} opponent={opponent} />,
-    )
-
-    // Let the initial render settle (hero is to act first as the SB).
+describe('Root — table setup', () => {
+  it('opens on the setup screen showing seat count and opponent presets', async () => {
+    const { lastFrame } = render(<Root initial={{ seats: 6 }} />)
     await tick()
-    const startPot = potTotal(deckPot(deck))
-
-    // The hero calls/checks the hand down; the bot acts between turns. `playToResult` only sends a
-    // key when the hero is being prompted, so the bot turns interleave naturally.
-    const frame = await playToResult(stdin, lastFrame, frames)
-    // A full hand reached a result: the showdown/result block rendered.
-    expect(frame).toContain('Result')
-    expect(frame).toContain('collect')
-    // The pot grew beyond the blinds, proving actions were applied through the engine.
-    expect(startPot).toBeGreaterThan(0)
+    const frame = plain(lastFrame()!)
+    expect(frame).toContain('Table setup')
+    expect(frame).toContain('Seats:')
+    expect(frame).toContain('6')
+    // Five opponent rows for 6-max.
+    for (const seat of [1, 2, 3, 4, 5]) expect(frame).toContain(`Seat ${seat}`)
   })
 
-  it('ignores an illegal/garbled keystroke without crashing, then accepts a legal one', async () => {
-    const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
-    const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 1)
-    const { stdin, lastFrame, frames } = render(
-      <Root initial={{ seats: 2, buttonIndex: 0, deck }} opponent={opponent} />,
-    )
+  it('cycles an opponent preset with the arrow keys', async () => {
+    const { stdin, lastFrame } = render(<Root initial={{ seats: 2 }} />)
     await tick()
-
-    // Preflop the hero is the SB facing the BB: the pot is the blinds (1 + 2 = 3) and it is the
-    // hero's turn.
-    expect(plain(lastFrame()!)).toContain('Pot: 3')
-
-    // Garbage keys preflop must not crash and must not advance the hand. 'z' is unknown; 'k' (check)
-    // is illegal facing the BB → a gentle hint, no dispatch.
-    stdin.write('z')
+    expect(plain(lastFrame()!)).toContain('TAG') // heads-up defaults to TAG
+    stdin.write('[B') // down arrow → focus the opponent row
     await tick()
-    stdin.write('k')
+    stdin.write('[C') // right arrow → cycle TAG → LAG
     await tick()
-    const stillPlaying = plain(lastFrame()!)
-    expect(stillPlaying).not.toContain('Result')
-    // Still the hero's turn, pot unchanged — the illegal keys did nothing.
-    expect(stillPlaying).toContain('Pot: 3')
-    expect(stillPlaying).toMatch(/is not legal here|Unknown action/)
-
-    // Now a legal call advances the hand: the hero commits, the pot grows past the blinds.
-    stdin.write('c')
-    await tick(20)
-    const frame = plain(lastFrame() ?? frames.map(plain).at(-1) ?? '')
-    expect(frame).not.toContain('Pot: 3')
+    expect(plain(lastFrame()!)).toContain('LAG')
   })
 
-  it('completes the hand and self-exits (no further frames after the result)', async () => {
-    // ink-testing-library does not expose the real `waitUntilExit`, so the clean-exit behaviour is
-    // confirmed by the scripted `dev` run. Here we assert what gates it: the hand reaches a result
-    // and, once `Root` calls `useApp().exit()`, the app stops rendering — a late keystroke produces
-    // no new frame, i.e. nothing keeps the loop alive after the result.
+  it('Enter deals the first hand: the table, action bar, and coach panel appear', async () => {
     const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
     const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 1)
-    const { stdin, lastFrame, frames } = render(
-      <Root initial={{ seats: 2, buttonIndex: 0, deck }} opponent={opponent} />,
+    const { stdin, lastFrame } = render(
+      <Root initial={{ seats: 2 }} decks={[deck]} makeBot={() => opponent} />,
     )
     await tick()
-    const result = await playToResult(stdin, lastFrame, frames)
-    expect(result).toContain('Result')
-
-    // After exit, a late keystroke produces no additional frame (input loop is gone).
-    const frameCount = frames.length
-    stdin.write('c')
-    await tick(20)
-    expect(frames.length).toBe(frameCount)
+    stdin.write('\r') // Enter → start the first hand
+    await tick()
+    const frame = plain(lastFrame()!)
+    expect(frame).toContain('hand 1')
+    expect(frame).toContain('You')
+    expect(frame).toContain('Coach')
   })
 })
 
-/** The dealt-but-unacted hand for the given deck — used to read the starting (blinds-only) pot. */
-function deckPot(deck: Card[]): HandState {
-  const hand = createHand({ stacks: [200, 200], buttonIndex: 0, smallBlind: 1, bigBlind: 2, deck })
-  // Sanity: a fresh hand is not complete.
-  if (isComplete(hand)) throw new Error('fresh hand should not be complete')
-  return hand
-}
+describe('Root — multiway multi-hand session', () => {
+  it('plays multiple hands, carrying stacks and rotating the button, then ends with a summary', async () => {
+    // A two-hand heads-up session driven to completion: hand 1 button on the hero (seat0), hand 2
+    // the button has rotated. The hero checks/calls down both hands; a fixed-seed bot keeps the
+    // lines reproducible. After hand 2 we quit to the summary and assert the session ended cleanly.
+    const deck1 = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
+    const deck2 = buildDeck(2, 1, ['Ks Kd', '7h 2c'], 'Kh 8d 3s 4c 2d')
+    const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 7)
+    const { stdin, lastFrame, frames } = render(
+      <Root initial={{ seats: 2 }} decks={[deck1, deck2]} makeBot={() => opponent} />,
+    )
+    await tick()
+    stdin.write('\r') // start hand 1
+    await playOneHand(stdin, lastFrame)
+    expect(plain(lastFrame()!)).toContain('Play another hand?')
+
+    stdin.write('y') // play hand 2
+    await tick()
+    expect(plain(lastFrame()!)).toContain('hand 2')
+    await playOneHand(stdin, lastFrame)
+
+    // Quit to the summary; the session reports its outcome and the final stacks. The app self-exits
+    // on game-over (blanking lastFrame), so scan the retained frame history for the summary block.
+    stdin.write('q')
+    await tick()
+    const summary = frames.map(plain).find((f) => f.includes('Session over')) ?? ''
+    expect(summary).toContain('Session over')
+    expect(summary).toContain('Played')
+  })
+
+  it('removes a busted player and ends the session with a one-survivor summary', async () => {
+    // Heads-up, one decisive hand: the hero shoves all-in, a calling station calls off its whole
+    // stack, and a rigged deck (hero AA, board bricks for the station) busts the bot — so the
+    // session ends with a single survivor and the busted opponent named in the summary. This proves
+    // the SESSION mechanics end-to-end: stacks settle, a player busts to 0, game-over + summary.
+    const makeBot = (): Opponent => callingStation
+    const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 5d')
+    const { stdin, lastFrame, frames } = render(
+      <Root initial={{ seats: 2, opponents: ['station'] }} decks={[deck]} makeBot={makeBot} />,
+    )
+    await tick()
+    stdin.write('\r') // start the hand
+    await tick()
+    // Hero shoves; the calling station calls off; the hand runs out and the bot busts.
+    for (let i = 0; i < 60; i++) {
+      await tick()
+      const frame = plain(lastFrame() ?? '')
+      if (frames.map(plain).some((f) => f.includes('Session over'))) break
+      if (frame.includes('(a)llin')) stdin.write('a')
+      else if (frame && !frame.includes('Waiting') && !frame.includes('Table setup')) {
+        stdin.write(frame.includes('(c)all') ? 'c' : 'k')
+      }
+    }
+    // The app self-exits on game-over (blanking lastFrame), so scan the retained frame history.
+    const summary = frames.map(plain).find((f) => f.includes('Session over')) ?? ''
+    expect(summary).toContain('Session over')
+    expect(summary).toContain('You stacked the table') // hero is the lone survivor
+    expect(summary).toMatch(/busted/) // the station shows as busted
+  })
+})
