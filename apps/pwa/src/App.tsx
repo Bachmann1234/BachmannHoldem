@@ -49,6 +49,7 @@ import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
 import type { Tab } from './components/TabBar.js'
 import { learnLessons } from './learn/lessonMeta.js'
+import { LocalStorageLessonProgressStore, type LessonProgressStore } from './learn/progressStore.js'
 import {
   assembleRecord,
   IndexedDbHandHistoryStore,
@@ -96,6 +97,12 @@ export interface AppProps {
    * is shared across "New table" remounts so the log is one continuous history.
    */
   readonly historyStore?: HandHistoryStore
+  /**
+   * The on-device store the Learn primer persists lesson progress to (ticket 0048). Defaults to the
+   * `localStorage`-backed store; tests inject a fake / throwing fake so they never touch real storage.
+   * Created once (via a ref) and threaded into {@link LearnBranch}.
+   */
+  readonly progressStore?: LessonProgressStore
 }
 
 /**
@@ -126,6 +133,12 @@ export function App(props: AppProps): React.JSX.Element {
   const defaultStoreRef = useRef<HandHistoryStore | null>(null)
   const historyStore =
     props.historyStore ?? (defaultStoreRef.current ??= new IndexedDbHandHistoryStore())
+  // The default progress store is likewise created lazily ONCE (same idiom as historyStore) so the
+  // Learn primer reads/writes one durable on-device record across renders. Tests inject their own.
+  const defaultProgressStoreRef = useRef<LessonProgressStore | null>(null)
+  const progressStore =
+    props.progressStore ??
+    (defaultProgressStoreRef.current ??= new LocalStorageLessonProgressStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
       {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn; just hide it. */}
@@ -138,43 +151,104 @@ export function App(props: AppProps): React.JSX.Element {
           onNewTable={() => setSessionKey((k) => k + 1)}
         />
       </div>
-      {activeTab === 'learn' ? <LearnBranch onNavigate={onNavigate} /> : null}
+      {activeTab === 'learn' ? (
+        <LearnBranch onNavigate={onNavigate} progressStore={progressStore} />
+      ) : null}
     </div>
   )
 }
 
 /**
- * The Learn route (tickets 0046 / 0047): the Foundations path, the full {@link LessonPlayer} once a
- * lesson is opened, and the {@link EndOfPrimer} hand-off once all six lessons are complete.
+ * Map the durable set of completed lesson ids to the numeric `progress` the {@link LearnView} consumes:
+ * the length of the **leading run** of completed lessons in `FOUNDATIONS` order. That is the unlocked
+ * prefix — lessons unlock sequentially (§5.4), so progress is "how many from the front are done", i.e.
+ * the index of the first *un*finished lesson and the resume point. A completed id that is out of order
+ * (e.g. a stored blob completed lesson 3 but not 2) does not jump the prefix; only the contiguous
+ * front counts. Ignoring ids not in `learnLessons` is handled by the store (load filters), but the
+ * `.has` check here is also id-set based, so unknown ids simply never match a node.
+ */
+function progressFromCompleted(completedIds: ReadonlySet<string>): number {
+  let n = 0
+  for (const { lesson } of learnLessons) {
+    if (!completedIds.has(lesson.id)) break
+    n += 1
+  }
+  return n
+}
+
+/**
+ * The Learn route (tickets 0046 / 0047 / 0048): the Foundations path, the full {@link LessonPlayer}
+ * once a lesson is opened, and the {@link EndOfPrimer} hand-off once all six lessons are complete.
  *
- * Progress is **in-memory only this ticket** (durable on-device progress is ticket 0048): `progress`
- * is the count of completed lessons (default 0 ⇒ lesson 1 is current). Finishing the last spot of a
- * lesson advances `progress` to *at least* that lesson's number (only ever forward — replaying an
- * already-done lesson never rewinds it), then returns to the path. When all six are complete the path
- * shows the end-of-primer screen, whose Play CTA switches to the Play tab via `onNavigate`.
+ * Progress is now **durable, on-device** (ticket 0048): the {@link LessonProgressStore} persists the
+ * SET of completed lesson ids. On mount we `load()` it into local state; finishing a lesson marks that
+ * lesson's stable `id` complete (in the store AND in state) — forward-only, since completion only ever
+ * adds an id. The numeric `progress` the {@link LearnView} wants (its done/current/locked nodes, the
+ * `n / 6` meter, the resume CTA) is derived from the id set via {@link progressFromCompleted} (the
+ * leading-completed prefix = the resume point). Reopening the app resumes at the next unfinished lesson
+ * because the loaded id set rebuilds that same prefix. This state stays in the shell, never in the
+ * `@holdem/session` reducer (it is primer state, not poker state).
  *
  * The open lesson is tracked by its index; `null` shows the path. The lesson player and the
  * end-of-primer screen are tab-less (immersive), so the bottom tab bar only appears on the path.
  */
-function LearnBranch({ onNavigate }: { onNavigate: (tab: Tab) => void }): React.JSX.Element {
+function LearnBranch({
+  onNavigate,
+  progressStore,
+}: {
+  onNavigate: (tab: Tab) => void
+  progressStore: LessonProgressStore
+}): React.JSX.Element {
   const total = learnLessons.length
-  // In-memory progress for 0047 — ticket 0048 swaps this for the on-device store. Default 0: nothing
-  // completed, so lesson 1 is the current/resume node and the rest are locked.
-  const [progress, setProgress] = useState(0)
+  // The durable set of completed lesson ids, seeded from the store ONCE on mount. The store's load
+  // already tolerates a missing/malformed blob (returns []); we additionally filter to ids that still
+  // exist in the live lesson set so a stored id from an older/renamed lesson is ignored, never crashes.
+  const [completedIds, setCompletedIds] = useState<ReadonlySet<string>>(() => {
+    const known = new Set(learnLessons.map(({ lesson }) => lesson.id))
+    // Wrap the store call at the shell boundary (like the history seam): even a custom store whose
+    // `load` throws must not crash the primer — fall back to "no progress" and carry on in-memory.
+    let loaded: readonly string[] = []
+    try {
+      loaded = progressStore.load()
+    } catch (err: unknown) {
+      console.warn('primer-progress: load failed', err)
+    }
+    return new Set(loaded.filter((id) => known.has(id)))
+  })
+  // The numeric progress the LearnView consumes, derived from the id set (the leading-completed prefix).
+  const progress = progressFromCompleted(completedIds)
   // Which lesson is open (index into `learnLessons`), or null for the path list.
   const [openIndex, setOpenIndex] = useState<number | null>(null)
-  // Whether the end-of-primer hand-off is showing (entered once the last lesson completes the path).
-  const [showEnd, setShowEnd] = useState(false)
+  // Whether the end-of-primer hand-off is showing. Seeded from the loaded progress: reopening the app
+  // with all six already persisted lands straight on the hand-off (§5.5), not the path. It is also set
+  // when the last lesson completes in-session, and cleared by the screen's Back (to review the path).
+  const [showEnd, setShowEnd] = useState(() => progress >= total)
 
-  // Finishing a lesson advances progress to at least lesson `index + 1` (forward-only) and returns to
-  // the path; if that completes the sixth lesson, the path hands off to the end-of-primer screen.
+  // Finishing a lesson marks that lesson's stable id complete — persisted to the store AND mirrored in
+  // state (so the path reflects it immediately) — then returns to the path. Completion only ever adds
+  // an id, so progress is forward-only. If this completes all six, hand off to the end-of-primer screen.
   const completeLesson = useCallback(
     (index: number) => {
-      setProgress((p) => Math.max(p, index + 1))
+      const entry = learnLessons[index]
+      if (entry !== undefined) {
+        setCompletedIds((prev) => {
+          if (prev.has(entry.lesson.id)) return prev
+          const next = new Set(prev)
+          next.add(entry.lesson.id)
+          // Persist the new id set, wrapped at the shell boundary so even a custom store whose `save`
+          // throws never breaks the primer — progress still advances in-memory.
+          try {
+            progressStore.save([...next])
+          } catch (err: unknown) {
+            console.warn('primer-progress: save failed', err)
+          }
+          return next
+        })
+      }
       setOpenIndex(null)
       if (index + 1 >= total) setShowEnd(true)
     },
-    [total],
+    [total, progressStore],
   )
 
   if (showEnd) {

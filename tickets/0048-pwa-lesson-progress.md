@@ -2,7 +2,7 @@
 id: 0048
 title: Local-only lesson progress + completion hand-off
 type: feature
-status: todo
+status: done
 milestone: M4.5
 priority: medium
 created: 2026-06-14
@@ -18,16 +18,16 @@ offline (a precached static shell — there is no backend, by design, see ROADMA
 
 ## Acceptance criteria
 
-- [ ] Lesson progress (which lessons/spots are completed) persists locally across reloads — `localStorage`
+- [x] Lesson progress (which lessons/spots are completed) persists locally across reloads — `localStorage`
       (sync, simple, ample for a handful of lessons) unless the player already uses the IndexedDB seam
       from [[0037-pwa-hand-history]] and reuse is cleaner. Whatever the store, isolate it behind a
       tiny typed seam like the hand-history `HandHistoryStore`, and degrade gracefully (a storage
       failure never breaks the primer — mirror the history store's wrapped writes).
-- [ ] The Learn lesson list ([[0046-pwa-learn-nav]]) reflects completion state (e.g. completed
+- [x] The Learn lesson list ([[0046-pwa-learn-nav]]) reflects completion state (e.g. completed
       lessons marked), and the player resumes at the next unanswered lesson/spot rather than restarting.
-- [ ] Completing the primer surfaces a clear hand-off: a prompt/CTA toward free play (and a
+- [x] Completing the primer surfaces a clear hand-off: a prompt/CTA toward free play (and a
       forward-looking nod to M5 drills when they exist), per the epic.
-- [ ] Tests: progress round-trips through the store (save → reload → reflected in the list), a store
+- [x] Tests: progress round-trips through the store (save → reload → reflected in the list), a store
       failure degrades gracefully, and completion shows the hand-off. `pnpm verify` green.
 
 ## Notes
