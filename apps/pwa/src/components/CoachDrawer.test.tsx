@@ -37,6 +37,7 @@ const GOOD: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
 }
 
 /** A leak: the math pointed to folding, a negative call EV. */
@@ -49,6 +50,7 @@ const LEAK: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75 },
 }
 
 /** A break-even coin-flip. */
@@ -61,6 +63,7 @@ const BREAKEVEN: DecisionVerdict = {
   verdict: 'breakEven',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
 }
 
 /** A free check: no bet to call, so `potOddsThreshold === 0`. */
@@ -73,6 +76,7 @@ const FREE_CHECK: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity',
+  trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
 }
 
 describe('CoachDrawer — verdict state', () => {
@@ -155,6 +159,14 @@ describe('CoachDrawer — preflop state', () => {
     heroContinued: true,
     verdict: 'good',
     concept: 'ranges',
+    trace: {
+      position: 'late',
+      facingRaise: false,
+      raiseBb: 1,
+      band: 'unraised',
+      mode: 'open',
+      stealSpot: false,
+    },
   }
 
   it('renders the chart rationale and the shared good headline', () => {

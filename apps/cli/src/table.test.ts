@@ -70,6 +70,7 @@ const goodCall: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
 }
 
 /** A leak: the hero called off below the pot-odds threshold. */
@@ -82,6 +83,7 @@ const leakCall: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.7 },
 }
 
 /** A preflop grade off the chart: a premium hand the hero correctly entered the pot with. */
@@ -92,6 +94,14 @@ const premiumOpen: PreflopVerdict = {
   heroContinued: true,
   verdict: 'good',
   concept: 'ranges',
+  trace: {
+    position: 'late',
+    facingRaise: false,
+    raiseBb: 1,
+    band: 'unraised',
+    mode: 'open',
+    stealSpot: false,
+  },
 }
 
 describe('renderCoachFeedback', () => {
@@ -128,6 +138,7 @@ describe('renderCoachFeedback', () => {
       verdict: 'good',
       missedValueBet: true,
       concept: 'equity',
+      trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
     }
     const out = renderCoachFeedback(freeCheck)
     expect(out).toContain('Pot equity +2.5')
@@ -147,6 +158,7 @@ describe('renderCoachFeedback', () => {
       verdict: 'breakEven',
       missedValueBet: false,
       concept: 'equity-vs-price',
+      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
     }
     const out = renderCoachFeedback(breakEven)
     expect(out).toContain('EV(call) 0')
@@ -183,6 +195,14 @@ describe('renderPreflopCoach', () => {
       heroContinued: false,
       verdict: 'leak',
       concept: 'ranges',
+      trace: {
+        position: 'early',
+        facingRaise: false,
+        raiseBb: 1,
+        band: 'unraised',
+        mode: 'open',
+        stealSpot: false,
+      },
     })
     expect(out).toContain('Starting hand: Strong value hand')
     expect(out).toContain('Leak')

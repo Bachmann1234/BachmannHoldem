@@ -814,6 +814,94 @@ describe('gradePreflop — rationale follows the position/action advice, no fals
   })
 })
 
+describe('gradePreflop — decision trace (the audit by-product)', () => {
+  it('records mode "open" / band "unraised" on an unraised open', () => {
+    // Premium opening, button: an unraised pot, opening-chart mode.
+    const t = gradePreflop(
+      preflopCtx({ holeCards: hole('AsAh'), seat: 0, buttonIndex: 0, numPlayers: 6 }),
+      CALL,
+    ).trace
+    expect(t.mode).toBe('open')
+    expect(t.band).toBe('unraised')
+    expect(t.facingRaise).toBe(false)
+    expect(t.raiseBb).toBe(1)
+    expect(t.position).toBe('late')
+  })
+
+  it('records mode "bb-option" / band "unraised" on the free-check short-circuit', () => {
+    // BB checking its option on an unraised pot (HU button on seat 0 → seat 1 is the BB).
+    const t = gradePreflop(
+      preflopCtx({ holeCards: hole('7c2d'), seat: 1, buttonIndex: 0, numPlayers: 2 }),
+      CHECK,
+    ).trace
+    expect(t.mode).toBe('bb-option')
+    expect(t.band).toBe('unraised')
+    expect(t.facingRaise).toBe(false)
+    expect(t.position).toBe('big-blind')
+    expect(t.stealSpot).toBe(false)
+  })
+
+  it('records mode "bb-defend" for a big blind facing a small raise (BUG-0007)', () => {
+    // 6-max, button on seat 4 → hero (seat 0) is the big blind, facing a ~3x raise (small band).
+    const BB = { seat: 0, buttonIndex: 4, numPlayers: 6 }
+    const t = gradePreflop(
+      preflopCtx({ holeCards: hole('AhTc'), raiseBb: LARGE_RAISE_MIN_BB - 2, ...BB }),
+      CALL,
+    ).trace
+    expect(t.mode).toBe('bb-defend')
+    expect(t.band).toBe('small-raise')
+    expect(t.facingRaise).toBe(true)
+    expect(t.position).toBe('big-blind')
+    expect(t.raiseBb).toBe(LARGE_RAISE_MIN_BB - 2)
+  })
+
+  it('records mode "cold-call" for an early seat facing a raise', () => {
+    // UTG (seat 3) cold-calling a small raise — a voluntary cold-call, not a blind defend.
+    const t = gradePreflop(
+      preflopCtx({
+        holeCards: hole('AsQs'),
+        raiseBb: LARGE_RAISE_MIN_BB - 2,
+        seat: 3,
+        buttonIndex: 0,
+        numPlayers: 6,
+      }),
+      CALL,
+    ).trace
+    expect(t.mode).toBe('cold-call')
+    expect(t.band).toBe('small-raise')
+    expect(t.position).toBe('early')
+  })
+
+  it('records the raise-size band at the boundaries (small / large / 3bet)', () => {
+    const INPOS = { seat: 0, buttonIndex: 0, numPlayers: 6 }
+    const small = gradePreflop(
+      preflopCtx({ holeCards: hole('AsQs'), raiseBb: LARGE_RAISE_MIN_BB - 1, ...INPOS }),
+      CALL,
+    )
+    const large = gradePreflop(
+      preflopCtx({ holeCards: hole('AsQs'), raiseBb: LARGE_RAISE_MIN_BB, ...INPOS }),
+      CALL,
+    )
+    const threeBet = gradePreflop(
+      preflopCtx({ holeCards: hole('AsQs'), raiseBb: THREE_BET_MIN_BB, ...INPOS }),
+      CALL,
+    )
+    expect(small.trace.band).toBe('small-raise')
+    expect(large.trace.band).toBe('large-raise')
+    expect(threeBet.trace.band).toBe('3bet')
+  })
+
+  it('records stealSpot true when a trash steal is promoted (folded to the hero)', () => {
+    // K7o on the HU button, folded to the hero — a genuine steal: the promotion branch was reachable.
+    const t = gradePreflop(
+      preflopCtx({ holeCards: hole('Kh7c'), seat: 0, buttonIndex: 0, numPlayers: 2 }),
+      CALL,
+    ).trace
+    expect(t.mode).toBe('open')
+    expect(t.stealSpot).toBe(true)
+  })
+})
+
 describe('startingHandChart', () => {
   const chart = startingHandChart()
 

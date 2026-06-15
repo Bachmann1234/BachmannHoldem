@@ -103,6 +103,12 @@ export function renderCoachFeedback(verdict: DecisionVerdict): string {
       `  ${ev.label} ${ev.value}`,
   )
   lines.push(`  EV-correct: ${verdict.correctDecision}`)
+  // The decision trace — *why* the read fired: the assumed-range width, the line reason, and the
+  // bet-as-a-fraction-of-pot (on a free check there is no bet to size). Compact and greppable
+  // (`grep "Read:"`), self-contained for pasting a ruling to an AI for review.
+  const t = verdict.trace
+  const betPart = t.betFraction === null ? '' : `, bet ${t.betFraction.toFixed(2)} pot`
+  lines.push(`  Read: ${t.assumedRange} range (${t.lineReason})${betPart}`)
   lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
   // The deterministic "why" line the TUI/PWA already render (`explainDecision`); the harness now
   // renders it too so the scriptable coach matches the app it is meant to exercise.
@@ -152,6 +158,30 @@ export function renderPreflopCoach(verdict: PreflopVerdict): string {
     '',
     `── Coach ${'─'.repeat(39)}`,
     `  Starting hand: ${verdict.rationale}`,
+    // The decision trace — *which* rule fired: the grading mode and the raise-size band, plus the
+    // position bucket. Compact and greppable (`grep "Rule:"`), self-contained for AI review.
+    `  Rule: ${preflopRuleLine(verdict)}`,
     `  ${VERDICT_LABEL[verdict.verdict]}`,
   ].join('\n')
+}
+
+/**
+ * The one-line summary of a preflop trace's rule for {@link renderPreflopCoach}: the mode in plain
+ * words ("big-blind defend", "open", "cold-call", "big-blind option") against the raise-size band,
+ * with the position bucket in parentheses. e.g. `big-blind defend vs a small-raise (position
+ * big-blind)`. Reads straight off the deterministic {@link PreflopTrace} — no math of its own.
+ */
+function preflopRuleLine(verdict: PreflopVerdict): string {
+  const { mode, band, position } = verdict.trace
+  const modeLabel =
+    mode === 'bb-defend'
+      ? 'big-blind defend'
+      : mode === 'bb-option'
+        ? 'big-blind option'
+        : mode === 'cold-call'
+          ? 'cold-call'
+          : 'open'
+  // On an unraised pot there is no raise to describe; otherwise name the band the hand was graded in.
+  const vsBand = band === 'unraised' ? '' : ` vs a ${band}`
+  return `${modeLabel}${vsBand} (position ${position})`
 }

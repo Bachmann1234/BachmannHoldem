@@ -27,6 +27,7 @@ function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
       verdict: tag,
       missedValueBet: false,
       concept: 'equity-vs-price',
+      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
     },
   }
 }
@@ -75,6 +76,14 @@ describe('CoachFab — ring reflects the coach state', () => {
         heroContinued: true,
         verdict: 'good',
         concept: 'ranges',
+        trace: {
+          position: 'late',
+          facingRaise: false,
+          raiseBb: 1,
+          band: 'unraised',
+          mode: 'open',
+          stealSpot: false,
+        },
       },
     }
     render(<CoachFab coach={coach} onOpen={vi.fn()} />)

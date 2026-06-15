@@ -262,7 +262,7 @@ function coachAndRecord(
         board,
         action: actionLabel(action),
         coach: null,
-        preflop: { tier: v.tier, advice: v.advice, verdict: v.verdict },
+        preflop: { tier: v.tier, advice: v.advice, verdict: v.verdict, trace: v.trace },
         truth: null,
         misleads: null,
       }
@@ -284,6 +284,7 @@ function coachAndRecord(
         callEv: v.callEv,
         correct: v.correctDecision,
         verdict: v.verdict,
+        trace: v.trace,
       },
       preflop: null,
       truth,

@@ -6,6 +6,7 @@ import { estimateEquity, type DecisionContext, type RangeWidth } from '@holdem/b
 import {
   coachDecision,
   assumedRangeForLine,
+  assumedLineRead,
   LARGE_BET_POT_FRACTION,
   UNBET_RANGE_WIDTH,
   FACING_BET_RANGE_WIDTH,
@@ -580,6 +581,103 @@ describe('coachDecision — uses the line-narrowed read', () => {
     expect(v.verdict).toBe('leak')
     expect(v.correctDecision).toBe('fold')
     expect(v.callEv).toBeLessThan(0)
+  })
+})
+
+describe('assumedLineRead — the trace projection of the line read', () => {
+  it('mirrors assumedRangeForLine on width, and assumedRangeForLine returns its width', () => {
+    // The refactor invariant: assumedRangeForLine(ctx) === assumedLineRead(ctx).width, on every line.
+    const spots = [
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 50, toCall: 0 }), // unbet
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 }), // small bet
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 24, toCall: 12 }), // big bet
+    ]
+    for (const s of spots) expect(assumedRangeForLine(s)).toBe(assumedLineRead(s).width)
+  })
+
+  it('an unbet pot reads reason "unbet" with a null betFraction (no bet to size)', () => {
+    const r = assumedLineRead(ctx({ holeCards: hole('AsAh'), pot: 50, toCall: 0 }))
+    expect(r.width).toBe(UNBET_RANGE_WIDTH)
+    expect(r.reason).toBe('unbet')
+    expect(r.betFraction).toBeNull()
+  })
+
+  it('a small early-street bet reads reason "facing-bet" with the bet-into-pot fraction', () => {
+    // toCall 3 into a pot of 13 ⇒ 3/(13-3) = 0.30 < LARGE_BET_POT_FRACTION.
+    const r = assumedLineRead(
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 }),
+    )
+    expect(r.width).toBe(FACING_BET_RANGE_WIDTH)
+    expect(r.reason).toBe('facing-bet')
+    expect(r.betFraction).toBeCloseTo(0.3, 9)
+  })
+
+  it('a large bet reads reason "barreled" with the bet-into-pot fraction', () => {
+    // A pot-sized flop bet: 12/(24-12) = 1.0 ≥ LARGE_BET_POT_FRACTION.
+    const r = assumedLineRead(
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 24, toCall: 12 }),
+    )
+    expect(r.width).toBe(BARRELED_RANGE_WIDTH)
+    expect(r.reason).toBe('barreled')
+    expect(r.betFraction).toBeCloseTo(1.0, 9)
+  })
+
+  it('a small later-street bet is "barreled" even though its fraction is below the large knob', () => {
+    const r = assumedLineRead(
+      ctx({
+        holeCards: hole('AsAh'),
+        board: parseCards('Kd 7c 2h 9s'),
+        pot: 40,
+        toCall: 4,
+        street: 'turn',
+      }),
+    )
+    expect(r.betFraction!).toBeLessThan(LARGE_BET_POT_FRACTION)
+    expect(r.reason).toBe('barreled')
+    expect(r.width).toBe(BARRELED_RANGE_WIDTH)
+  })
+})
+
+describe('coachDecision — decision trace (the audit by-product)', () => {
+  it('records reason "unbet" / null betFraction on a free check', () => {
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 })
+    const t = coachDecision(spot, CHECK).trace
+    expect(t.assumedRange).toBe(UNBET_RANGE_WIDTH)
+    expect(t.lineReason).toBe('unbet')
+    expect(t.betFraction).toBeNull()
+  })
+
+  it('records reason "facing-bet" with the betFraction on a small priced spot', () => {
+    // toCall 3 into 13 (10 dead) ⇒ 0.30, a small early-street bet.
+    const spot = ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 })
+    const t = coachDecision(spot, CALL).trace
+    expect(t.assumedRange).toBe(FACING_BET_RANGE_WIDTH)
+    expect(t.lineReason).toBe('facing-bet')
+    expect(t.betFraction).toBeCloseTo(0.3, 9)
+  })
+
+  it('records reason "barreled" with the betFraction on a large/late-street bet', () => {
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      board: parseCards('Kd 7c 2h'),
+      pot: 24,
+      toCall: 12,
+    })
+    const t = coachDecision(spot, CALL).trace
+    expect(t.assumedRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(t.lineReason).toBe('barreled')
+    expect(t.betFraction).toBeCloseTo(1.0, 9)
+  })
+
+  it('the trace.assumedRange always equals the width the read was seeded against', () => {
+    // Across all three line kinds, trace.assumedRange === assumedRangeForLine(spot).
+    for (const spot of [
+      ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 }),
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 }),
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 24, toCall: 12 }),
+    ]) {
+      expect(coachDecision(spot, CALL).trace.assumedRange).toBe(assumedRangeForLine(spot))
+    }
   })
 })
 
