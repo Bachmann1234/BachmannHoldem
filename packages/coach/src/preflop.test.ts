@@ -7,6 +7,8 @@ import {
   gradePreflop,
   PREFLOP_CHART,
   CHART_RANKS,
+  LARGE_RAISE_MIN_BB,
+  THREE_BET_MIN_BB,
   startingHandChart,
   handClassLabel,
   type PreflopTier,
@@ -29,14 +31,24 @@ function preflopCtx(over: {
   seat?: number
   buttonIndex?: number
   numPlayers?: number
+  /**
+   * The raise faced, as a multiple of the big blind. Omitted / `1` is an unraised pot (the
+   * opening-chart standard); `> 1` is a raise of that many BB (the defend standard, 0053), so e.g.
+   * `raiseBb: 6` models a 6x open the hero is calling.
+   */
+  raiseBb?: number
 }): DecisionContext {
   const seat = over.seat ?? 0
   const numPlayers = over.numPlayers ?? 2
   const buttonIndex = over.buttonIndex ?? 0
+  const bigBlind = 2
+  // currentBet is the highest committed this street: the BB on an unraised pot, or the raise's "to"
+  // total (raiseBb * bigBlind) when facing a raise. toCall is what the hero adds to match it.
+  const currentBet = (over.raiseBb ?? 1) * bigBlind
   const legal: LegalActions = {
     fold: true,
     check: false,
-    call: { amount: 2 },
+    call: { amount: currentBet - bigBlind || bigBlind },
     bet: null,
     raise: null,
   }
@@ -46,13 +58,13 @@ function preflopCtx(over: {
     board: [],
     street: 'preflop',
     legalActions: legal,
-    pot: 3,
-    currentBet: 2,
-    toCall: 2,
+    pot: 3 + currentBet,
+    currentBet,
+    toCall: legal.call!.amount,
     stack: 1000,
     committed: 0,
     smallBlind: 1,
-    bigBlind: 2,
+    bigBlind,
     buttonIndex,
     isButton: seat === buttonIndex,
     numPlayers,
@@ -307,6 +319,137 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
     expect(gradePreflop(preflopCtx({ holeCards: hole('7c2d'), seat: 1 }), CHECK).concept).toBe(
       'ranges',
     )
+  })
+})
+
+describe('gradePreflop — raise-aware defend grading (0053)', () => {
+  // A small raise (below the large cut), a large raise, and a 3-bet-sized raise — the two behavioral
+  // regimes plus the 3-bet teaching frame. Kept comfortably away from the cuts so the test is robust
+  // to knob retuning.
+  const SMALL = LARGE_RAISE_MIN_BB - 2 // ~3x — still a reasonable flatting price (small regime)
+  const LARGE = LARGE_RAISE_MIN_BB + 1 // ~6x — value-only
+  const THREEBET = THREE_BET_MIN_BB + 1 // ~10x — value-only, taught as a 3-bet
+
+  // Position helpers for a 6-handed table: the button is late, an early seat is not.
+  const INPOS = { seat: 0, buttonIndex: 0, numPlayers: 6 }
+  const OOP = { seat: 2, buttonIndex: 0, numPlayers: 6 }
+
+  it('a strong hand still GOOD calling/3-betting at every price (the legitimate defend)', () => {
+    const strong = hole('AsQs') // AQs — strong tier
+    for (const raiseBb of [SMALL, LARGE, THREEBET]) {
+      expect(gradePreflop(preflopCtx({ holeCards: strong, raiseBb, ...INPOS }), CALL).verdict).toBe(
+        'good',
+      )
+      expect(gradePreflop(preflopCtx({ holeCards: strong, raiseBb, ...OOP }), CALL).verdict).toBe(
+        'good',
+      )
+    }
+    // The rationale describes the defend decision, not the open-chart label.
+    const v = gradePreflop(preflopCtx({ holeCards: strong, raiseBb: THREEBET, ...INPOS }), CALL)
+    expect(v.rationale).toMatch(/3-bet or call/i)
+  })
+
+  it('the SAME speculative hand: open GOOD, small raise in position GOOD, OOP a LEAK', () => {
+    // 76s (playable) — the open chart blesses it, and so should a small raise *in position*; but a
+    // cold-call of a raise *out of position* is the beginner leak this ticket targets.
+    const spec = hole('7h6h')
+    // Unraised pot (open): playable always opens.
+    expect(gradePreflop(preflopCtx({ holeCards: spec, ...INPOS }), CALL).verdict).toBe('good')
+    // Small raise, in position: a fine thin flat → good.
+    const smallIn = gradePreflop(preflopCtx({ holeCards: spec, raiseBb: SMALL, ...INPOS }), CALL)
+    expect(smallIn.verdict).toBe('good')
+    expect(smallIn.rationale).toMatch(/in position/i)
+    // Small raise, out of position: a speculative cold-call → leak.
+    const smallOop = gradePreflop(preflopCtx({ holeCards: spec, raiseBb: SMALL, ...OOP }), CALL)
+    expect(smallOop.verdict).toBe('leak')
+    expect(smallOop.rationale).toMatch(/out of position/i)
+    // Folding the OOP cold-call is the GOOD play.
+    expect(
+      gradePreflop(preflopCtx({ holeCards: spec, raiseBb: SMALL, ...OOP }), FOLD).verdict,
+    ).toBe('good')
+  })
+
+  it('a large raise collapses to value: speculative folds even in position', () => {
+    const spec = hole('7h6h') // playable
+    const large = gradePreflop(preflopCtx({ holeCards: spec, raiseBb: LARGE, ...INPOS }), CALL)
+    expect(large.advice).toBe('fold')
+    expect(large.verdict).toBe('leak') // calling is the leak
+    expect(
+      gradePreflop(preflopCtx({ holeCards: spec, raiseBb: LARGE, ...INPOS }), FOLD).verdict,
+    ).toBe('good')
+    expect(large.rationale).toMatch(/speculative/i)
+  })
+
+  it('a 3-bet collapses to a value range: a small pair cold-call is a LEAK', () => {
+    // The seed-32 spot: 33 (playable) cold-calling a big raise. Against a 3-bet it must fold.
+    const smallPair = hole('3s3d')
+    const v = gradePreflop(preflopCtx({ holeCards: smallPair, raiseBb: THREEBET, ...INPOS }), CALL)
+    expect(v.advice).toBe('fold')
+    expect(v.verdict).toBe('leak')
+    expect(v.rationale).toMatch(/3-bet/i)
+    expect(
+      gradePreflop(preflopCtx({ holeCards: smallPair, raiseBb: THREEBET, ...INPOS }), FOLD).verdict,
+    ).toBe('good')
+  })
+
+  it('a marginal hand cold-calling a raise is a LEAK with a self-consistent rationale (the bug)', () => {
+    // The seed-39 spot: 64s (marginal) calling a 6x raise. The old code printed "fold to pressure"
+    // above a GOOD; now it grades a LEAK and the rationale describes the fold.
+    const marginal = hole('6d4d') // 64s — marginal tier
+    const v = gradePreflop(preflopCtx({ holeCards: marginal, raiseBb: LARGE, ...OOP }), CALL)
+    expect(v.verdict).toBe('leak')
+    expect(v.advice).toBe('fold')
+    expect(v.rationale).toMatch(/fold/i)
+    expect(v.rationale).not.toMatch(/fold to pressure/i)
+  })
+
+  it('the facing-raise rationale never carries the static open-chart label', () => {
+    // Across tiers and prices, the facing-raise path replaces the opening-tier rationale with a
+    // defend line that mentions the raise faced — never the verbatim "open only in late position"
+    // style label that contradicts a call of a raise.
+    for (const cards of ['AsAh', 'AsQs', '7h6h', '6d4d', '7h2c']) {
+      for (const raiseBb of [SMALL, LARGE, THREEBET]) {
+        const v = gradePreflop(preflopCtx({ holeCards: hole(cards), raiseBb, ...OOP }), CALL)
+        expect(v.rationale).toMatch(/facing/i)
+        expect(v.rationale).not.toMatch(/open only in late position/i)
+      }
+    }
+  })
+
+  it('rounds the raise size once: the label matches the band (4.6x → 5x large, 8.6x → 9x 3-bet)', () => {
+    // The round-once fix: the gates compare the SAME rounded integer the label prints, so a
+    // fractional raise can never read one size while being graded in another band.
+    const spec = hole('7h6h') // playable — folds in the large/value-only band, flats in the small band
+
+    // 4.6x rounds to 5x: that is LARGE_RAISE_MIN_BB, the large/value-only regime. So a playable
+    // speculative hand is graded a fold (a leak to call) AND the rationale reads "a 5x raise" — the
+    // label and the band agree. (Before the fix it printed 5x but was graded in the small band.)
+    const justLarge = gradePreflop(preflopCtx({ holeCards: spec, raiseBb: 4.6, ...INPOS }), CALL)
+    expect(justLarge.rationale).toContain('a 5x raise')
+    expect(justLarge.advice).toBe('fold')
+    expect(justLarge.verdict).toBe('leak')
+
+    // 8.6x rounds to 9x: that is THREE_BET_MIN_BB, the 3-bet teaching frame. The rationale reads
+    // "a 9x raise" and is taught as a 3-bet — label and band agree.
+    const strong = hole('AsQs') // strong — continues at a 3-bet
+    const justThreeBet = gradePreflop(
+      preflopCtx({ holeCards: strong, raiseBb: 8.6, ...INPOS }),
+      CALL,
+    )
+    expect(justThreeBet.rationale).toContain('a 9x raise')
+    expect(justThreeBet.rationale).toMatch(/3-bet or call/i)
+    expect(justThreeBet.verdict).toBe('good')
+  })
+
+  it('unraised pots are unaffected — the opening chart still grades them (no regression)', () => {
+    // currentBet <= bigBlind keeps the opening behaviour: a marginal hand opens in late position,
+    // folds early — exactly the pre-0053 grading.
+    const marginal = hole('KsJd') // KJo — marginal
+    const late = preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 3 })
+    expect(gradePreflop(late, CALL).advice).toBe('open')
+    expect(gradePreflop(late, CALL).rationale).toMatch(/late position/i) // open-chart label intact
+    const early = preflopCtx({ holeCards: marginal, seat: 1, buttonIndex: 0, numPlayers: 3 })
+    expect(gradePreflop(early, CALL).verdict).toBe('leak')
   })
 })
 

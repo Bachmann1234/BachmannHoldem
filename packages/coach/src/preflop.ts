@@ -256,6 +256,47 @@ export interface PreflopVerdict {
 }
 
 /**
+ * Price gate: the raise size — in big blinds — at or above which the pot is *expensive* enough that
+ * the flatting range collapses to a value range. Below this is the small/standard-raise regime that
+ * keeps a reasonable flatting range; at or above it the implied-odds math on speculative/marginal
+ * junk stops working for a beginner, so we keep only the strong+ tiers and fold the rest. A *tunable
+ * knob*: the single boundary between "small raise, flat reasonably" and "large raise, value only".
+ * Expressed in big blinds because the BB is the unit the price scales against (`currentBet /
+ * bigBlind`). See {@link facingRaiseAdvice} for the two regimes this and {@link THREE_BET_MIN_BB}
+ * carve out.
+ */
+export const LARGE_RAISE_MIN_BB = 5
+
+/**
+ * Price gate: the raise size — in big blinds — at or above which we treat the action as a *3-bet*
+ * (a re-raise, or an open so large it plays like one). Here the hand is taught as a 3-bet spot:
+ * "3-bet or call". The *continue* range is the same value-only (strong+) cut as the large-raise
+ * regime — a 3-bet does not tighten the range further; it only changes the teaching rationale. A
+ * *tunable knob* modelling the 3-bet boundary coarsely with the existing tiers rather than a solver.
+ * Sits above {@link LARGE_RAISE_MIN_BB} so a plain large open and an actual 3-bet can grade with
+ * different rationale wording.
+ */
+export const THREE_BET_MIN_BB = 9
+
+/**
+ * The tiers in strongest→weakest order — a numeric strength index used by the facing-raise gates to
+ * ask "is this holding at least as strong as tier X?". *Derived* from {@link CHART_ORDER} with
+ * `trash` appended as the weakest rung, so every tier has a rank and the one hand-maintained
+ * strongest-first ordering ({@link CHART_ORDER}) drives both the classifier scan and these gates —
+ * a single edit to the tier order can't leave the two out of sync. Lower index = stronger.
+ */
+const TIER_STRENGTH: readonly PreflopTier[] = [...CHART_ORDER, 'trash']
+
+/**
+ * Is `tier` at least as strong as `floor`? A `<=` on {@link TIER_STRENGTH} indices (stronger tiers
+ * sort first), the single comparison the price gates rest on — "keep the value tiers, fold the rest"
+ * becomes `tierAtLeast(tier, 'strong')`.
+ */
+function tierAtLeast(tier: PreflopTier, floor: PreflopTier): boolean {
+  return TIER_STRENGTH.indexOf(tier) <= TIER_STRENGTH.indexOf(floor)
+}
+
+/**
  * Whether the hero is in *late position* — on the button or the cutoff (the seat immediately before
  * the button). This is a seat-geometry property: the cutoff is `buttonIndex - 1` (mod
  * {@link DecisionContext.numPlayers}), so it falls straight out of the button index without any
@@ -282,6 +323,116 @@ function adviceFor(tier: PreflopTier, latePosition: boolean): PreflopAdvice {
 }
 
 /**
+ * The chart's *defend* prescription when the hero faces a raise — the advice plus a rationale that
+ * describes the defend decision actually made, so the verdict line never contradicts itself (the
+ * "fold to pressure" above a `Good` call-of-pressure bug this ticket fixes). A flat value computed
+ * by {@link facingRaiseAdvice}; the rationale here *replaces* the static opening-tier label on the
+ * facing-raise path.
+ */
+interface FacingRaiseAdvice {
+  /** Continue (call/3-bet) or fold against the raise faced. */
+  readonly advice: PreflopAdvice
+  /** A self-consistent line describing the defend decision — never the open-chart label. */
+  readonly rationale: string
+}
+
+/**
+ * The chart's open/fold-vs-a-*raise* prescription — the defend standard this ticket adds (0053).
+ * Unlike {@link adviceFor} (an *opening* chart), this grades a hand the hero is *calling a raise*
+ * with, and tightens with the price faced. There are **two** behavioral regimes (continue ranges),
+ * split at a single cut — {@link LARGE_RAISE_MIN_BB}:
+ *
+ * - **Below {@link LARGE_RAISE_MIN_BB}** — a small / standard raise: keep a reasonable flatting
+ *   range. Value tiers (`strong`+) always continue; the speculative `playable` tier flats too, but
+ *   only *in position* (a thin flat needs position; OOP it is a cold-call leak); `marginal`/`trash`
+ *   fold. This is the one regime where position changes the verdict.
+ * - **At/above {@link LARGE_RAISE_MIN_BB}** — a large raise: the price has collapsed the range to
+ *   value only. `strong`+ continue; everything else (speculative/marginal/trash) folds, in or out
+ *   of position.
+ *
+ * The **3-bet** cut ({@link THREE_BET_MIN_BB}) sits *inside* the large-raise regime: it applies the
+ * **same** continue rule (`strong`+ continue, rest fold) — it does **not** tighten the range
+ * further. It differs only in the teaching rationale: at/above {@link THREE_BET_MIN_BB} the spot is
+ * labelled and taught as a 3-bet ("3-bet or call") rather than a plain value call. So there are two
+ * distinct continue-ranges (small vs large), not three; the 3-bet is the large regime with a 3-bet
+ * teaching frame.
+ *
+ * The rationale string is built from the *decision made*, so it always agrees with the verdict (the
+ * acceptance criterion). Deterministic and pure — a price×position rule, not a solver.
+ */
+function facingRaiseAdvice(
+  tier: PreflopTier,
+  raiseBb: number,
+  latePosition: boolean,
+): FacingRaiseAdvice {
+  const sizeLabel = `${formatRaiseSize(raiseBb)}${raiseBb >= THREE_BET_MIN_BB ? ' (a 3-bet)' : ''}`
+
+  // A 3-bet (or 3-bet-sized open): only the genuine value tiers continue — 3-bet or fold. Position
+  // does not move this call, so the rationale omits a position label.
+  if (raiseBb >= THREE_BET_MIN_BB) {
+    if (tierAtLeast(tier, 'strong')) {
+      return { advice: 'open', rationale: `Facing ${sizeLabel} — a strong hand: 3-bet or call.` }
+    }
+    return {
+      advice: 'fold',
+      rationale: `Facing ${sizeLabel} — too steep a price for this hand; fold.`,
+    }
+  }
+
+  // A large raise (but not a 3-bet): the price collapses the range to value only. Position does not
+  // move this call either — speculative junk folds whether in or out of position.
+  if (raiseBb >= LARGE_RAISE_MIN_BB) {
+    if (tierAtLeast(tier, 'strong')) {
+      return {
+        advice: 'open',
+        rationale: `Facing ${sizeLabel} — a strong hand worth continuing for value.`,
+      }
+    }
+    return {
+      advice: 'fold',
+      rationale: `Facing ${sizeLabel} — fold this speculative hand to the raise.`,
+    }
+  }
+
+  // A small / standard raise (below LARGE_RAISE_MIN_BB): value tiers always flat; the speculative
+  // `playable` tier flats only in position (a thin flat needs position — out of position it is a
+  // cold-call leak). This is the one branch where position changes the verdict, so the rationale
+  // names it. Marginal/trash fold.
+  if (tierAtLeast(tier, 'strong')) {
+    return {
+      advice: 'open',
+      rationale: `Facing ${sizeLabel} — a strong hand worth calling the raise.`,
+    }
+  }
+  if (tier === 'playable') {
+    return latePosition
+      ? {
+          advice: 'open',
+          rationale: `Facing ${sizeLabel} in position — a fine price for a thin flat.`,
+        }
+      : {
+          advice: 'fold',
+          rationale: `Facing ${sizeLabel} out of position — fold this speculative cold-call.`,
+        }
+  }
+  return {
+    advice: 'fold',
+    rationale: `Facing ${sizeLabel} — fold this marginal hand to the raise.`,
+  }
+}
+
+/**
+ * Format a raise size in big blinds as a short `"6x"` label for the rationale strings. Takes the
+ * already-rounded whole-multiple `raiseBb` {@link gradePreflop} computes — the price gates and this
+ * label share that single rounded integer, so the size a learner reads can never contradict the
+ * regime the hand was graded in (e.g. a 4.6x raise reads "5x" *and* is graded in the large band, not
+ * the small one). Pure string formatting.
+ */
+function formatRaiseSize(raiseBb: number): string {
+  return `a ${raiseBb}x raise`
+}
+
+/**
  * Grade one *preflop* decision off the starting-hand chart — the preflop counterpart to
  * {@link coachDecision} (which stays the postflop lens). Classify the hole cards into a
  * {@link PreflopTier}, take the chart's position-aware open/fold {@link PreflopAdvice} for the spot,
@@ -291,9 +442,22 @@ function adviceFor(tier: PreflopTier, latePosition: boolean): PreflopAdvice {
  * implied odds and would fold clear opens (the bug this fixes). Postflop continues to use
  * {@link coachDecision}; the reducer routes preflop here and everything else there.
  *
- * **Scope (first cut).** "Play the tier" is treated as continue-vs-fold against whatever the hero
- * faces — the chart is an *opening* chart, so this also lets a charted hand continue facing a raise.
- * Tightening ranges versus a raise/3-bet (flatting vs. 3-betting) is a follow-up, not this fix.
+ * **Raise-aware (0053).** The decision is graded against the right *standard* for the spot:
+ *
+ * - **Unraised pot** (`currentBet <= bigBlind` — limp / the BB's option): the chart is an *opening*
+ *   chart, so a charted hand opens / continues per {@link adviceFor}. (Position-awareness beyond the
+ *   `marginal` tier and HU widening are ticket 0054; this path keeps today's opening behaviour.)
+ * - **Facing a raise** (`currentBet > bigBlind`): the open chart would bless loose cold-calls a
+ *   winning player snap-folds, so we switch to a *defend* standard — {@link facingRaiseAdvice}
+ *   tightens the continue range by the price faced and by position, and returns a rationale
+ *   describing the *defend* decision (never the static opening-tier label, never "fold to pressure"
+ *   above a `Good` call of pressure).
+ *
+ * The raise size is rounded to the nearest whole multiple of the big blind *once* here
+ * (`Math.round(currentBet / bigBlind)`) and that single integer drives both the price-gate
+ * comparisons and the rationale's `"5x raise"` label — so the size the learner reads always matches
+ * the regime the hand was graded in. Rounding to the nearest whole multiple is fine for a teaching
+ * chart (the gates are coarse bands, not exact accounting).
  *
  * Throws {@link RangeError} (via {@link classifyStartingHand}) on malformed hole cards.
  */
@@ -317,12 +481,26 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     }
   }
 
-  const advice = adviceFor(tier, isLatePosition(ctx))
+  const latePosition = isLatePosition(ctx)
   const heroContinued = action.type !== 'fold'
+
+  // Are we facing a raise, or is this an unraised pot? Preflop the BB posts `bigBlind`, so
+  // `currentBet` starts at `bigBlind`; a limp leaves it there and a raise pushes it above. An
+  // unraised pot (limp / BB option) keeps the opening-chart standard; a raise switches to the
+  // price-gated *defend* standard so the open chart no longer blesses loose cold-calls (0053).
+  const facingRaise = ctx.currentBet > ctx.bigBlind
+  // Round the raise size to the nearest whole BB multiple once, and use that single integer for BOTH
+  // the price-gate bands and the rationale label — so the size the learner reads ("a 5x raise")
+  // always matches the regime the hand was graded in. Coarse rounding is fine for a teaching chart.
+  const raiseBb = Math.round(ctx.currentBet / ctx.bigBlind)
+  const { advice, rationale: spotRationale } = facingRaise
+    ? facingRaiseAdvice(tier, raiseBb, latePosition)
+    : { advice: adviceFor(tier, latePosition), rationale }
+
   // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
   const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'
   // Preflop grading is always the ranges/strength-tier idea (see PreflopVerdict.concept).
-  return { tier, rationale, advice, heroContinued, verdict, concept: 'ranges' }
+  return { tier, rationale: spotRationale, advice, heroContinued, verdict, concept: 'ranges' }
 }
 
 /**
