@@ -54,17 +54,33 @@ pnpm sim           # headless harness: play one scripted hand and print a determ
 ```
 
 `pnpm play` launches the full-screen Ink TUI (`apps/tui`) — the interactive play experience.
-`pnpm sim` runs the slim non-interactive `apps/cli` harness: it plays a single hand against the
-bots from a seed and a scripted list of hero actions, printing a plain, greppable transcript (table
-state, every action, the coach verdict per hero decision, the result) and then exiting. It is a
-deterministic smoke-test driver — same args ⇒ identical transcript — not a play UI:
+`pnpm sim` runs the slim non-interactive `apps/cli` harness: it plays hands against the bots from a
+seed and scripted lines, printing either a plain, greppable transcript (table state, every action,
+the coach verdict + a ground-truth check per hero decision, the result) or a machine-readable NDJSON
+stream, then exiting. It is a deterministic smoke-test **and coach-measurement** driver — same args ⇒
+identical output — not a play UI:
 
 ```bash
 pnpm sim -- --seed=1 --seats=6 --hero=c,k,k,k
-#   --seed=<int>    seeds the deck shuffle + the bots (default 1)
-#   --seats=<2..6>  hero (seat 0) plus N-1 bots (default 6)
-#   --hero=<list>   comma/space-separated actions in the input grammar; when exhausted the hero
-#                   takes the cheapest legal continue, so a bare `pnpm sim` is a zero-config run
+#   --seed=<int>            seeds the deck shuffle + the bots (default 1)
+#   --seeds=<a-b|a,b,c>     batch: play many hands and print a sweep summary (overrides --seed)
+#   --seats=<2..6>          hero (seat 0) plus N-1 bots (default 6)
+#   --button=<seat>         dealer-button seat; moving it puts the hero in any position (default 0)
+#   --hero=<list>           comma/space-separated actions; when exhausted the hero takes the
+#                           cheapest legal continue, so a bare `pnpm sim` is a zero-config run
+#   --villain=<seat>:<list> script one opponent's line (repeatable), e.g. --villain=1:r6 — the only
+#                           way to make the hero face a preflop raise/3-bet
+#   --json                  emit NDJSON (one hand record per line + a summary) instead of transcript
+```
+
+Every postflop hero decision is also checked against a **ground truth** — the hero's exact equity vs
+the villains' _actual_ cards (the omniscient read the coach deliberately lacks). When the coach's
+assumed-range advice diverges from it, the transcript prints a `⚠ Coach diverges from ground truth`
+warning and the JSON marks the decision `"misleads": true`, so a `--seeds` sweep quantifies exactly
+where (and how often) the coach would steer a learner wrong. Example: count misleading spots —
+
+```bash
+pnpm sim -- --seeds=1-50 --seats=2 --json | grep -c '"misleads": *true'
 ```
 
 `pnpm verify` is exactly what the pre-push hook and CI run, so a clean `verify` means a green push.
