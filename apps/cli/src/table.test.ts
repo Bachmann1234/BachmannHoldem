@@ -68,6 +68,7 @@ const goodCall: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  missedValueBet: false,
   concept: 'equity-vs-price',
 }
 
@@ -79,6 +80,7 @@ const leakCall: DecisionVerdict = {
   correctDecision: 'fold',
   heroContinued: true,
   verdict: 'leak',
+  missedValueBet: false,
   concept: 'equity-vs-price',
 }
 
@@ -115,6 +117,25 @@ describe('renderCoachFeedback', () => {
     expect(renderCoachFeedback(goodCall)).not.toContain('Starting hand')
   })
 
+  it('relabels the EV metric to "Pot equity" on a free check (nothing to call), with the value unchanged', () => {
+    // A checked unbet pot: callEv is pot-equity, not call-EV, so the label is "Pot equity" (ticket 0055).
+    const freeCheck: DecisionVerdict = {
+      equity: 0.62,
+      potOddsThreshold: 0,
+      callEv: 2.5,
+      correctDecision: 'continue',
+      heroContinued: true,
+      verdict: 'good',
+      missedValueBet: true,
+      concept: 'equity',
+    }
+    const out = renderCoachFeedback(freeCheck)
+    expect(out).toContain('Pot equity +2.5')
+    expect(out).not.toContain('EV(call)')
+    // The value-bet nudge surfaces through the shared explainDecision why-line.
+    expect(out.toLowerCase()).toContain('bet for value')
+  })
+
   it('renders a near-zero / break-even EV as a bare 0, never a signed zero', () => {
     // A break-even coin-flip: equity sits on the threshold and the chip EV rounds to ~0.
     const breakEven: DecisionVerdict = {
@@ -124,6 +145,7 @@ describe('renderCoachFeedback', () => {
       correctDecision: 'continue',
       heroContinued: true,
       verdict: 'breakEven',
+      missedValueBet: false,
       concept: 'equity-vs-price',
     }
     const out = renderCoachFeedback(breakEven)

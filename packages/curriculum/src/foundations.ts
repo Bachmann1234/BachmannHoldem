@@ -99,18 +99,21 @@ const EQUITY_LESSON: Lesson = {
 // 2. pot odds — the break-even price a call needs.
 // ---------------------------------------------------------------------------------------------------
 //
-// CoachSpot where the PRICE is the lesson. The hero has a marginal holding (QJ, ~26% equity vs a
-// medium range on an A-K-5 board) and faces a steep price: 75 to call into a 100 pot, so the call
-// must win ~43% to break even. Equity (26%) is well short of the price (43%), so the coach rules the
-// call a leak and folding correct — a clean demonstration that the price, not the cards alone,
-// decides. Proven in the test (eq < threshold, fold correct, call leak).
+// CoachSpot where the PRICE is the lesson. The hero has a marginal holding (QJ on an A-K-5 board)
+// and faces a steep price: 75 to call into a 100 pot, so the call must win ~43% to break even. That
+// 75-into-25 bet is a ~3x-pot overbet, which the line-aware coach (ticket 0052) reads against the
+// tightest 'ultraTight' value range — QJ is only ~17% there (down from the old static-'medium' ~26%
+// read). Either way equity is well short of the price (43%), so the coach rules the call a leak and
+// folding correct — a clean demonstration that the price, not the cards alone, decides. Proven in
+// the test (eq < threshold, fold correct, call leak).
 
 /** pot-odds spot: a marginal hand at too steep a price — fold is correct, call is the leak. */
 const POT_ODDS_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
     'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75 — ' +
-    'a price of 75 / (100 + 75) ≈ 43% to break even. Your hand is only worth ~26%. Call or fold?',
+    'a price of 75 / (100 + 75) ≈ 43% to break even. Against that big a bet your hand is only worth ' +
+    '~17%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
     holeCards: hole('Qs Jd'),
@@ -237,12 +240,13 @@ const EV_LESSON: Lesson = {
 // 5. position — acting later is an edge.
 // ---------------------------------------------------------------------------------------------------
 //
-// The coach DOES rule on position — but only through the chart's MARGINAL tier, which opens in late
-// position and folds in early position (gradePreflop -> adviceFor: marginal && latePosition). So this
-// lesson is a genuine coach-graded PreflopSpot pair on the SAME marginal hand (KJo), contrasting the
-// button (late: open is correct) against UTG (early: fold is correct). No declarative carve-out is
-// needed — the chart itself encodes "acting later lets you play more hands." Proven in the test (KJo
-// button open == good, KJo UTG fold == good, and the opposite actions == leak).
+// The coach rules on position across the whole opening range now (gradePreflop -> adviceFor is
+// position-aware: each tier consults the hero's classifyPosition bucket — e.g. the MARGINAL tier opens
+// only in late/steal seats and folds in early position). This lesson leans on the clearest case: a
+// genuine coach-graded PreflopSpot pair on the SAME marginal hand (KJo), contrasting the button (late:
+// open is correct) against UTG (early: fold is correct). No declarative carve-out is needed — the
+// chart itself encodes "acting later lets you play more hands." Proven in the test (KJo button open ==
+// good, KJo UTG fold == good, and the opposite actions == leak).
 
 /** position spot A: KJo on the button — late position, so opening is correct (open is good). */
 const POSITION_BUTTON_SPOT: PreflopSpot = {
@@ -265,8 +269,11 @@ const POSITION_UTG_SPOT: PreflopSpot = {
     'you to act after the flop). Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('Kc Jd'),
+  // Seat 0 is UTG only when the button is at seat 3 (sb=4, bb=5, UTG=button+3=0) — the seat just left
+  // of the big blind, first to act. (0054 corrected the position classifier so the SB/BB are no
+  // longer mislabelled as "not late"; this spot's geometry now genuinely puts the hero UTG.)
   seat: 0,
-  buttonIndex: 5,
+  buttonIndex: 3,
   numPlayers: 6,
 }
 

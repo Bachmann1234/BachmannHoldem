@@ -7,7 +7,7 @@
  * **Presentational only — like the TUI's `CoachPanel`.** The reducer already graded the decision
  * via `@holdem/coach` (capture-before-apply) and stored the finished {@link DecisionVerdict} on
  * `model.coach`; this component does NO verdict math. Every number/label is rendered through the
- * shared `@holdem/format` helpers (`pct` / `signedChips` / `VERDICT_LABEL`) so the PWA and the TUI
+ * shared `@holdem/format` helpers (`pct` / `evMetric` / `VERDICT_LABEL`) so the PWA and the TUI
  * can never phrase a verdict differently.
  *
  * **Post-action verdict only** (user decision, recorded in ticket 0036): there is no pre-action
@@ -29,7 +29,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Card } from '@holdem/engine'
 import { handClassLabel, type DecisionVerdict, type PreflopVerdict } from '@holdem/coach'
-import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
 
@@ -242,6 +242,9 @@ function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.
   const winWidth = pct(verdict.equity)
   // A free check (no bet to call) has no price — show "—" rather than "0.0%", per the design.
   const potOdds = verdict.potOddsThreshold === 0 ? '—' : pct(verdict.potOddsThreshold)
+  // The EV card's label/value comes from the shared helper so the PWA matches the CLI/TUI: on a
+  // free check / a bet it relabels to "Pot equity" (callEv is pot-equity, not call-EV — ticket 0055).
+  const ev = evMetric(verdict)
   return (
     <>
       <div className={`verdict ${tone.cls}`} data-testid="coach-verdict">
@@ -267,9 +270,9 @@ function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.
           <div className="sub">{verdict.potOddsThreshold === 0 ? 'free check' : 'to call'}</div>
         </div>
         <div className="metric">
-          <div className="k">EV of call</div>
+          <div className="k">{ev.label}</div>
           <div className={`v ${verdict.callEv >= 0 ? 'good' : 'bad'}`} data-testid="metric-ev">
-            {signedChips(verdict.callEv)}
+            {ev.value}
           </div>
           <div className="sub">chips</div>
         </div>

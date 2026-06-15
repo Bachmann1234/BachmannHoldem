@@ -26,7 +26,7 @@
 
 import { Box, Text } from 'ink'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
 /** The Ink `color` prop for each verdict tag: green good / red leak / yellow break-even. */
@@ -69,11 +69,14 @@ export function CoachPanel({ coach }: CoachPanelProps): React.JSX.Element {
  * which carries no pot-odds math to contradict the chart (ticket BUG-0001).
  */
 function Verdict({ verdict }: { readonly verdict: DecisionVerdict }): React.JSX.Element {
+  // The EV metric's label is corrected for spots with nothing to call (a free check / a bet),
+  // where `callEv` is really pot-equity, not the EV of a call (ticket 0055 — `evMetric`).
+  const ev = evMetric(verdict)
   return (
     <Box flexDirection="column">
       <Text>
         {`  Equity ${pct(verdict.equity)}  vs pot odds ${pct(verdict.potOddsThreshold)}` +
-          `  EV(call) ${signedChips(verdict.callEv)}`}
+          `  ${ev.label} ${ev.value}`}
       </Text>
       <Text>{`  EV-correct: ${verdict.correctDecision}`}</Text>
       <Text color={VERDICT_COLOR[verdict.verdict]}>{`  ${VERDICT_LABEL[verdict.verdict]}`}</Text>

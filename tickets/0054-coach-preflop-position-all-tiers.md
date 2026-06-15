@@ -2,7 +2,7 @@
 id: 0054
 title: Preflop coach — extend position-awareness beyond the marginal tier (incl. HU)
 type: feature
-status: todo
+status: done
 milestone:
 priority: medium
 created: 2026-06-14
@@ -40,18 +40,33 @@ from the button / blinds / heads-up.
 
 ## Acceptance criteria
 
-- [ ] Position gates the **whole** opening range, not just the `marginal` tier: `playable`
+- [x] Position gates the **whole** opening range, not just the `marginal` tier: `playable`
       speculative hands fold from early position at a full table (no UTG 87s/65s/76s/A2s/44
-      6-max), and the openable range widens through CO/BTN.
-- [ ] `trash` can loosen in late position / the blinds so standard button & blind opens
-      (K7o, A9o, T9o, etc.) are no longer graded `Trash`/`Leak`.
-- [ ] Heads-up (and SB-vs-BB) uses a wider opening range than the 6-max chart — the single
-      chart applied everywhere is the root of the HU false negatives.
-- [ ] Verified via a `--button` sweep across positions and seat counts: a sample of hands
+      6-max), and the openable range widens through CO/BTN. (`classifyPosition` +
+      position-aware `adviceFor`.)
+- [x] `trash` can loosen in late position / the blinds so standard button & blind opens
+      (K7o, A9o, T9o, etc.) are no longer graded `Trash`/`Leak`. Via a supplementary
+      `STEAL_OPEN_RANGE` advice layer (tiers/chart unchanged), gated on a genuine steal
+      (`isStealSpot` — folded to the hero, no limpers) so it never blesses junk over limpers.
+- [x] Heads-up (and SB-vs-BB) uses a wider opening range than the 6-max chart — the single
+      chart applied everywhere is the root of the HU false negatives. HU button classifies
+      `late`, the HU BB `big-blind` (out of position) — which also fixed the HU "in position"
+      rationale that [[0053-coach-preflop-raise-aware]] deferred here.
+- [x] Verified via a `--button` sweep across positions and seat counts: a sample of hands
       grades the way a winning player opens them per position; the marginal-tier behavior
       that already works is preserved.
-- [ ] New tests cover a hand graded across positions (EP fold → LP open) and the HU button
+- [x] New tests cover a hand graded across positions (EP fold → LP open) and the HU button
       widening; `pnpm verify` green.
+
+## Notes (resolution)
+
+`classifyPosition(ctx)` → `early | middle | late | small-blind | big-blind` (pure seat
+geometry); `adviceFor(tier, position, hand, stealSpot)` gates the whole opening range.
+The viewable chart's tiers (`classifyStartingHand` / `PREFLOP_CHART`) are **unchanged** — the
+position rule and `STEAL_OPEN_RANGE` are an advice layer on top, so the 13×13 strength map
+([[0050-starting-hand-chart-view]]) stays valid. Also corrected the HU position semantics
+[[0053-coach-preflop-raise-aware]] deferred (the BB is now out of position). The trash steal
+promotion is gated on `isStealSpot` (folded to the hero) so it is never applied over a limper.
 
 ## Notes
 

@@ -25,6 +25,7 @@ function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
       correctDecision: 'continue',
       heroContinued: true,
       verdict: tag,
+      missedValueBet: false,
       concept: 'equity-vs-price',
     },
   }

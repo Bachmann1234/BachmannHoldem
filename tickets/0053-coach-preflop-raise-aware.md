@@ -2,7 +2,7 @@
 id: 0053
 title: Preflop coach — grade facing a raise/3-bet differently from opening
 type: feature
-status: todo
+status: done
 milestone:
 priority: high
 created: 2026-06-14
@@ -39,19 +39,37 @@ leak, actively reinforced.
 
 ## Acceptance criteria
 
-- [ ] `gradePreflop` detects when the hero is facing a raise/3-bet (a `toCall` larger than a
+- [x] `gradePreflop` detects when the hero is facing a raise/3-bet (a `toCall` larger than a
       limp / the big blind) and grades against a **defend** standard, not the open chart.
-- [ ] The continue range tightens with the price faced: a small (~3x) raise keeps a
+      Detect: `ctx.currentBet > ctx.bigBlind`; size: `round(currentBet / bigBlind)` in BB.
+- [x] The continue range tightens with the price faced: a small (~3x) raise keeps a
       reasonable flatting range; a large raise (≥ ~5–6x) or any 3-bet collapses to a
       value/3-bet-or-fold range. Out-of-position cold-calls of speculative junk are graded
-      as leaks.
-- [ ] The rationale string matches the verdict — no "fold to pressure" printed above a
-      `Good` for a call of pressure.
-- [ ] Verified on the seed-39 / seed-49 / seed-32 spots above (and a few 6-max equivalents
+      as leaks. Two regimes via `LARGE_RAISE_MIN_BB`=5 / `THREE_BET_MIN_BB`=9 in
+      `facingRaiseAdvice`; the `playable` thin flat survives only in position.
+- [x] The rationale string matches the verdict — no "fold to pressure" printed above a
+      `Good` for a call of pressure. The facing-raise path emits a rationale built from the
+      defend decision made. (Full rationale-follows-advice generalisation across the
+      _unraised_ path is [[0056-coach-rationale-not-absolute]].)
+- [x] Verified on the seed-39 / seed-49 / seed-32 spots above (and a few 6-max equivalents
       via `--villain`): the loose OOP calls now grade as leaks; legitimate defends (e.g. a
       strong hand 3-betting, a pair/broadway calling a small raise in position) still grade
       `good`.
-- [ ] New tests cover open vs facing-raise for the same hand; `pnpm verify` green.
+- [x] New tests cover open vs facing-raise for the same hand; `pnpm verify` green.
+
+## Notes (resolution)
+
+`facingRaiseAdvice(tier, raiseBb, latePosition)` in `packages/coach/src/preflop.ts` is the
+defend standard; `gradePreflop` routes to it when `currentBet > bigBlind` and keeps the
+opening chart otherwise. Deferred / known limitations (not blockers):
+
+- The heads-up BB-defend "in position" rationale wording is wrong because `isLatePosition`
+  treats both heads-up seats as late — handed to [[0054-coach-preflop-position-all-tiers]]
+  (the position ticket), which corrects HU position handling at its source.
+- A sub-min-raise all-in (raise < ~2x) routes through the defend standard and can over-fold;
+  rare in this app's deep-stacked spots, noted for a later pass.
+- The curriculum (`gradeSpot`) hardcodes `toCall: 0` for preflop spots, so lessons cannot yet
+  author a _facing-a-raise_ drill — a curriculum authoring gap, not a coach defect.
 
 ## Notes
 

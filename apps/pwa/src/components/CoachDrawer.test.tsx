@@ -35,6 +35,7 @@ const GOOD: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  missedValueBet: false,
   concept: 'equity-vs-price',
 }
 
@@ -46,6 +47,7 @@ const LEAK: DecisionVerdict = {
   correctDecision: 'fold',
   heroContinued: true,
   verdict: 'leak',
+  missedValueBet: false,
   concept: 'equity-vs-price',
 }
 
@@ -57,6 +59,7 @@ const BREAKEVEN: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'breakEven',
+  missedValueBet: false,
   concept: 'equity-vs-price',
 }
 
@@ -68,6 +71,7 @@ const FREE_CHECK: DecisionVerdict = {
   correctDecision: 'continue',
   heroContinued: true,
   verdict: 'good',
+  missedValueBet: false,
   concept: 'equity',
 }
 
@@ -107,6 +111,33 @@ describe('CoachDrawer — verdict state', () => {
   it('shows "—" for pot odds on a free check (potOddsThreshold === 0)', () => {
     render(<CoachDrawer coach={verdictResult(FREE_CHECK)} open onClose={vi.fn()} />)
     expect(screen.getByTestId('metric-potodds').textContent).toBe('—')
+  })
+
+  it('relabels the EV card "Pot equity" on a free check, value unchanged (ticket 0055)', () => {
+    // Nothing to call ⇒ callEv is pot-equity, not call-EV: the shared evMetric relabels the card.
+    render(<CoachDrawer coach={verdictResult(FREE_CHECK)} open onClose={vi.fn()} />)
+    expect(screen.getByText('Pot equity')).toBeTruthy()
+    expect(screen.queryByText('EV of call')).toBeNull()
+    // The value (and its testid) is unchanged — only the label moved.
+    expect(screen.getByTestId('metric-ev').textContent).toBe(signedChips(FREE_CHECK.callEv))
+  })
+
+  it('keeps the EV(call) card label on a priced spot', () => {
+    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
+    expect(screen.getByText('EV(call)')).toBeTruthy()
+    expect(screen.queryByText('Pot equity')).toBeNull()
+  })
+
+  it('surfaces the value-bet nudge in the why-line when missedValueBet is set (ticket 0055)', () => {
+    // A checked unbet pot while comfortably ahead: explainDecision adds the "bet for value" nudge.
+    const missed: DecisionVerdict = {
+      ...FREE_CHECK,
+      equity: 0.62,
+      callEv: 6.2,
+      missedValueBet: true,
+    }
+    render(<CoachDrawer coach={verdictResult(missed)} open onClose={vi.fn()} />)
+    expect(screen.getByTestId('coach-why').textContent?.toLowerCase()).toContain('bet for value')
   })
 
   it('shows no preflop starting-hand line postflop (the chart is preflop only)', () => {

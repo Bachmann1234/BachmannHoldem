@@ -137,7 +137,11 @@ describe('gradeSpot — correctness is the chosen action grade, not index-equali
         holeCards: hole('Ad 5c'),
         board: parseCards('2c 7d 9h'),
         pot: 100,
-        toCall: 40,
+        // A ~quarter-pot flop bet: the coach narrows the read on the betting line (ticket
+        // 0052) to 'tight' here (a small early-street bet), against which A5-high on this dry
+        // board sits ~0.18 — and 22-into-100 prices the call at ~0.18 too, a genuine
+        // coin-flip within the coach's EPSILON band.
+        toCall: 22,
         numActive: 2,
       },
     }

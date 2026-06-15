@@ -2,7 +2,7 @@
 id: 0052
 title: Postflop coach — narrow the assumed villain range on the betting line
 type: feature
-status: todo
+status: done
 milestone:
 priority: high
 created: 2026-06-14
@@ -35,22 +35,42 @@ beginner could learn from the coach — it manufactures calling stations.
 
 ## Acceptance criteria
 
-- [ ] The postflop equity read narrows the assumed villain range as a function of the
+- [x] The postflop equity read narrows the assumed villain range as a function of the
       betting line — at minimum: tighter after a villain bet/raise, tighter still after
       multiple barrels and/or large sizing — instead of always using the static
       `COACH_ASSUMED_RANGE`.
-- [ ] The narrowing is deterministic (seeded, same `(ctx, action)` → same verdict) so the
+- [x] The narrowing is deterministic (seeded, same `(ctx, action)` → same verdict) so the
       coach stays a stable, testable asset ([[0021-coach-decision-verdict]]).
-- [ ] On the seed-28 line (and similar barreled spots), the coach no longer grades calling
-      down a clearly-beaten hand as `good` / EV-positive.
-- [ ] A `pnpm sim --seeds=1-60 --json` ground-truth sweep shows the share of "misleading"
+- [~] On the seed-28 line (and similar barreled spots), the coach no longer grades calling
+  down a clearly-beaten hand as `good` / EV-positive. **Partially — see Resolution.**
+  The seed-28 equity read collapsed (river 65.2% → 36.4%, turn 57.8% → 41.9%), but the
+  literal spot still grades `Good`: against the tightest _preflop_ bucket (`ultraTight` =
+  AA-JJ/AK) bottom pair on a low coordinated board genuinely retains ~36% equity (it beats
+  the AK-high combos), so a non-board-aware range cannot fold it. The good→leak flip is
+  proven on an ace-high spot; the structural fix is filed as [[0057-coach-board-aware-range]].
+- [x] A `pnpm sim --seeds=1-60 --json` ground-truth sweep shows the share of "misleading"
       priced postflop spots fall materially vs today's baseline (record before/after numbers
-      in the PR).
-- [ ] The bots are reconsidered in step (or the divergence justified): the coach aliases the
+      in the PR). **Before: 14/180 (heads-up, seeds 1-60). After: 11/180** (−21%; the
+      over-call direction the leak skews toward fell most). Bounded by the five preflop
+      `RangeWidth` buckets — deeper reductions need [[0057-coach-board-aware-range]].
+- [x] The bots are reconsidered in step (or the divergence justified): the coach aliases the
       bots' `DEFAULT_RANGE_WIDTH`, so decide whether the narrowing lives in the shared read
-      (tightening both) or only in the coach, and document why.
-- [ ] Existing coach/bot tests stay green; new tests cover the narrowed read on a barreled
+      (tightening both) or only in the coach, and document why. **Coach-only**, justified in
+      the `COACH_ASSUMED_RANGE` doc comment: bots pick width by personality and are tuned for
+      fun/believable play; the unbet baseline stays aliased so the "no read" prior is shared.
+- [x] Existing coach/bot tests stay green; new tests cover the narrowed read on a barreled
       line; `pnpm verify` green.
+
+## Resolution
+
+`assumedRangeForLine(ctx)` (in `packages/coach/src/verdict.ts`) picks the assumed villain
+width deterministically from the betting line: an unbet pot keeps the `'medium'` baseline; a
+bet/raise narrows to `'tight'`; a large bet (≥ `LARGE_BET_POT_FRACTION` = 0.6 of the pot the
+bet faced, i.e. `toCall / (pot − toCall)`) **or** any turn/river bet narrows to `'ultraTight'`.
+The narrowing is coach-only (bots untouched). Known ceiling: the buckets are preflop opening
+ranges with no board awareness, so a beaten single pair can still out-equity an `ultraTight`
+range that contains AK-high on a low board — the residual misleads and the literal seed-28
+grade. Follow-up: [[0057-coach-board-aware-range]].
 
 ## Notes
 

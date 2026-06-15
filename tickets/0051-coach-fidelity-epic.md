@@ -2,7 +2,7 @@
 id: 0051
 title: Coach fidelity — close the gaps between the coach's grade and sound strategy
 type: epic
-status: todo
+status: done
 milestone:
 priority: high
 created: 2026-06-14
@@ -40,18 +40,32 @@ showing the divergence shrink.
 
 ## Acceptance criteria
 
-- [ ] [[0052-coach-narrow-range-on-action]] — postflop equity narrows on the betting line.
-- [ ] [[0053-coach-preflop-raise-aware]] — preflop grading distinguishes opening from
+- [x] [[0052-coach-narrow-range-on-action]] — postflop equity narrows on the betting line.
+- [x] [[0053-coach-preflop-raise-aware]] — preflop grading distinguishes opening from
       facing a raise/3-bet.
-- [ ] [[0054-coach-preflop-position-all-tiers]] — preflop position-awareness extends beyond
+- [x] [[0054-coach-preflop-position-all-tiers]] — preflop position-awareness extends beyond
       the `marginal` tier (incl. HU / blind-vs-blind widening).
-- [ ] [[0055-coach-value-aggression]] — the coach flags missed value / over-passivity, not
+- [x] [[0055-coach-value-aggression]] — the coach flags missed value / over-passivity, not
       just fold-vs-continue.
-- [ ] [[0056-coach-rationale-not-absolute]] — chart rationale wording is tied to the
+- [x] [[0056-coach-rationale-not-absolute]] — chart rationale wording is tied to the
       position/action-adjusted advice, not a fixed tier label.
-- [ ] After the children land, a `pnpm sim --seeds` ground-truth sweep shows materially
+- [x] After the children land, a `pnpm sim --seeds` ground-truth sweep shows materially
       fewer "misleading" postflop spots, and the preflop facing-raise / OOP spots grade the
-      way a winning player would.
+      way a winning player would. **Result:** heads-up `--seeds=1-60 --seats=2` misleads
+      14/180 → 11/180, and verdicts shifted toward sound play (good 161 → 173, leak 77 → 67).
+      Preflop: the loose OOP cold-calls (seed 39/49/32) now grade `Leak`; the HU-button K7o
+      steal grades `Good`; EP speculative opens fold; value-hand checks flag a missed value bet.
+
+## Resolution
+
+All five children landed on `feat/coach-fidelity` (commits 0052→0056). The single
+highest-leverage fix — narrowing the assumed range on the betting line — cut the heads-up
+"misleading" postflop share by ~21% (14→11/180); its remaining ceiling (a board-unaware range
+can't fold a beaten single pair on a low board) is filed as [[0057-coach-board-aware-range]].
+The preflop trio (raise-awareness, position-awareness incl. HU, rationale wording) makes the
+chart grade context-aware rather than as a fixed opening chart, and 0055 adds the first
+aggression signal (a deterministic missed-value-bet flag) plus the `EV(call)`→`Pot equity`
+relabel. New follow-up filed: [[0057-coach-board-aware-range]].
 
 ## Notes
 
