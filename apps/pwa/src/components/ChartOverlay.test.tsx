@@ -27,6 +27,18 @@ describe('ChartOverlay', () => {
     expect(screen.getByTitle(/^72o —/).className).toContain('tier-trash')
   })
 
+  it('rings the highlighted hand and names it (no highlight by default)', () => {
+    const { rerender } = render(<ChartOverlay onClose={vi.fn()} />)
+    expect(screen.queryByTestId('chart-current')).toBeNull()
+
+    rerender(<ChartOverlay onClose={vi.fn()} highlight="AKs" />)
+    const current = screen.getByTestId('chart-current')
+    expect(current.textContent).toBe('AKs')
+    expect(current.className).toContain('is-current')
+    // exactly one cell is highlighted
+    expect(screen.getAllByTestId('chart-current')).toHaveLength(1)
+  })
+
   it('closes via the close button, the scrim, and Escape', () => {
     const onClose = vi.fn()
     render(<ChartOverlay onClose={onClose} />)

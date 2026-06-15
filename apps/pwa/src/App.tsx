@@ -503,7 +503,12 @@ function Session({
           onQuit={() => dispatch({ type: 'quit' })}
         />
       ) : null}
-      <CoachDrawer coach={model.coach} open={coachOpen} onClose={closeCoach} />
+      <CoachDrawer
+        coach={model.coach}
+        open={coachOpen}
+        onClose={closeCoach}
+        heroHoleCards={hand !== null ? hand.players[heroSeat]?.holeCards : undefined}
+      />
       {historyOverlay}
     </div>
   )

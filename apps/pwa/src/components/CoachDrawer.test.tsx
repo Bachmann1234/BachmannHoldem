@@ -9,6 +9,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { parseCards, type Card } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
@@ -162,6 +163,21 @@ describe('CoachDrawer — preflop state', () => {
     expect(screen.getByTestId('chart-grid').children).toHaveLength(169)
     fireEvent.click(screen.getByTestId('chart-close'))
     expect(screen.queryByTestId('chart-modal')).toBeNull()
+  })
+
+  it('highlights the hero’s current hand in the chart (ticket 0050)', () => {
+    const [a, b] = parseCards('As Kd')
+    render(
+      <CoachDrawer
+        coach={preflopResult(PREFLOP_GOOD)}
+        open
+        onClose={vi.fn()}
+        heroHoleCards={[a!, b!] as [Card, Card]}
+      />,
+    )
+    fireEvent.click(screen.getByTestId('open-chart'))
+    // AsKd → "AKo"; its cell is ringed as the current hand.
+    expect(screen.getByTestId('chart-current').textContent).toBe('AKo')
   })
 })
 
