@@ -143,15 +143,15 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
   it('postflop: a coin-flip-priced call is a YELLOW break-even, EV rendered as a bare 0', () => {
     // Hero T9s on a J82 flop faces a bet that prices the call right on the threshold. The flop bet is
     // a barrel (betFraction ≥ LARGE_BET_POT_FRACTION), so the coach reads against the board-aware
-    // polarised range (ticket 0057), against which T9s (a gutshot/high card) sits ~0.353 — and the
-    // price (call 24 into a pot that includes the bet, pot odds 24/68 ≈ 0.353) lands within EPSILON of
-    // that equity, a genuine coin-flip. The pot is built up preflop (hero raises to 10, bot calls →
-    // pot 20) so the integer flop bet (24) can land EV within the bare-0 rounding window.
+    // polarised range (ticket 0057, BLUFF_FRACTION 0.20), against which T9s (a gutshot/high card) sits
+    // ~0.348 — and the price (call 23 into a pot that includes the bet, pot odds 23/66 ≈ 0.348) lands
+    // within EPSILON of that equity, a genuine coin-flip. The pot is built up preflop (hero raises to
+    // 10, bot calls → pot 20) so the integer flop bet (23) can land EV within the bare-0 rounding window.
     const deck = buildDeck(2, 0, ['Th 9h', 'Ad Ac'], 'Jc 8d 2s Qs 5c')
     let model = dealtModel(2, deck)
     model = reducer(model, { type: 'apply-action', action: { type: 'raise', amount: 10 } })
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
-    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 24 } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 23 } })
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     expect(frame).toContain('Break-even — a coin-flip spot; either way is fine.')
     // Near-zero EV renders the bare, unsigned `0` (the bare-0 formatting contract).

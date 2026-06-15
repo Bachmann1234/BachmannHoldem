@@ -163,15 +163,24 @@ export const BARRELED_RANGE_WIDTH: RangeWidth = 'ultraTight'
  * range earns roughly *this fraction* in equity (it beats the air, loses to the value), so this knob
  * is exactly the "how often is villain bluffing when they barrel" dial.
  *
- * `0.25` models a **value-heavy** barreller — the recreational/bot pool this trainer grades against
+ * `0.20` models a **value-heavy** barreller — the recreational/bot pool this trainer grades against
  * fires three streets far more for value than as a bluff. It sits below the pot-odds price of a
  * typical (half- to two-thirds-pot) barrel, so a clearly-beaten single pair correctly grades a
- * −EV continue rather than the `Good` the preflop bucket manufactured (the seed-28 leak). Picked
- * empirically against the `pnpm sim` ground-truth sweep — low enough to fold beaten bluff-catchers,
- * high enough not to over-fold hands that genuinely beat a chunk of the barreling range. A named,
- * tunable knob, like {@link EPSILON} / {@link LARGE_BET_POT_FRACTION} / {@link VALUE_BET_THRESHOLD}.
+ * −EV continue rather than the `Good` the preflop bucket manufactured (the seed-28 leak). Low enough
+ * to fold beaten bluff-catchers, high enough not to over-fold hands that genuinely beat a chunk of the
+ * barreling range. A named, tunable knob, like {@link EPSILON} / {@link LARGE_BET_POT_FRACTION} /
+ * {@link VALUE_BET_THRESHOLD}.
+ *
+ * **Re-tuned `0.25 → 0.20` on the wider/multiway sweep (ticket 0059).** The original `0.25` was picked
+ * on the narrow 60-seed *heads-up* instrument, where it was optimal. The wider `--seeds=1-200` sweep
+ * across seat counts (the 0059 re-validation) showed `0.25` over-rates continues away from heads-up:
+ * at 6-max it left the misleading share at ~9% with a ~3:1 over-continue lean (the calling-station
+ * direction this whole layer fights). Dropping to `0.20` cut the worst-case 6-max share to ~7.7% and
+ * roughly halved the over-continue lean (≈1.5:1) without tipping any sampled config into an over-fold
+ * lean — the bot pool barrels for value more often than `0.25` assumed. See the 0059 ticket for the
+ * full per-config evidence table.
  */
-export const BLUFF_FRACTION = 0.25
+export const BLUFF_FRACTION = 0.2
 
 /**
  * Choose the assumed villain range the coach reads the hero's equity against, *as a pure,
