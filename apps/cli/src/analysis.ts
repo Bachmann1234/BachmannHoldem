@@ -13,6 +13,7 @@
 
 import { exactEquity, evOfCall } from '@holdem/odds'
 import type { Card, HandState } from '@holdem/engine'
+import type { PostflopTrace, PreflopTrace } from '@holdem/coach'
 
 /** EV-correct continue decision, mirroring the coach's {@link CorrectDecision}. */
 export type Correct = 'continue' | 'fold'
@@ -116,6 +117,8 @@ export interface CoachRecord {
   readonly callEv: number
   readonly correct: Correct
   readonly verdict: 'good' | 'leak' | 'breakEven'
+  /** The deterministic decision trace — *why* the read fired (the coach's {@link PostflopTrace}). */
+  readonly trace: PostflopTrace
 }
 
 /** The preflop chart view the coach narrates, flattened for JSON. */
@@ -123,6 +126,8 @@ export interface PreflopRecord {
   readonly tier: string
   readonly advice: string
   readonly verdict: 'good' | 'leak' | 'breakEven'
+  /** The deterministic decision trace — *which* rule fired (the coach's {@link PreflopTrace}). */
+  readonly trace: PreflopTrace
 }
 
 /** One showdown holding in a completed hand. */

@@ -212,10 +212,12 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
 function coachHero(model: Model, action: Action): CoachResult {
   try {
     const ctx = decisionContext(model.hand!, model.heroSeat)
+    // Carry the graded `(ctx, action)` on the result so a client can `serializeSpot` the exact spot
+    // (the "Copy ruling" blob); the coach is a pure function of that pair, so the blob re-grades here.
     if (ctx.street === 'preflop') {
-      return { kind: 'preflop', verdict: gradePreflop(ctx, action) }
+      return { kind: 'preflop', verdict: gradePreflop(ctx, action), ctx, action }
     }
-    return { kind: 'verdict', verdict: coachDecision(ctx, action) }
+    return { kind: 'verdict', verdict: coachDecision(ctx, action), ctx, action }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     return { kind: 'error', message: `Coaching unavailable for this spot — ${reason}` }

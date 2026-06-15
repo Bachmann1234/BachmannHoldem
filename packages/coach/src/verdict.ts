@@ -190,8 +190,49 @@ export const BARRELED_RANGE_WIDTH: RangeWidth = 'ultraTight'
  * (barreled) read — the conservative (tighter) side, never a crash or a re-widening.
  */
 export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
-  // No chips owed: the villain has revealed nothing — keep the no-read baseline width.
-  if (ctx.toCall === 0) return UNBET_RANGE_WIDTH
+  // Delegate to the richer {@link assumedLineRead}, which yields the width AND the reason/betFraction
+  // the {@link PostflopTrace} records, then keep only the width. This function's signature and
+  // behaviour are byte-identical to before — it remains the standalone, unit-testable line→width
+  // mapping {@link coachDecision} (and the existing tests) call — so the trace adds *no* new decision
+  // logic; it only surfaces the branch this read already takes.
+  return assumedLineRead(ctx).width
+}
+
+/**
+ * The full line read the coach's equity uses: the {@link assumedRangeForLine} *width* the read is
+ * seeded against, **plus** the deterministic by-products the {@link PostflopTrace} records — *why*
+ * that width fired ({@link PostflopTrace.lineReason}) and the villain's bet as a fraction of the pot
+ * it faced ({@link PostflopTrace.betFraction}). One function so the width and its explanation can
+ * never disagree: {@link assumedRangeForLine} returns `assumedLineRead(ctx).width`, and
+ * {@link coachDecision} reads both the width and the trace fields from a single call here.
+ *
+ * **No new decision logic — it records the branch already taken.** The width mapping is exactly the
+ * one {@link assumedRangeForLine} always used (the {@link UNBET_RANGE_WIDTH} baseline on a free
+ * decision, {@link BARRELED_RANGE_WIDTH} on a large bet or a later-street barrel, else
+ * {@link FACING_BET_RANGE_WIDTH}); this helper merely also names which of those three branches it
+ * took and carries out the same bet-into-pot ratio the {@link LARGE_BET_POT_FRACTION} comparison
+ * already computed. The `reason`/`betFraction` are therefore a pure, deterministic projection of the
+ * line, not a second read.
+ *
+ * The `reason` maps one-to-one onto the width: a free decision (`toCall === 0`) is `'unbet'` (width
+ * baseline, `betFraction` `null` — no bet was made); a large bet (`betFraction >=`
+ * {@link LARGE_BET_POT_FRACTION}) **or** any later-street (turn/river) bet is `'barreled'` (width
+ * `ultraTight`); any other bet/raise is `'facing-bet'` (width `tight`). `betFraction` is the same
+ * `toCall / (pot - toCall)` ratio {@link assumedRangeForLine} divides — `null` only on the free
+ * check, where there is no bet to size — and `Infinity` on the divide-by-zero guard (a bet into no
+ * dead money), which classifies as the strong `'barreled'` read just as the width does.
+ *
+ * Pure and deterministic, reading only `ctx.toCall`, `ctx.pot`, and `ctx.street` — exported so the
+ * trace projection is unit-testable in isolation alongside {@link assumedRangeForLine}.
+ */
+export function assumedLineRead(ctx: DecisionContext): {
+  width: RangeWidth
+  reason: PostflopTrace['lineReason']
+  betFraction: number | null
+} {
+  // No chips owed: the villain has revealed nothing — keep the no-read baseline width. There is no
+  // bet to size against, so the betFraction is null (not 0 — 0 would read as a check-sized "bet").
+  if (ctx.toCall === 0) return { width: UNBET_RANGE_WIDTH, reason: 'unbet', betFraction: null }
 
   // A later street (turn/river) means the villain, to be betting here, has in a typical hand
   // already fired an earlier street: a stand-in for the multi-barrel line we cannot count.
@@ -207,10 +248,12 @@ export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
   const largeBet = betFraction >= LARGE_BET_POT_FRACTION
 
   // Either a large bet or a later-street bet signals a strong, value-heavy line.
-  if (largeBet || laterStreet) return BARRELED_RANGE_WIDTH
+  if (largeBet || laterStreet) {
+    return { width: BARRELED_RANGE_WIDTH, reason: 'barreled', betFraction }
+  }
 
   // A small bet/raise on an early street: a real commitment, but the weakest of the signals.
-  return FACING_BET_RANGE_WIDTH
+  return { width: FACING_BET_RANGE_WIDTH, reason: 'facing-bet', betFraction }
 }
 
 /**
@@ -322,6 +365,40 @@ function isContinue(action: Action): boolean {
 }
 
 /**
+ * The deterministic *decision trace* of a postflop verdict — *why* {@link coachDecision} read the
+ * hero against the range it did (the audit trail this part of the project adds). It is a **derived,
+ * deterministic by-product** of the same {@link assumedLineRead} the equity read already runs: it
+ * records the branch that read took, never any new decision. Its purpose is self-contained
+ * explainability — a human (or an AI a human pastes the ruling to) can see at a glance which line
+ * read fired and the inputs that selected it, without re-deriving the mapping.
+ *
+ * Every field is a plain, serialisable value, so the trace round-trips through the NDJSON the CLI
+ * sim emits and any copy-to-clipboard blob exactly like the rest of the {@link DecisionVerdict}.
+ */
+export interface PostflopTrace {
+  /**
+   * The assumed-range {@link RangeWidth} the equity read was seeded against — the exact width
+   * {@link assumedRangeForLine} / {@link assumedLineRead} picked from the betting line (the
+   * {@link COACH_ASSUMED_RANGE} baseline on an unbet pot, tighter the harder the villain barreled).
+   */
+  readonly assumedRange: RangeWidth
+  /**
+   * *Why* that width: which of {@link assumedLineRead}'s three line-strength branches fired.
+   * `'unbet'` is the free decision (`toCall === 0`, baseline width); `'barreled'` is a large bet
+   * (≥ {@link LARGE_BET_POT_FRACTION}) and/or a turn/river bet (the tightest, value-heavy width);
+   * `'facing-bet'` is any other bet/raise (one bucket tighter than baseline).
+   */
+  readonly lineReason: 'unbet' | 'facing-bet' | 'barreled'
+  /**
+   * The villain's bet as a fraction of the pot it was made into — `toCall / (pot - toCall)`, the
+   * same ratio the {@link LARGE_BET_POT_FRACTION} comparison divides (a pot-sized bet = `1.0`).
+   * `null` on a free check (`toCall === 0`), where there is no bet to size; `Infinity` on the
+   * divide-by-zero guard (a bet into no dead money), which reads as the strong `'barreled'` line.
+   */
+  readonly betFraction: number | null
+}
+
+/**
  * A complete per-decision verdict: the numbers the coach narrates plus the classification.
  *
  * Every field is a plain value (no engine state, no randomness) so the verdict serialises,
@@ -385,6 +462,14 @@ export interface DecisionVerdict {
    * the spot, never hand-fed.
    */
   readonly concept: Concept
+  /**
+   * The deterministic {@link PostflopTrace} — *which* line read fired and the inputs that selected it.
+   * A derived, deterministic by-product of the {@link assumedLineRead} the equity read already runs
+   * (it records the branch taken, adding no decision logic), present on **every** verdict so a ruling
+   * is self-explaining: a human or an AI reviewing it can see why the hero was graded against the
+   * range it was, without re-deriving the line→width mapping.
+   */
+  readonly trace: PostflopTrace
 }
 
 /**
@@ -449,7 +534,17 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   // Read against the number of opponents ACTUALLY live in the pot — `ctx.numActive - 1`
   // villains, each on that width — so the equity reflects the real table size. A heads-up
   // pot (`numActive === 2`) is one villain, i.e. the unchanged single-villain read.
-  const assumedRange = assumedRangeForLine(ctx)
+  // One call yields both the width to seed the read AND the trace's reason/betFraction, so the
+  // recorded "why" can never disagree with the width actually used (assumedRangeForLine is itself
+  // assumedLineRead(ctx).width). The trace is a pure by-product — recording this branch, not taking
+  // a new one — and is stamped onto every verdict return below.
+  const lineRead = assumedLineRead(ctx)
+  const assumedRange = lineRead.width
+  const trace: PostflopTrace = {
+    assumedRange,
+    lineReason: lineRead.reason,
+    betFraction: lineRead.betFraction,
+  }
   const equity = estimateEquity({
     holeCards: ctx.holeCards,
     board: ctx.board,
@@ -481,6 +576,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       missedValueBet,
       // No price to weigh — the decision is purely reading your share of the pot.
       concept: 'equity',
+      trace,
     }
   }
 
@@ -498,6 +594,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       missedValueBet: false,
       // Facing a price: the continue decision turns on weighing equity against that price.
       concept: 'equity-vs-price',
+      trace,
     }
   }
 
@@ -521,5 +618,6 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
     missedValueBet: false,
     // Facing a price: the continue decision turns on weighing equity against that price.
     concept: 'equity-vs-price',
+    trace,
   }
 }

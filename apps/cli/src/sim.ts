@@ -34,6 +34,12 @@
  *                     preflop raise/3-bet, which the bots rarely volunteer.
  *   --json            Emit NDJSON (one hand record per line, then a `{"type":"summary"}` line)
  *                     instead of the text transcript — for scripted sweeps and aggregation.
+ *   --spot=<json>     Re-grade a single captured spot instead of playing a hand. The JSON is a
+ *                     `serializeSpot` blob (the copy-to-clipboard payload from the PWA / a hand
+ *                     a learner pasted to an AI); since the coach is a pure function of
+ *                     `(DecisionContext, action)`, this reproduces the original verdict + trace
+ *                     exactly — no seed/shuffle/bot-matching. Prints the same coach block the play
+ *                     loop does, then exits; all other flags are ignored.
  */
 
 import { stdout } from 'node:process'
@@ -53,7 +59,7 @@ import {
 } from '@holdem/engine'
 import { mulberry32 } from '@holdem/odds'
 import { decisionContext, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
-import { coachDecision, gradePreflop } from '@holdem/coach'
+import { coachDecision, gradePreflop, parseSpot } from '@holdem/coach'
 import {
   parseAction,
   renderState,
@@ -95,6 +101,8 @@ interface Args {
   readonly villainScripts: ReadonlyMap<number, readonly string[]>
   /** Emit NDJSON instead of the text transcript. */
   readonly json: boolean
+  /** A captured-spot JSON blob to re-grade instead of playing a hand (`--spot=<json>`); `null` if unset. */
+  readonly spot: string | null
 }
 
 /**
@@ -111,6 +119,7 @@ function parseArgs(argv: readonly string[]): Args {
   let heroScript: string[] = []
   const villainScripts = new Map<number, readonly string[]>()
   let json = false
+  let spot: string | null = null
   for (const arg of argv) {
     const seedMatch = /^--seed=(-?\d+)$/.exec(arg)
     const seedsMatch = /^--seeds=(.+)$/.exec(arg)
@@ -118,7 +127,11 @@ function parseArgs(argv: readonly string[]): Args {
     const buttonMatch = /^--button=(\d+)$/.exec(arg)
     const heroMatch = /^--hero=(.*)$/.exec(arg)
     const villainMatch = /^--villain=(\d+):(.*)$/.exec(arg)
-    if (seedMatch) seed = Number(seedMatch[1])
+    // `--spot=` is the whole remaining string (a JSON blob may contain `=`, spaces, etc.), so it is
+    // matched with a permissive `[\s\S]*` rather than the tight per-flag patterns above.
+    const spotMatch = /^--spot=([\s\S]*)$/.exec(arg)
+    if (spotMatch) spot = spotMatch[1]!
+    else if (seedMatch) seed = Number(seedMatch[1])
     else if (seedsMatch) seeds = parseSeeds(seedsMatch[1]!)
     else if (seatsMatch) seats = clamp(Number(seatsMatch[1]), MIN_SEATS, MAX_SEATS)
     else if (buttonMatch) button = Number(buttonMatch[1])
@@ -138,7 +151,7 @@ function parseArgs(argv: readonly string[]): Args {
       villainScripts.delete(seat)
     }
   }
-  return { seeds: seeds ?? [seed], seats, button, heroScript, villainScripts, json }
+  return { seeds: seeds ?? [seed], seats, button, heroScript, villainScripts, json, spot }
 }
 
 /** Parse a `--seeds` spec: an inclusive range `a-b` or a comma/space list `a,b,c`. */
@@ -262,7 +275,7 @@ function coachAndRecord(
         board,
         action: actionLabel(action),
         coach: null,
-        preflop: { tier: v.tier, advice: v.advice, verdict: v.verdict },
+        preflop: { tier: v.tier, advice: v.advice, verdict: v.verdict, trace: v.trace },
         truth: null,
         misleads: null,
       }
@@ -284,6 +297,7 @@ function coachAndRecord(
         callEv: v.callEv,
         correct: v.correctDecision,
         verdict: v.verdict,
+        trace: v.trace,
       },
       preflop: null,
       truth,
@@ -293,6 +307,38 @@ function coachAndRecord(
     const reason = err instanceof Error ? err.message : String(err)
     emitText(`\n(Coaching unavailable for this spot — ${reason})`)
     return null
+  }
+}
+
+/**
+ * Re-grade a single captured-spot blob (`--spot`) and print the coach block, then return — the
+ * spot-capture re-grade path. {@link parseSpot} rebuilds the `(DecisionContext, action)` the spot
+ * carried; because the coach is a pure function of exactly that pair, picking the grader by street
+ * (preflop → {@link gradePreflop}, else {@link coachDecision}) and rendering it with the same
+ * `renderPreflopCoach` / `renderCoachFeedback` the play loop uses reproduces the original verdict +
+ * trace deterministically — no seed, shuffle, or bot-matching involved. A parse/grade failure prints
+ * one clear error line rather than throwing, so a hand-edited blob fails loudly but cleanly.
+ */
+function regradeSpot(json: string): void {
+  let spot
+  try {
+    spot = parseSpot(json)
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    emit(`Could not re-grade --spot: ${reason}`)
+    return
+  }
+  try {
+    const { ctx, action } = spot
+    emit(`Re-grading captured spot — ${ctx.street}, action "${actionLabel(action)}".`)
+    if (ctx.street === 'preflop') {
+      emit(renderPreflopCoach(gradePreflop(ctx, action)))
+    } else {
+      emit(renderCoachFeedback(coachDecision(ctx, action)))
+    }
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    emit(`Could not re-grade --spot: ${reason}`)
   }
 }
 
@@ -425,6 +471,14 @@ function renderSummary(s: SweepSummary): string {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
+
+  // `--spot` short-circuits the play loop entirely: re-grade the single captured spot and exit. The
+  // coach is a pure function of `(ctx, action)`, so the blob alone reproduces the ruling — no hand
+  // to deal, no other flag consulted.
+  if (args.spot !== null) {
+    regradeSpot(args.spot)
+    return
+  }
 
   if (!args.json) {
     emit(`Bachmann Hold'em — headless harness.`)

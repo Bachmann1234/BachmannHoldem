@@ -14,10 +14,38 @@
 
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
-import { parseCards, type Card, type HandState } from '@holdem/engine'
+import { parseCards, type Action, type Card, type HandState } from '@holdem/engine'
+import type { DecisionContext } from '@holdem/bots'
 import { CoachPanel } from './CoachPanel.js'
 import { createInitialModel, type Model } from '@holdem/session'
 import { reducer } from '@holdem/session'
+
+/**
+ * A throwaway stub {@link DecisionContext} for the literal-`CoachResult` tests below. The panel never
+ * reads the `ctx`/`action` the graded `CoachResult` variants now carry (those exist only for the
+ * "Copy ruling" spot-capture path) — the panel renders the `verdict` — so any well-typed value will
+ * do; the reducer-driven tests above carry the real one.
+ */
+const STUB_CTX: DecisionContext = {
+  seat: 0,
+  holeCards: parseCards('As Ad') as [Card, Card],
+  board: [],
+  street: 'flop',
+  legalActions: { fold: true, check: true, call: null, bet: null, raise: null },
+  pot: 10,
+  currentBet: 0,
+  toCall: 0,
+  stack: 200,
+  committed: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  buttonIndex: 0,
+  isButton: true,
+  numPlayers: 2,
+  numActive: 2,
+  opponents: [],
+}
+const STUB_ACTION: Action = { type: 'check' }
 
 /** Build a deck dealing exactly the given hole cards and board (mirrors the engine test helper). */
 function buildDeck(n: number, button: number, holesBySeat: string[], board: string): Card[] {
@@ -144,7 +172,10 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
               verdict: 'good',
               missedValueBet: true,
               concept: 'equity',
+              trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
             },
+            ctx: STUB_CTX,
+            action: STUB_ACTION,
           }}
         />,
       ).lastFrame()!,

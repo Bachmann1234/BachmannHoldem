@@ -9,22 +9,51 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { parseCards, type Card } from '@holdem/engine'
+import { parseCards, type Action, type Card } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import type { DecisionContext } from '@holdem/bots'
 import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { CoachDrawer } from './CoachDrawer.js'
 
 afterEach(cleanup)
 
-/** Build a postflop `verdict` CoachResult around a `DecisionVerdict`. */
+/**
+ * A real-shaped spot the graded `CoachResult` variants now carry, so the "Copy ruling" button can
+ * `serializeSpot(coach.ctx, coach.action, coach.verdict)`. Most presentational assertions never read
+ * it (they render the verdict); the copy-ruling test does, so it carries real cards/board.
+ */
+const SPOT_CTX: DecisionContext = {
+  seat: 0,
+  holeCards: parseCards('Ah Kh') as [Card, Card],
+  board: parseCards('Qh Jh 2c'),
+  street: 'flop',
+  legalActions: { fold: true, check: false, call: { amount: 10 }, bet: null, raise: null },
+  pot: 30,
+  currentBet: 10,
+  toCall: 10,
+  stack: 190,
+  committed: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  buttonIndex: 0,
+  isButton: true,
+  numPlayers: 2,
+  numActive: 2,
+  opponents: [
+    { seat: 1, stack: 180, committed: 10, totalCommitted: 20, status: 'active', isButton: false },
+  ],
+}
+const SPOT_ACTION: Action = { type: 'call' }
+
+/** Build a postflop `verdict` CoachResult around a `DecisionVerdict` (with a captured spot). */
 function verdictResult(verdict: DecisionVerdict): Extract<CoachResult, { kind: 'verdict' }> {
-  return { kind: 'verdict', verdict }
+  return { kind: 'verdict', verdict, ctx: SPOT_CTX, action: SPOT_ACTION }
 }
 
-/** Build a preflop `preflop` CoachResult around a `PreflopVerdict`. */
+/** Build a preflop `preflop` CoachResult around a `PreflopVerdict` (with a captured spot). */
 function preflopResult(verdict: PreflopVerdict): Extract<CoachResult, { kind: 'preflop' }> {
-  return { kind: 'preflop', verdict }
+  return { kind: 'preflop', verdict, ctx: SPOT_CTX, action: SPOT_ACTION }
 }
 
 /** A facing-a-bet verdict: equity beats the price, a positive call EV, graded good. */
@@ -37,6 +66,7 @@ const GOOD: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
 }
 
 /** A leak: the math pointed to folding, a negative call EV. */
@@ -49,6 +79,7 @@ const LEAK: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75 },
 }
 
 /** A break-even coin-flip. */
@@ -61,6 +92,7 @@ const BREAKEVEN: DecisionVerdict = {
   verdict: 'breakEven',
   missedValueBet: false,
   concept: 'equity-vs-price',
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
 }
 
 /** A free check: no bet to call, so `potOddsThreshold === 0`. */
@@ -73,6 +105,7 @@ const FREE_CHECK: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity',
+  trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
 }
 
 describe('CoachDrawer — verdict state', () => {
@@ -146,6 +179,34 @@ describe('CoachDrawer — verdict state', () => {
   })
 })
 
+describe('CoachDrawer — Copy ruling (spot capture)', () => {
+  it('postflop: serialises the captured spot (hand + verdict) to the clipboard on click', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
+    fireEvent.click(screen.getByTestId('copy-ruling'))
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    const blob = writeText.mock.calls[0]![0] as string
+    // The blob is the serialised spot: the hero's hand + board as readable strings, the action, and
+    // the verdict carried so the ruling is reviewable as-is.
+    expect(blob).toContain('"holeCards": "Ah Kh"')
+    expect(blob).toContain('"board": "Qh Jh 2c"')
+    expect(blob).toContain('"action": "call"')
+    expect(blob).toContain('"verdict"')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('does not throw when the clipboard API is unavailable', () => {
+    vi.stubGlobal('navigator', {})
+    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
+    expect(() => fireEvent.click(screen.getByTestId('copy-ruling'))).not.toThrow()
+    vi.unstubAllGlobals()
+  })
+})
+
 describe('CoachDrawer — preflop state', () => {
   /** A premium hand the hero correctly opened — graded off the chart. */
   const PREFLOP_GOOD: PreflopVerdict = {
@@ -155,6 +216,14 @@ describe('CoachDrawer — preflop state', () => {
     heroContinued: true,
     verdict: 'good',
     concept: 'ranges',
+    trace: {
+      position: 'late',
+      facingRaise: false,
+      raiseBb: 1,
+      band: 'unraised',
+      mode: 'open',
+      stealSpot: false,
+    },
   }
 
   it('renders the chart rationale and the shared good headline', () => {
@@ -183,6 +252,17 @@ describe('CoachDrawer — preflop state', () => {
     expect(screen.queryByTestId('metric-equity')).toBeNull()
     expect(screen.queryByTestId('metric-potodds')).toBeNull()
     expect(screen.queryByTestId('metric-ev')).toBeNull()
+  })
+
+  it('offers Copy ruling preflop too, serialising the spot + preflop verdict', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    render(<CoachDrawer coach={preflopResult(PREFLOP_GOOD)} open onClose={vi.fn()} />)
+    fireEvent.click(screen.getByTestId('copy-ruling'))
+    const blob = writeText.mock.calls[0]![0] as string
+    expect(blob).toContain('"action": "call"')
+    expect(blob).toContain('"verdict"')
+    vi.unstubAllGlobals()
   })
 
   it('offers "see the chart" and opens the starting-hand chart overlay (ticket 0050)', () => {
