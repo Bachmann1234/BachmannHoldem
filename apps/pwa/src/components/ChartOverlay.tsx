@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { startingHandChart, type PreflopTier } from '@holdem/coach'
 
 /** The tiers in strength order — the legend order, strongest first. */
@@ -33,10 +34,16 @@ const TIER_LABEL: Readonly<Record<PreflopTier, string>> = {
 export interface ChartOverlayProps {
   /** Dismiss the overlay. */
   readonly onClose: () => void
+  /**
+   * The hand-class label to highlight as "your hand" (e.g. `"AKs"`, from `@holdem/coach`'s
+   * `handClassLabel`). Its cell gets a ring and the header names it. Omitted from the Learn section
+   * (no live hand) — only the coach drawer's preflop verdict passes it.
+   */
+  readonly highlight?: string
 }
 
 /** Render the starting-hand chart as a centred modal over a scrim. */
-export function ChartOverlay({ onClose }: ChartOverlayProps): React.JSX.Element {
+export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
   // The grid is a pure function of nothing (the chart is fixed), so compute it once per open.
   const grid = useMemo(() => startingHandChart(), [])
@@ -56,7 +63,11 @@ export function ChartOverlay({ onClose }: ChartOverlayProps): React.JSX.Element 
     }
   }, [onClose])
 
-  return (
+  // Portal to <body> so the overlay escapes any transformed ancestor (the coach `.drawer` slides via
+  // `transform`, which would otherwise become the containing block for our `position: fixed` and pin
+  // the chart to the drawer instead of the viewport — BUG-0006). At <body> the `fixed` centering
+  // resolves against the viewport from both entry points.
+  return createPortal(
     <>
       <div className="chart-scrim" onClick={onClose} aria-hidden="true" data-testid="chart-scrim" />
       <div
@@ -84,19 +95,29 @@ export function ChartOverlay({ onClose }: ChartOverlayProps): React.JSX.Element 
           Every starting hand, sorted into strength tiers — the same chart the coach grades preflop
           against. <b>Suited</b> hands are above the diagonal, <b>offsuit</b> below, pairs down the
           middle.
+          {highlight ? (
+            <>
+              {' '}
+              Your hand <b className="chart-your-hand">{highlight}</b> is ringed.
+            </>
+          ) : null}
         </p>
 
         <div className="chart-grid" data-testid="chart-grid">
           {grid.flatMap((row, r) =>
-            row.map((cell, c) => (
-              <div
-                key={`${r}-${c}`}
-                className={`chart-cell tier-${cell.tier}`}
-                title={`${cell.label} — ${TIER_LABEL[cell.tier]}`}
-              >
-                {cell.label}
-              </div>
-            )),
+            row.map((cell, c) => {
+              const current = highlight !== undefined && cell.label === highlight
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className={`chart-cell tier-${cell.tier}${current ? ' is-current' : ''}`}
+                  title={`${cell.label} — ${TIER_LABEL[cell.tier]}${current ? ' (your hand)' : ''}`}
+                  data-testid={current ? 'chart-current' : undefined}
+                >
+                  {cell.label}
+                </div>
+              )
+            }),
           )}
         </div>
 
@@ -109,6 +130,7 @@ export function ChartOverlay({ onClose }: ChartOverlayProps): React.JSX.Element 
           ))}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }

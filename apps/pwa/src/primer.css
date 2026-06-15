@@ -1283,3 +1283,20 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* "your hand" highlight in the chart (BUG-0006 / ticket 0050): a bright ring that reads on any tier
+   colour, lifted above its neighbours. */
+.chart-cell.is-current {
+  outline: 2.5px solid var(--text);
+  outline-offset: -1px;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 10px rgba(0, 0, 0, 0.5);
+  position: relative;
+  z-index: 1;
+  font-weight: 800;
+}
+.chart-your-hand {
+  font-family: var(--font-mono);
+  color: var(--text);
+}

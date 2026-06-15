@@ -24,7 +24,7 @@
  * coach CLI wiring ([[0023-coach-cli-wiring]]).
  */
 
-import { formatCard, parseCards, type Action, type Card } from '@holdem/engine'
+import { formatCard, parseCards, rankOf, suitOf, type Action, type Card } from '@holdem/engine'
 import type { DecisionContext } from '@holdem/bots'
 import { parseRange, type Combo, type Range } from '@holdem/odds'
 import type { ActionVerdict, Concept } from './verdict.js'
@@ -344,6 +344,24 @@ export const CHART_RANKS = [
   '3',
   '2',
 ] as const
+
+/**
+ * The hand-class label for two hole cards, in the same standard notation {@link startingHandChart}
+ * uses for its cells — `"QQ"` (pair), `"AKs"` (suited), `"AKo"` (offsuit), higher rank first. So a
+ * hand's label is exactly the label of its grid cell: a chart view can highlight "your hand" by
+ * matching this against {@link ChartCell.label}. Pure (rank/suit reads only).
+ */
+export function handClassLabel(holeCards: readonly [Card, Card]): string {
+  const [a, b] = holeCards
+  const ra = rankOf(a)
+  const rb = rankOf(b)
+  if (ra === rb) return `${ra}${rb}` // pocket pair
+  // Higher rank leads the label — a lower index in CHART_RANKS (A→2) is the stronger rank.
+  const aStronger = CHART_RANKS.indexOf(ra) < CHART_RANKS.indexOf(rb)
+  const hi = aStronger ? ra : rb
+  const lo = aStronger ? rb : ra
+  return `${hi}${lo}${suitOf(a) === suitOf(b) ? 's' : 'o'}`
+}
 
 /**
  * One cell of the {@link startingHandChart} grid: a starting-hand *class* (a `"AA"` / `"AKs"` /

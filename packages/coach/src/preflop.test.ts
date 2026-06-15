@@ -8,6 +8,7 @@ import {
   PREFLOP_CHART,
   CHART_RANKS,
   startingHandChart,
+  handClassLabel,
   type PreflopTier,
   type StartingHandVerdict,
 } from './preflop.js'
@@ -357,5 +358,29 @@ describe('startingHandChart', () => {
     expect(cell72o.kind).toBe('offsuit')
     expect(cell72o.tier).toBe('trash')
     expect(chart[12]![12]!.tier).toBe('playable') // 22
+  })
+})
+
+describe('handClassLabel', () => {
+  it('labels pairs, suited, and offsuit in standard notation (higher rank first)', () => {
+    expect(handClassLabel(hole('AsAh'))).toBe('AA')
+    expect(handClassLabel(hole('AhKh'))).toBe('AKs')
+    expect(handClassLabel(hole('AhKs'))).toBe('AKo')
+    expect(handClassLabel(hole('7c2d'))).toBe('72o')
+    expect(handClassLabel(hole('Th9h'))).toBe('T9s')
+  })
+
+  it('orders by rank regardless of card order', () => {
+    expect(handClassLabel(hole('KsAs'))).toBe('AKs')
+    expect(handClassLabel(hole('2d7c'))).toBe('72o')
+  })
+
+  it('matches the label of the cell the hand falls in (so a chart can highlight it)', () => {
+    // For a sample of hands, the class label equals the matching chart cell's label.
+    const grid = startingHandChart()
+    const cellLabels = new Set(grid.flat().map((c) => c.label))
+    for (const cards of ['AsAh', 'AhKh', 'AhKs', '7c2d', 'Th9h', 'Js9c', 'Qd2d']) {
+      expect(cellLabels.has(handClassLabel(hole(cards)))).toBe(true)
+    }
   })
 })

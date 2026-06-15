@@ -27,7 +27,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import type { Card } from '@holdem/engine'
+import { handClassLabel, type DecisionVerdict, type PreflopVerdict } from '@holdem/coach'
 import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
@@ -40,6 +41,11 @@ export interface CoachDrawerProps {
   readonly open: boolean
   /** Dismiss the sheet. */
   readonly onClose: () => void
+  /**
+   * The hero's hole cards for the current hand, if any — used to highlight "your hand" in the
+   * starting-hand chart opened from a preflop verdict. Omitted when there is no live hand.
+   */
+  readonly heroHoleCards?: readonly [Card, Card]
 }
 
 /**
@@ -79,7 +85,12 @@ function verdictTone(tag: DecisionVerdict['verdict']): {
 }
 
 /** Render the bottom sheet + its scrim. */
-export function CoachDrawer({ coach, open, onClose }: CoachDrawerProps): React.JSX.Element {
+export function CoachDrawer({
+  coach,
+  open,
+  onClose,
+  heroHoleCards,
+}: CoachDrawerProps): React.JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
 
   // Focus management for the modal sheet: on open, remember what was focused (the FAB that opened
@@ -137,7 +148,7 @@ export function CoachDrawer({ coach, open, onClose }: CoachDrawerProps): React.J
         {coach.kind === 'verdict' ? (
           <VerdictBody verdict={coach.verdict} />
         ) : coach.kind === 'preflop' ? (
-          <PreflopBody verdict={coach.verdict} />
+          <PreflopBody verdict={coach.verdict} heroHoleCards={heroHoleCards} />
         ) : coach.kind === 'error' ? (
           <div className="coach-note" data-testid="coach-error">
             {coach.message}
@@ -232,10 +243,18 @@ function preflopCopy(verdict: PreflopVerdict): string {
  * cards — preflop is graded by the chart, not the pot-odds math, so there is nothing here to
  * contradict the chart verdict.
  */
-function PreflopBody({ verdict }: { readonly verdict: PreflopVerdict }): React.JSX.Element {
+function PreflopBody({
+  verdict,
+  heroHoleCards,
+}: {
+  readonly verdict: PreflopVerdict
+  readonly heroHoleCards?: readonly [Card, Card]
+}): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
   // The chart this verdict came off is viewable on demand — its open state is local UI.
   const [chartOpen, setChartOpen] = useState(false)
+  // Highlight the hero's actual starting hand in the chart (its class label = the cell's label).
+  const highlight = heroHoleCards ? handClassLabel(heroHoleCards) : undefined
   return (
     <>
       <div className={`verdict ${tone.cls}`} data-testid="coach-verdict">
@@ -256,7 +275,9 @@ function PreflopBody({ verdict }: { readonly verdict: PreflopVerdict }): React.J
       >
         ♠ See the starting-hand chart
       </button>
-      {chartOpen ? <ChartOverlay onClose={() => setChartOpen(false)} /> : null}
+      {chartOpen ? (
+        <ChartOverlay onClose={() => setChartOpen(false)} highlight={highlight} />
+      ) : null}
     </>
   )
 }
