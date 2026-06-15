@@ -1204,8 +1204,12 @@
 }
 .chart-cell {
   aspect-ratio: 1;
+  width: 100%;
   display: grid;
   place-items: center;
+  border: 0;
+  padding: 0;
+  margin: 0;
   border-radius: 3px;
   font-family: var(--font-mono);
   font-size: 8px;
@@ -1214,6 +1218,41 @@
   color: var(--text-2);
   background: var(--surface-2);
   overflow: hidden;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: outline-color 0.1s;
+}
+.chart-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  z-index: 2;
+}
+/* the tapped cell — a soft accent ring (distinct from the bright "your hand" ring) that drives the
+   decode caption below the grid. Works on touch, where the hover `title` never fires. */
+.chart-cell.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  position: relative;
+  z-index: 1;
+  font-weight: 800;
+}
+
+/* decode caption: the tapped cell's shorthand read aloud in words ("JTo — Jack-Ten offsuit — Marginal") */
+.chart-caption {
+  margin: 12px 0 0;
+  min-height: 1.2em;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  text-align: center;
+}
+.chart-caption .chart-your-hand {
+  font-weight: 700;
+}
+.chart-caption-hint {
+  color: var(--text-3);
+  font-style: italic;
 }
 
 /* tier scale: a green heat ramp by lightness (premium brightest → playable dim, all at the accent's
@@ -1282,6 +1321,63 @@
 .chart-link:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* the Learn header's reference buttons (chart + shorthand glossary) wrap onto two rows on narrow phones */
+.learn-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* poker-shorthand glossary (reuses .chart-modal / .chart-scrim / .chart-note for the shell) */
+.glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.glossary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.glossary-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+.glossary-intro {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.glossary-list {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.glossary-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.glossary-term {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+}
+.glossary-meaning {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-2);
 }
 
 /* "your hand" highlight in the chart (BUG-0006 / ticket 0050): a bright ring that reads on any tier

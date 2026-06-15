@@ -4,6 +4,7 @@ import type { DecisionContext } from '@holdem/bots'
 
 import {
   classifyStartingHand,
+  describeHandClass,
   gradePreflop,
   PREFLOP_CHART,
   CHART_RANKS,
@@ -382,5 +383,45 @@ describe('handClassLabel', () => {
     for (const cards of ['AsAh', 'AhKh', 'AhKs', '7c2d', 'Th9h', 'Js9c', 'Qd2d']) {
       expect(cellLabels.has(handClassLabel(hole(cards)))).toBe(true)
     }
+  })
+})
+
+describe('describeHandClass', () => {
+  it('decodes pairs as "pair of <plural rank>"', () => {
+    expect(describeHandClass('AA')).toBe('pair of Aces')
+    expect(describeHandClass('KK')).toBe('pair of Kings')
+    expect(describeHandClass('TT')).toBe('pair of Tens')
+    expect(describeHandClass('22')).toBe('pair of Twos')
+  })
+
+  it('uses the irregular plural for pocket sixes', () => {
+    expect(describeHandClass('66')).toBe('pair of Sixes')
+  })
+
+  it('decodes suited and offsuit hands with the rank words and "suited"/"offsuit"', () => {
+    expect(describeHandClass('AKs')).toBe('Ace-King suited')
+    expect(describeHandClass('JTo')).toBe('Jack-Ten offsuit')
+    expect(describeHandClass('T9s')).toBe('Ten-Nine suited')
+    expect(describeHandClass('72o')).toBe('Seven-Two offsuit')
+  })
+
+  it('decodes every label the chart renders (no cell reads as raw shorthand)', () => {
+    for (const cell of startingHandChart().flat()) {
+      const decoded = describeHandClass(cell.label)
+      // A decoded label is real prose, never the bare token echoed back.
+      expect(decoded).not.toBe(cell.label)
+      expect(decoded).toMatch(/pair of |suited|offsuit/)
+    }
+  })
+
+  it('round-trips with handClassLabel — a dealt hand decodes to a sensible phrase', () => {
+    expect(describeHandClass(handClassLabel(hole('AhKh')))).toBe('Ace-King suited')
+    expect(describeHandClass(handClassLabel(hole('JdTc')))).toBe('Jack-Ten offsuit')
+  })
+
+  it('returns the input unchanged for unrecognisable strings', () => {
+    expect(describeHandClass('')).toBe('')
+    expect(describeHandClass('XY')).toBe('XY')
+    expect(describeHandClass('AKx')).toBe('AKx')
   })
 })

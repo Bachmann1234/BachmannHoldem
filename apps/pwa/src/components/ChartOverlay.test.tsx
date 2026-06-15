@@ -47,4 +47,24 @@ describe('ChartOverlay', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(3)
   })
+
+  it('prompts for a tap, then decodes the tapped hand in the caption', () => {
+    render(<ChartOverlay onClose={vi.fn()} />)
+    const caption = screen.getByTestId('chart-caption')
+    // Nothing selected yet — a hint invites the first tap.
+    expect(caption.textContent).toMatch(/Tap any hand/i)
+
+    // Tapping JTo decodes it in words with its tier.
+    fireEvent.click(screen.getByTitle(/^JTo —/))
+    expect(caption.textContent).toContain('JTo')
+    expect(caption.textContent).toContain('Jack-Ten offsuit')
+    expect(caption.textContent).toContain('Marginal')
+  })
+
+  it('seeds the caption with the highlighted hand so the decode shows on open', () => {
+    render(<ChartOverlay onClose={vi.fn()} highlight="AKs" />)
+    const caption = screen.getByTestId('chart-caption')
+    expect(caption.textContent).toContain('AKs')
+    expect(caption.textContent).toContain('Ace-King suited')
+  })
 })
