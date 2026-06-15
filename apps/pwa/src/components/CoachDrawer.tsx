@@ -26,10 +26,11 @@
  * design CSS.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
+import { ChartOverlay } from './ChartOverlay.js'
 
 /** Props for {@link CoachDrawer}. */
 export interface CoachDrawerProps {
@@ -233,6 +234,8 @@ function preflopCopy(verdict: PreflopVerdict): string {
  */
 function PreflopBody({ verdict }: { readonly verdict: PreflopVerdict }): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
+  // The chart this verdict came off is viewable on demand — its open state is local UI.
+  const [chartOpen, setChartOpen] = useState(false)
   return (
     <>
       <div className={`verdict ${tone.cls}`} data-testid="coach-verdict">
@@ -245,6 +248,15 @@ function PreflopBody({ verdict }: { readonly verdict: PreflopVerdict }): React.J
       <div className="coach-note" data-testid="coach-preflop">
         <b>Starting hand:</b> {verdict.rationale}
       </div>
+      <button
+        type="button"
+        className="chart-link"
+        data-testid="open-chart"
+        onClick={() => setChartOpen(true)}
+      >
+        ♠ See the starting-hand chart
+      </button>
+      {chartOpen ? <ChartOverlay onClose={() => setChartOpen(false)} /> : null}
     </>
   )
 }

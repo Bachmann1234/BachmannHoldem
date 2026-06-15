@@ -14,7 +14,9 @@
  * lesson player at that index. Locked nodes are inert.
  */
 
+import { useState } from 'react'
 import { learnLessons } from '../learn/lessonMeta.js'
+import { ChartOverlay } from './ChartOverlay.js'
 import { CheckIcon, ChevIcon, LockIcon } from './Icons.js'
 import { TabBar } from './TabBar.js'
 import type { Tab } from './TabBar.js'
@@ -42,6 +44,8 @@ export function LearnView({
 }: LearnViewProps): React.JSX.Element {
   const lessons = learnLessons
   const count = lessons.length
+  // The starting-hand chart reference is a self-contained overlay; its open state is local UI.
+  const [chartOpen, setChartOpen] = useState(false)
   // The current node is the first unfinished lesson (clamped); once all are done the path is "all done".
   const allDone = progress >= count
   const currentIdx = Math.min(progress, count - 1)
@@ -76,6 +80,14 @@ export function LearnView({
                 {progress} / {count}
               </div>
             </div>
+            <button
+              type="button"
+              className="chart-link"
+              data-testid="open-chart"
+              onClick={() => setChartOpen(true)}
+            >
+              ♠ View the starting-hand chart
+            </button>
           </div>
 
           <div className="path" style={{ height: count * ROW_H + 8 }}>
@@ -166,6 +178,8 @@ export function LearnView({
       </div>
 
       <TabBar active="learn" onNavigate={onNavigate} />
+
+      {chartOpen ? <ChartOverlay onClose={() => setChartOpen(false)} /> : null}
     </div>
   )
 }

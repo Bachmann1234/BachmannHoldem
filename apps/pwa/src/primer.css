@@ -1151,3 +1151,135 @@
   border-radius: 5px;
   padding: 2px 5px;
 }
+
+/* ============================================================
+   Starting-hand chart overlay (ticket 0050)
+   A centred modal over its own scrim, above the coach drawer (z 10).
+   ============================================================ */
+.chart-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(6, 8, 11, 0.62);
+  backdrop-filter: blur(2px);
+}
+.chart-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  width: calc(100% - 28px);
+  max-width: 420px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.chart-modal::-webkit-scrollbar {
+  display: none;
+}
+.chart-modal {
+  scrollbar-width: none;
+}
+.chart-note {
+  margin: 2px 0 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.chart-note b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* the 13×13 grid */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 2px;
+}
+.chart-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text-2);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+/* tier scale: a green heat ramp by lightness (premium brightest → playable dim, all at the accent's
+   green hue 158), then amber for marginal (a "caution" colour, hue 85), then a flat dim grey for
+   trash. Explicit oklch per tier — NOT a color-mix with the blue-grey surface tokens, whose hue
+   would drag the mix across the wheel (strong→cyan, marginal→magenta). Shared by cells + legend. */
+.tier-premium {
+  background: oklch(0.82 0.16 158);
+  color: var(--accent-ink);
+}
+.tier-strong {
+  background: oklch(0.72 0.14 158);
+  color: var(--accent-ink);
+}
+.tier-playable {
+  background: oklch(0.6 0.09 158);
+  color: #06120c;
+}
+.tier-marginal {
+  background: oklch(0.78 0.13 85);
+  color: #1c1403;
+}
+.tier-trash {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+/* legend */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.chart-legend .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-legend .legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+/* a compact "view the chart" reference button (Learn header + coach drawer) */
+.chart-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.chart-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
