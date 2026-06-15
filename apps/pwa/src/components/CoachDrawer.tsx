@@ -33,6 +33,9 @@ import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format
 import type { CoachResult } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
 
+/** How far (px) the sheet must be dragged down before releasing dismisses it. */
+const DISMISS_THRESHOLD = 90
+
 /** Props for {@link CoachDrawer}. */
 export interface CoachDrawerProps {
   /** The coach grade to lay out (from `model.coach`). */
@@ -97,19 +100,72 @@ export function CoachDrawer({
   // it), move focus to the close button, and close on Escape; on close, restore focus to the opener
   // so keyboard/screen-reader users land back where they were. (`onClose` is a stable callback, so
   // this runs only on an actual open/close, not every render.)
+  //
+  // `preventScroll: true` on both focus calls is load-bearing on mobile: the default `.focus()`
+  // scrolls the focused element into view, and focusing the close button while the sheet is still
+  // sliding up makes the browser yank the layout to reveal it — the "whole table bounces" on tap.
   useEffect(() => {
     if (!open) return
     const opener = document.activeElement as HTMLElement | null
-    closeRef.current?.focus()
+    closeRef.current?.focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('keydown', onKey)
-      opener?.focus?.()
+      opener?.focus?.({ preventScroll: true })
     }
   }, [open, onClose])
+
+  // Swipe-to-dismiss: drag the grab handle / header down to close the sheet (the design's `.grab`
+  // affordance, now wired). Pointer events cover touch + mouse. We only treat a gesture as a drag
+  // once it has moved past a small threshold DOWNWARD, so a plain tap on the close button still
+  // fires its click (no pointer capture is taken until we're sure it's a drag). The body of the
+  // sheet keeps its native scroll — only the non-scrolling handle region starts a dismiss drag.
+  // State drives the visual transform; refs hold the synchronous truth the release decision reads
+  // (state updates are async, so a fast drag's pointerup must not consult possibly-stale state).
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const dragStartY = useRef<number | null>(null)
+  const draggingRef = useRef(false)
+  const dragYRef = useRef(0)
+
+  const onHandlePointerDown = (e: React.PointerEvent): void => {
+    if (!open) return
+    dragStartY.current = e.clientY
+    draggingRef.current = false
+    dragYRef.current = 0
+  }
+  const onHandlePointerMove = (e: React.PointerEvent): void => {
+    if (dragStartY.current === null) return
+    const dy = e.clientY - dragStartY.current
+    if (dy <= 0 && !draggingRef.current) return // ignore upward / pre-threshold movement
+    if (!draggingRef.current) {
+      if (dy < 6) return // not yet a deliberate drag — let a tap through
+      draggingRef.current = true
+      setDragging(true)
+      // Keep the gesture even if the finger slides off the handle. Best-effort: some browsers throw
+      // on an unknown pointer id, and losing capture only costs a slightly shorter drag.
+      try {
+        e.currentTarget.setPointerCapture?.(e.pointerId)
+      } catch {
+        /* pointer capture is best-effort */
+      }
+    }
+    dragYRef.current = Math.max(0, dy)
+    setDragY(dragYRef.current)
+  }
+  const endDrag = (): void => {
+    if (dragStartY.current === null) return
+    const shouldClose = draggingRef.current && dragYRef.current > DISMISS_THRESHOLD
+    dragStartY.current = null
+    draggingRef.current = false
+    dragYRef.current = 0
+    setDragging(false)
+    setDragY(0)
+    if (shouldClose) onClose()
+  }
 
   return (
     <>
@@ -130,8 +186,20 @@ export function CoachDrawer({
         aria-hidden={!open || undefined}
         inert={!open}
         data-testid="coach-drawer"
+        // While dragging, follow the finger with no transition; on release the inline style drops and
+        // the CSS transition snaps it back (or, if past the threshold, `onClose` slides it away).
+        style={dragging ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
       >
-        <div className="grab" />
+        <div
+          className="drawer-handle"
+          onPointerDown={onHandlePointerDown}
+          onPointerMove={onHandlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          data-testid="coach-grab"
+        >
+          <div className="grab" />
+        </div>
         <div className="drawer-head">
           <div className="drawer-title">Decision review</div>
           <button

@@ -244,6 +244,37 @@ describe('CoachDrawer — open/close behaviour', () => {
     expect(drawer.getAttribute('aria-modal')).toBe('true')
   })
 
+  it('dismisses when the grab handle is dragged down past the threshold', () => {
+    const onClose = vi.fn()
+    render(<CoachDrawer coach={{ kind: 'none' }} open onClose={onClose} />)
+    const handle = screen.getByTestId('coach-grab')
+    // A deliberate downward drag well past the 90px threshold.
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 140, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 230, pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientY: 230, pointerId: 1 })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('snaps back (does not dismiss) on a short drag below the threshold', () => {
+    const onClose = vi.fn()
+    render(<CoachDrawer coach={{ kind: 'none' }} open onClose={onClose} />)
+    const handle = screen.getByTestId('coach-grab')
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 130, pointerId: 1 }) // 30px — under threshold
+    fireEvent.pointerUp(handle, { clientY: 130, pointerId: 1 })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('does not dismiss on a plain tap of the handle (no drag)', () => {
+    const onClose = vi.fn()
+    render(<CoachDrawer coach={{ kind: 'none' }} open onClose={onClose} />)
+    const handle = screen.getByTestId('coach-grab')
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientY: 100, pointerId: 1 })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('restores focus to the opener when it closes', () => {
     // Stand in for the FAB that opens the sheet: focus it, open, then close.
     const opener = document.createElement('button')
