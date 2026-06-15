@@ -31,8 +31,10 @@ import { isComplete, legalActions, type Action, type Card, type LegalActions } f
 import { decisionContext, type Opponent } from '@holdem/bots'
 import {
   createInitialModel,
+  opponentReads,
   reducer,
   shuffledDeck,
+  shuffledOpponentNames,
   actionIsLegal,
   makeBot,
   type InitialModelOptions,
@@ -354,7 +356,11 @@ function Session({
     // Reset the per-hand decision buffer at the start of every hand (recording is per completed hand).
     decisionsRef.current = []
     const deck = deckQueueRef.current.shift() ?? shuffledDeck()
-    dispatch({ type: 'start-hand', deck })
+    // Draw this session's opponent names once, on the first deal (from setup) — that's the only
+    // moment the reducer builds the player list. Later hands reuse the existing players, so names
+    // are omitted (and would be ignored anyway).
+    const names = phase === 'setup' ? shuffledOpponentNames() : undefined
+    dispatch(names ? { type: 'start-hand', deck, names } : { type: 'start-hand', deck })
   }
 
   // Lazily create a bot for each opponent player the first time we see the session players, and
@@ -511,6 +517,7 @@ function Session({
         open={coachOpen}
         onClose={closeCoach}
         heroHoleCards={hand !== null ? hand.players[heroSeat]?.holeCards : undefined}
+        reads={opponentReads(model)}
       />
       {historyOverlay}
     </div>

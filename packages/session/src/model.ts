@@ -49,12 +49,91 @@ export type BotKind = 'tag' | 'lag' | 'rock' | 'station'
 /** All four presets in display order — the setup screen cycles each opponent seat through these. */
 export const BOT_KINDS: readonly BotKind[] = ['tag', 'lag', 'rock', 'station']
 
-/** Short labels for each preset, for the setup screen and seat naming. */
+/** Short labels for each preset — shown on the setup screen, where the hero *chooses* the spread. */
 export const BOT_LABELS: Readonly<Record<BotKind, string>> = {
   tag: 'TAG',
   lag: 'LAG',
   rock: 'Rock',
   station: 'Station',
+}
+
+/**
+ * A one-line description of each archetype's tendencies, shown under its name on the setup screen so
+ * the hero knows what they're choosing. (The *felt* still hides the style — see [[OPPONENT_NAMES]] —
+ * but the setup screen is where the hero deliberately picks the spread, so it spells them out.)
+ */
+export const BOT_BLURBS: Readonly<Record<BotKind, string>> = {
+  tag: 'Tight & aggressive — few hands, played hard.',
+  lag: 'Loose & aggressive — many hands, lots of pressure.',
+  rock: 'Tight & passive — folds often, rarely bluffs.',
+  station: 'Loose & passive — calls down, rarely folds or raises.',
+}
+
+/**
+ * How to *exploit* each archetype — the one-line read the coach surfaces for an opponent (see
+ * {@link opponentReads}). The felt hides who is who; the coach is where the type is taught, so
+ * this is the payoff of having kept {@link SessionPlayer.botKind} after anonymising the names.
+ */
+export const BOT_TIPS: Readonly<Record<BotKind, string>> = {
+  tag: 'Solid and aggressive — respect their raises and rarely bluff into them.',
+  lag: 'Wide and aggressive — call down lighter and let them bluff into you.',
+  rock: 'Their bets mean strength — fold more, but steal their blinds relentlessly.',
+  station: 'Calls too much — value-bet thin and bluff less; they rarely fold.',
+}
+
+/**
+ * The pool of neutral opponent names shown on the felt (the hero is always `You`). Deliberately
+ * short (≤ 4 chars — they share a narrow seat pill with the stack and a BTN/SB/BB tag on a phone)
+ * and deliberately *not* the archetype, so the table reveals no read. {@link shuffledOpponentNames}
+ * draws a fresh, unique subset per session, so a name maps to no fixed playing style across games;
+ * the style lives in {@link SessionPlayer.botKind}. Must hold at least {@link MAX_SEATS} − 1 names.
+ */
+export const OPPONENT_NAMES: readonly string[] = [
+  'Mia',
+  'Theo',
+  'Alex',
+  'Nia',
+  'Sam',
+  'Ada',
+  'Ben',
+  'Cleo',
+  'Dot',
+  'Eli',
+  'Fay',
+  'Gus',
+  'Ivy',
+  'Jae',
+  'Kai',
+  'Liv',
+  'Max',
+  'Ola',
+  'Pip',
+  'Quin',
+  'Rae',
+  'Sky',
+  'Tom',
+  'Uma',
+  'Val',
+  'Wes',
+  'Zoe',
+  'Jin',
+  'Lee',
+  'Remy',
+]
+
+/**
+ * A fresh, randomly ordered copy of {@link OPPONENT_NAMES} — the impure per-session name draw, kept
+ * out of the pure reducer (which receives the result via the `start-hand` message), exactly like
+ * {@link shuffledDeck}. The shell calls this once when the session's players are built; tests omit
+ * it and fall back to the pool's natural order so labels stay deterministic.
+ */
+export function shuffledOpponentNames(): string[] {
+  const names = [...OPPONENT_NAMES]
+  for (let i = names.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[names[i], names[j]] = [names[j]!, names[i]!]
+  }
+  return names
 }
 
 /**
@@ -111,7 +190,12 @@ export interface SessionPlayer {
   readonly id: number
   /** The human sits in exactly one of these. */
   readonly isHero: boolean
-  /** Display label (e.g. `You`, `Seat 1 (TAG)`). */
+  /**
+   * Display name shown on the felt (e.g. `You`, `Mia`). Opponents get a unique, neutral human
+   * name from {@link OPPONENT_NAMES} rather than their archetype — so the table doesn't hand the
+   * hero each bot's exploitable tendency on a plate. The strategy preset lives in {@link botKind}
+   * (kept for bot behaviour, history, and the coach), decoupled from what the player sees.
+   */
   readonly label: string
   /** The bot preset for an opponent; `undefined` for the hero. */
   readonly botKind?: BotKind
@@ -178,6 +262,32 @@ export interface Model {
   readonly coach: CoachResult
 }
 
+/** The coach's "table read" for one live opponent — their felt name, archetype, and an exploit tip. */
+export interface OpponentRead {
+  readonly name: string
+  readonly kind: BotKind
+  readonly tip: string
+}
+
+/**
+ * Reads for every opponent at the table this hand — each with the exploit tip for its
+ * {@link BotKind} (see {@link BOT_TIPS}). The read is a *personality* (a persistent trait), not a
+ * pot status, so it lists the whole table including players who have folded — the felt hides who is
+ * who, and once the hero opens the coach it names them all. Empty in `'setup'` or with no live hand.
+ */
+export function opponentReads(model: Model): OpponentRead[] {
+  if (model.hand === null) return []
+  const reads: OpponentRead[] = []
+  for (const p of model.hand.players) {
+    if (p.seat === model.heroSeat) continue
+    const id = model.seatToId[p.seat]
+    const sp = id === undefined ? undefined : model.players.find((x) => x.id === id)
+    if (sp?.botKind === undefined) continue
+    reads.push({ name: sp.label, kind: sp.botKind, tip: BOT_TIPS[sp.botKind] })
+  }
+  return reads
+}
+
 /** Options for {@link createInitialModel}; all default to a fresh 6-max setup screen. */
 export interface InitialModelOptions {
   /** Initial seat count for the setup selection. Defaults to {@link DEFAULT_SEATS}. */
@@ -196,6 +306,25 @@ export function defaultOpponents(seats: number): BotKind[] {
   if (count === 1) return ['tag'] // heads-up: a single TAG opponent
   // A varied, repeatable spread for 3..6-max (TAG / LAG / Rock / Station, then wrap).
   return Array.from({ length: count }, (_, i) => BOT_KINDS[i % BOT_KINDS.length]!)
+}
+
+/** Tally an opponent mix by archetype, in {@link BOT_KINDS} order — the setup screen shows counts. */
+export function countsByKind(opponents: readonly BotKind[]): Record<BotKind, number> {
+  const counts: Record<BotKind, number> = { tag: 0, lag: 0, rock: 0, station: 0 }
+  for (const k of opponents) counts[k] += 1
+  return counts
+}
+
+/**
+ * A random opponent mix of `count` archetypes — the impure draw behind the setup screen's
+ * "Randomize" button, kept out of the pure reducer (which receives the result via `set-opponents`),
+ * like {@link shuffledDeck}. Each seat is an independent uniform pick over the four {@link BOT_KINDS}.
+ */
+export function randomOpponents(count: number): BotKind[] {
+  return Array.from(
+    { length: Math.max(0, count) },
+    () => BOT_KINDS[Math.floor(Math.random() * BOT_KINDS.length)]!,
+  )
 }
 
 /**
@@ -245,14 +374,19 @@ export function clampSeats(seats: number): number {
  * the reducer the moment the hero confirms the setup. The order is the session's canonical stable
  * order; everything downstream (compaction, button rotation, summary) reads it.
  */
-export function buildSessionPlayers(setup: SetupState): SessionPlayer[] {
+export function buildSessionPlayers(
+  setup: SetupState,
+  names: readonly string[] = OPPONENT_NAMES,
+): SessionPlayer[] {
   const players: SessionPlayer[] = [{ id: 0, isHero: true, label: 'You', stack: STARTING_STACK }]
   setup.opponents.forEach((botKind, i) => {
     const id = i + 1
     players.push({
       id,
       isHero: false,
-      label: `Seat ${id} (${BOT_LABELS[botKind]})`,
+      // A unique neutral name (not the archetype) from the shell's per-session draw. Falls back to
+      // `Bot N` past the pool, though the pool covers every legal opponent seat (MAX_SEATS − 1).
+      label: names[i] ?? `Bot ${id}`,
       botKind,
       stack: STARTING_STACK,
     })

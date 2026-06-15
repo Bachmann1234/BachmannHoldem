@@ -36,7 +36,7 @@ import {
   type PreflopVerdict,
 } from '@holdem/coach'
 import { explainDecision, explainPreflop, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
-import type { CoachResult } from '@holdem/session'
+import { BOT_LABELS, type CoachResult, type OpponentRead } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
 
 /** How far (px) the sheet must be dragged down before releasing dismisses it. */
@@ -55,6 +55,11 @@ export interface CoachDrawerProps {
    * starting-hand chart opened from a preflop verdict. Omitted when there is no live hand.
    */
   readonly heroHoleCards?: readonly [Card, Card]
+  /**
+   * Every opponent at the table this hand, each with an exploit tip — the coach's "table read".
+   * Named here (not on the felt) so the read is taught on demand, not handed over during play.
+   */
+  readonly reads?: readonly OpponentRead[]
 }
 
 /**
@@ -140,8 +145,13 @@ export function CoachDrawer({
   open,
   onClose,
   heroHoleCards,
+  reads,
 }: CoachDrawerProps): React.JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
+  // The table read is hidden behind a tap: the felt anonymises opponents on purpose, so the coach
+  // *offers* the read but never forces it. Re-collapsed every time the sheet opens (below), so seeing
+  // an opponent's archetype is always a deliberate choice rather than a free, always-on cheat-sheet.
+  const [readsOpen, setReadsOpen] = useState(false)
 
   // Focus management for the modal sheet: on open, remember what was focused (the FAB that opened
   // it), move focus to the close button, and close on Escape; on close, restore focus to the opener
@@ -153,6 +163,7 @@ export function CoachDrawer({
   // sliding up makes the browser yank the layout to reveal it — the "whole table bounces" on tap.
   useEffect(() => {
     if (!open) return
+    setReadsOpen(false) // each open starts with the table read hidden — reveal is a deliberate tap
     const opener = document.activeElement as HTMLElement | null
     closeRef.current?.focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent): void => {
@@ -278,8 +289,68 @@ export function CoachDrawer({
             No decision yet — make your move, then tap the coach to review it.
           </div>
         )}
+        {reads !== undefined && reads.length > 0 && (
+          <ReadsSection
+            reads={reads}
+            expanded={readsOpen}
+            onToggle={() => setReadsOpen((v) => !v)}
+          />
+        )}
       </div>
     </>
+  )
+}
+
+/**
+ * The opt-in "table read" block: a disclosure button that, when tapped, reveals who the hero is
+ * still up against this hand and how to exploit each. Collapsed by default — the felt anonymises
+ * opponents on purpose, so the coach offers the read but never forces it; revealing an archetype is
+ * always a deliberate choice (see the reset-on-open in {@link CoachDrawer}).
+ */
+function ReadsSection({
+  reads,
+  expanded,
+  onToggle,
+}: {
+  readonly reads: readonly OpponentRead[]
+  readonly expanded: boolean
+  readonly onToggle: () => void
+}): React.JSX.Element {
+  // The drawer is a bottom sheet capped at 80% height; with a verdict shown above, the revealed
+  // reads land in its scroll region below the fold. So on reveal, pull the list into view — otherwise
+  // tapping "Reveal" would (silently) scroll nothing on-screen. (`?.` guards jsdom, which has no impl.)
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (expanded) listRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+  }, [expanded])
+  return (
+    <div className="coach-reads" data-testid="coach-reads">
+      <button
+        type="button"
+        className="coach-reads-toggle"
+        data-testid="coach-reads-toggle"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        <span>{expanded ? 'Hide opponent reads' : 'Reveal opponent reads'}</span>
+        <span className="coach-reads-chevron" aria-hidden="true">
+          {expanded ? '▾' : '▸'}
+        </span>
+      </button>
+      {expanded && (
+        <div className="coach-reads-list" ref={listRef}>
+          {reads.map((r, i) => (
+            <div className="coach-read" key={`${r.name}-${i}`} data-testid="coach-read">
+              <div className="coach-read-head">
+                <span className="coach-read-name">{r.name}</span>
+                <span className="coach-read-kind">{BOT_LABELS[r.kind]}</span>
+              </div>
+              <div className="coach-read-tip">{r.tip}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

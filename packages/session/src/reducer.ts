@@ -25,6 +25,7 @@ import {
   applyHandResult,
   buildSessionPlayers,
   clampSeats,
+  countsByKind,
   dealHand,
   defaultOpponents,
   rotateButton,
@@ -40,8 +41,13 @@ import {
  * the reducer pattern-matches and returns the next model.
  *
  * Setup-screen edits (active only in `phase === 'setup'`):
- * - `'set-seats'` — choose the table size; clamped and the opponent presets re-fitted.
- * - `'cycle-opponent'` — cycle one opponent seat through the four presets.
+ * - `'set-seats'` — choose the table size; clamped and the opponent mix re-fitted.
+ * - `'adjust-mix'` — nudge how many opponents are a given archetype by ±1, rebalancing the others
+ *   so the mix still totals `seats − 1` (the felt no longer pins a style to a seat, so setup picks
+ *   *counts*, not per-seat presets).
+ * - `'set-opponents'` — replace the whole mix at once (the shell's "Randomize" reroll).
+ * - `'cycle-opponent'` — cycle one opponent seat through the four presets (the TUI's per-seat
+ *   setup editor still drives the mix this way; the PWA uses count-based `adjust-mix` instead).
  *
  * Session messages:
  * - `'start-hand'` — the shell hands in a freshly shuffled `deck`; the reducer deals the next hand
@@ -57,8 +63,14 @@ import {
 export type Msg =
   | { readonly type: 'noop' }
   | { readonly type: 'set-seats'; readonly seats: number }
+  | { readonly type: 'adjust-mix'; readonly kind: BotKind; readonly delta: 1 | -1 }
+  | { readonly type: 'set-opponents'; readonly opponents: readonly BotKind[] }
   | { readonly type: 'cycle-opponent'; readonly opponentIndex: number; readonly direction?: 1 | -1 }
-  | { readonly type: 'start-hand'; readonly deck: readonly Card[] }
+  | {
+      readonly type: 'start-hand'
+      readonly deck: readonly Card[]
+      readonly names?: readonly string[]
+    }
   | { readonly type: 'apply-action'; readonly action: Action }
   | { readonly type: 'quit' }
 
@@ -76,11 +88,17 @@ export function reducer(model: Model, msg: Msg): Model {
     case 'set-seats':
       return setSeats(model, msg.seats)
 
+    case 'adjust-mix':
+      return adjustMix(model, msg.kind, msg.delta)
+
+    case 'set-opponents':
+      return setOpponents(model, msg.opponents)
+
     case 'cycle-opponent':
       return cycleOpponent(model, msg.opponentIndex, msg.direction ?? 1)
 
     case 'start-hand':
-      return startHand(model, msg.deck)
+      return startHand(model, msg.deck, msg.names)
 
     case 'apply-action':
       return applyHeroOrBotAction(model, msg.action)
@@ -105,9 +123,15 @@ function setSeats(model: Model, seats: number): Model {
   return { ...model, setup: { seats: next, opponents } }
 }
 
+/** Rebuild the opponent list from per-archetype counts, grouped in {@link BOT_KINDS} order. */
+function opponentsFromCounts(counts: Record<BotKind, number>): BotKind[] {
+  return BOT_KINDS.flatMap((k) => Array.from({ length: counts[k] }, () => k))
+}
+
 /**
  * Setup edit: cycle one opponent seat to the next (or previous) preset, wrapping through the four
- * {@link BOT_KINDS}. No-op outside `'setup'` or for an out-of-range index.
+ * {@link BOT_KINDS}. The TUI's per-seat setup editor uses this; the PWA edits counts via
+ * {@link adjustMix}. No-op outside `'setup'` or for an out-of-range index.
  */
 function cycleOpponent(model: Model, opponentIndex: number, direction: 1 | -1): Model {
   if (model.phase !== 'setup') return model
@@ -117,6 +141,44 @@ function cycleOpponent(model: Model, opponentIndex: number, direction: 1 | -1): 
   const nextKind: BotKind = BOT_KINDS[(at + direction + BOT_KINDS.length) % BOT_KINDS.length]!
   const opponents = model.setup.opponents.map((k, i) => (i === opponentIndex ? nextKind : k))
   return { ...model, setup: { ...model.setup, opponents } }
+}
+
+/**
+ * Setup edit: change how many opponents are `kind` by `delta` (±1), keeping the mix's total fixed at
+ * `seats − 1` by moving the slot to/from another archetype. Adding a `kind` steals from the *most*
+ * common other archetype; removing one gives to the *least* common — both nudge toward variety. The
+ * felt assigns names to seats randomly per session, so order is irrelevant here; only counts matter.
+ * No-op outside `'setup'`, or when the edit is impossible (already 0, or already the whole table).
+ */
+function adjustMix(model: Model, kind: BotKind, delta: 1 | -1): Model {
+  if (model.phase !== 'setup') return model
+  const counts = countsByKind(model.setup.opponents)
+  const others = BOT_KINDS.filter((k) => k !== kind)
+  if (delta === 1) {
+    // Take a slot from the most-common other archetype (there must be one: the mix is full).
+    const donor = others.reduce((a, b) => (counts[b] > counts[a] ? b : a))
+    if (counts[donor] === 0) return model // `kind` already fills the table.
+    counts[kind] += 1
+    counts[donor] -= 1
+  } else {
+    if (counts[kind] === 0) return model
+    // Give the freed slot to the least-common other archetype.
+    const receiver = others.reduce((a, b) => (counts[b] < counts[a] ? b : a))
+    counts[kind] -= 1
+    counts[receiver] += 1
+  }
+  return { ...model, setup: { ...model.setup, opponents: opponentsFromCounts(counts) } }
+}
+
+/**
+ * Setup edit: replace the whole opponent mix (the "Randomize" reroll). Re-fitted to `seats − 1` so a
+ * stale or wrong-length list can't desync the table size. No-op outside `'setup'`.
+ */
+function setOpponents(model: Model, opponents: readonly BotKind[]): Model {
+  if (model.phase !== 'setup') return model
+  const fill = defaultOpponents(model.setup.seats)
+  const fitted = Array.from({ length: model.setup.seats - 1 }, (_, i) => opponents[i] ?? fill[i]!)
+  return { ...model, setup: { ...model.setup, opponents: fitted } }
 }
 
 /**
@@ -133,9 +195,9 @@ function cycleOpponent(model: Model, opponentIndex: number, direction: 1 | -1): 
  * `seatToId` / `heroSeat` are rebuilt for this hand's compacted seating. No-op while `'playing'`
  * (a hand is already live) or once `'game-over'`.
  */
-function startHand(model: Model, deck: readonly Card[]): Model {
+function startHand(model: Model, deck: readonly Card[], names?: readonly string[]): Model {
   if (model.phase === 'setup') {
-    const players = buildSessionPlayers(model.setup)
+    const players = buildSessionPlayers(model.setup, names)
     // The hero (id 0) takes the first button — a deterministic, documented start; it rotates from
     // here every subsequent hand.
     const buttonId = 0

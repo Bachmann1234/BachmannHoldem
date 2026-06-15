@@ -18,13 +18,19 @@ import {
   type HandState,
 } from '@holdem/engine'
 import {
+  BOT_TIPS,
   buildSessionPlayers,
   compactSeating,
+  countsByKind,
   createInitialModel,
   defaultOpponents,
+  MAX_SEATS,
+  opponentReads,
+  OPPONENT_NAMES,
   removeBusted,
   rotateButton,
   sessionOver,
+  shuffledOpponentNames,
   type SessionPlayer,
 } from './model.js'
 import { reducer } from './reducer.js'
@@ -78,27 +84,58 @@ describe('reducer — setup phase', () => {
     expect(model.setup.opponents).toHaveLength(1)
   })
 
-  it('set-seats preserves already-chosen presets when growing the table', () => {
+  it('set-seats preserves the chosen mix when growing the table', () => {
     let model = createInitialModel({ seats: 2 })
-    model = reducer(model, { type: 'cycle-opponent', opponentIndex: 0 }) // tag -> lag
+    model = reducer(model, { type: 'adjust-mix', kind: 'lag', delta: 1 }) // the lone tag -> lag
     expect(model.setup.opponents[0]).toBe('lag')
     model = reducer(model, { type: 'set-seats', seats: 3 })
     expect(model.setup.opponents[0]).toBe('lag') // preserved
     expect(model.setup.opponents).toHaveLength(2)
   })
 
-  it('cycle-opponent walks the four presets (wrapping) and ignores out-of-range', () => {
-    let model = createInitialModel({ seats: 2 })
+  it('adjust-mix moves a slot between archetypes, keeping the total fixed at seats - 1', () => {
+    let model = createInitialModel({ seats: 4 }) // 3 opponents: tag/lag/rock
+    expect(countsByKind(model.setup.opponents)).toEqual({ tag: 1, lag: 1, rock: 1, station: 0 })
+
+    model = reducer(model, { type: 'adjust-mix', kind: 'station', delta: 1 })
+    // Adds a station by taking from the most-common other (tag, first of the tied 1s).
+    expect(countsByKind(model.setup.opponents)).toEqual({ tag: 0, lag: 1, rock: 1, station: 1 })
+    expect(model.setup.opponents).toHaveLength(3)
+
+    model = reducer(model, { type: 'adjust-mix', kind: 'station', delta: -1 })
+    // Removing a station gives the slot to the least-common other (tag, back to 1).
+    expect(countsByKind(model.setup.opponents)).toEqual({ tag: 1, lag: 1, rock: 1, station: 0 })
+    expect(model.setup.opponents).toHaveLength(3)
+  })
+
+  it('cycle-opponent walks one seat through the four presets (the TUI per-seat editor)', () => {
+    let model = createInitialModel({ seats: 2 }) // a single tag opponent
     const seq = ['lag', 'rock', 'station', 'tag']
     for (const expected of seq) {
       model = reducer(model, { type: 'cycle-opponent', opponentIndex: 0 })
       expect(model.setup.opponents[0]).toBe(expected)
     }
-    // Backwards wraps the other way; an out-of-range index is a no-op.
     model = reducer(model, { type: 'cycle-opponent', opponentIndex: 0, direction: -1 })
-    expect(model.setup.opponents[0]).toBe('station')
+    expect(model.setup.opponents[0]).toBe('station') // wraps backwards
     const before = model
-    expect(reducer(model, { type: 'cycle-opponent', opponentIndex: 9 })).toBe(before)
+    expect(reducer(model, { type: 'cycle-opponent', opponentIndex: 9 })).toBe(before) // out of range
+  })
+
+  it('adjust-mix is a no-op when the archetype is already 0 or already fills the table', () => {
+    const hu = createInitialModel({ seats: 2 }) // a single tag opponent
+    expect(reducer(hu, { type: 'adjust-mix', kind: 'tag', delta: 1 })).toBe(hu) // already the table
+    expect(reducer(hu, { type: 'adjust-mix', kind: 'lag', delta: -1 })).toBe(hu) // already 0
+  })
+
+  it('set-opponents replaces the whole mix, refit to seats - 1 (the Randomize reroll)', () => {
+    const model = createInitialModel({ seats: 4 })
+    const all = reducer(model, {
+      type: 'set-opponents',
+      opponents: ['station', 'station', 'station', 'station', 'station'],
+    })
+    expect(all.setup.opponents).toEqual(['station', 'station', 'station']) // trimmed to 3
+    const empty = reducer(model, { type: 'set-opponents', opponents: [] })
+    expect(empty.setup.opponents).toEqual(defaultOpponents(4)) // padded from defaults
   })
 
   it('ignores session messages while in setup, except start-hand', () => {
@@ -333,6 +370,58 @@ describe('buildSessionPlayers / defaultOpponents', () => {
   it('defaults heads-up to TAG and larger tables to a varied spread', () => {
     expect(defaultOpponents(2)).toEqual(['tag'])
     expect(defaultOpponents(6)).toEqual(['tag', 'lag', 'rock', 'station', 'tag'])
+  })
+
+  it('names opponents from the supplied list (neutral name on the felt, archetype kept in botKind)', () => {
+    const names = ['Zoe', 'Kai', 'Liv']
+    const players = buildSessionPlayers({ seats: 4, opponents: ['station', 'tag', 'lag'] }, names)
+    expect(players.slice(1).map((p) => p.label)).toEqual(['Zoe', 'Kai', 'Liv'])
+    // The name reveals nothing about the style — the preset still rides on botKind.
+    expect(players.slice(1).map((p) => p.botKind)).toEqual(['station', 'tag', 'lag'])
+    expect(players[0]!.label).toBe('You')
+  })
+
+  it('falls back to the natural pool order when no names are supplied', () => {
+    const players = buildSessionPlayers({ seats: 3, opponents: ['tag', 'rock'] })
+    expect(players.slice(1).map((p) => p.label)).toEqual([OPPONENT_NAMES[0], OPPONENT_NAMES[1]])
+  })
+
+  it('opponentReads is empty before any hand is dealt', () => {
+    expect(opponentReads(createInitialModel({ seats: 4 }))).toEqual([])
+  })
+
+  it('opponentReads names every opponent at the table with the tip for its archetype', () => {
+    let model = createInitialModel({ seats: 4, opponents: ['tag', 'lag', 'station'] })
+    model = reducer(model, { type: 'start-hand', deck: FIXED_DECK, names: ['Mia', 'Theo', 'Alex'] })
+    const reads = opponentReads(model)
+    expect(reads).toHaveLength(3)
+    expect(new Set(reads.map((r) => r.name))).toEqual(new Set(['Mia', 'Theo', 'Alex']))
+    expect(reads.map((r) => r.name)).not.toContain('You') // the hero is never a read
+    for (const r of reads) expect(r.tip).toBe(BOT_TIPS[r.kind])
+  })
+
+  it('opponentReads shows the whole table — a folded opponent still appears (personality, not pot status)', () => {
+    let model = createInitialModel({ seats: 4, opponents: ['tag', 'lag', 'station'] })
+    model = reducer(model, { type: 'start-hand', deck: FIXED_DECK, names: ['Mia', 'Theo', 'Alex'] })
+    // Preflop the first to act is an opponent (UTG), not the hero — fold them.
+    const actorId = model.seatToId[model.hand!.toAct!]!
+    expect(actorId).not.toBe(0)
+    const foldedName = model.players.find((p) => p.id === actorId)!.label
+    model = reducer(model, { type: 'apply-action', action: { type: 'fold' } })
+    const reads = opponentReads(model)
+    expect(reads).toHaveLength(3) // still the full table, not just the live two
+    expect(reads.map((r) => r.name)).toContain(foldedName)
+  })
+
+  it('shuffledOpponentNames returns a permutation of the whole pool (≥ one per opponent seat)', () => {
+    const drawn = shuffledOpponentNames()
+    expect([...drawn].sort()).toEqual([...OPPONENT_NAMES].sort())
+    expect(new Set(drawn).size).toBe(OPPONENT_NAMES.length)
+    expect(drawn.length).toBeGreaterThanOrEqual(MAX_SEATS - 1)
+  })
+
+  it('every pool name is short enough to fit a phone seat pill (≤ 4 chars)', () => {
+    for (const name of OPPONENT_NAMES) expect(name.length).toBeLessThanOrEqual(4)
   })
 })
 

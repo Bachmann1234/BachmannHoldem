@@ -108,6 +108,32 @@ const FREE_CHECK: DecisionVerdict = {
   trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
 }
 
+describe('CoachDrawer — table reads', () => {
+  const READS = [
+    { name: 'Nia', kind: 'station' as const, tip: 'Calls too much — value-bet thin.' },
+    { name: 'Wes', kind: 'lag' as const, tip: 'Wide and aggressive — call down lighter.' },
+  ]
+
+  it('keeps the reads hidden behind a toggle until tapped, then lists each opponent', () => {
+    render(<CoachDrawer coach={{ kind: 'none' }} open onClose={vi.fn()} reads={READS} />)
+    // Collapsed by default: the toggle is present but no opponent rows are rendered yet.
+    expect(screen.getByTestId('coach-reads-toggle')).toBeTruthy()
+    expect(screen.queryAllByTestId('coach-read')).toHaveLength(0)
+
+    fireEvent.click(screen.getByTestId('coach-reads-toggle'))
+    const rows = screen.getAllByTestId('coach-read')
+    expect(rows).toHaveLength(2)
+    expect(screen.getByText('Nia')).toBeTruthy()
+    expect(screen.getByText('Station')).toBeTruthy() // BOT_LABELS[kind], not the raw kind
+    expect(screen.getByText('Calls too much — value-bet thin.')).toBeTruthy()
+  })
+
+  it('omits the reads section entirely when there are no live opponents', () => {
+    render(<CoachDrawer coach={{ kind: 'none' }} open onClose={vi.fn()} reads={[]} />)
+    expect(screen.queryByTestId('coach-reads')).toBeNull()
+  })
+})
+
 describe('CoachDrawer — verdict state', () => {
   it('renders the good verdict: badge, the shared headline, the metric values via @holdem/format', () => {
     render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
