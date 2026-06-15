@@ -66,7 +66,7 @@ const GOOD: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity-vs-price',
-  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
 
 /** A leak: the math pointed to folding, a negative call EV. */
@@ -79,7 +79,7 @@ const LEAK: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   concept: 'equity-vs-price',
-  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75 },
+  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75, polarized: null },
 }
 
 /** A break-even coin-flip. */
@@ -92,7 +92,7 @@ const BREAKEVEN: DecisionVerdict = {
   verdict: 'breakEven',
   missedValueBet: false,
   concept: 'equity-vs-price',
-  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
 
 /** A free check: no bet to call, so `potOddsThreshold === 0`. */
@@ -105,7 +105,7 @@ const FREE_CHECK: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity',
-  trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
+  trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
 }
 
 describe('CoachDrawer — verdict state', () => {

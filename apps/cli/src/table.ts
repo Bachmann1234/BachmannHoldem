@@ -115,7 +115,13 @@ export function renderCoachFeedback(verdict: DecisionVerdict): string {
   // (`grep "Read:"`), self-contained for pasting a ruling to an AI for review.
   const t = verdict.trace
   const betPart = t.betFraction === null ? '' : `, bet ${t.betFraction.toFixed(2)} pot`
-  lines.push(`  Read: ${t.assumedRange} range (${t.lineReason})${betPart}`)
+  // On a board-aware barreled read (ticket 0057) also show the polarised composition — how many
+  // value vs bluff combos the texture produced — so the ruling explains *why* a bluff-catcher folds.
+  const polarPart = t.polarized
+    ? ` [${t.polarized.valueCombos} value / ${t.polarized.bluffCombos} bluff` +
+      `, ${(t.polarized.bluffFraction * 100).toFixed(0)}% bluffs]`
+    : ''
+  lines.push(`  Read: ${t.assumedRange} range (${t.lineReason})${betPart}${polarPart}`)
   lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
   // The deterministic "why" line the TUI/PWA already render (`explainDecision`); the harness now
   // renders it too so the scriptable coach matches the app it is meant to exercise.
