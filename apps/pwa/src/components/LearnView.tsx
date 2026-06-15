@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react'
-import { learnLessons } from '../learn/lessonMeta.js'
+import { learnLessons, lessonHead } from '../learn/lessonMeta.js'
 import { ChartOverlay } from './ChartOverlay.js'
 import { GlossaryOverlay } from './GlossaryOverlay.js'
 import { CheckIcon, ChevIcon, LockIcon } from './Icons.js'
@@ -153,7 +153,7 @@ export function LearnView({
                   <div className="node-label">
                     <div className="nl-tier">Lesson {n}</div>
                     <h3>
-                      {lesson.title}
+                      {lessonHead(lesson)}
                       {meta.subtitle ? ` · ${meta.subtitle}` : ''}
                     </h3>
                     <p>{meta.teaser}</p>

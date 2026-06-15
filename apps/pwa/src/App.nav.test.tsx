@@ -11,6 +11,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest'
 import { FOUNDATIONS } from '@holdem/curriculum'
 import { App } from './App.js'
+import { lessonHead } from './learn/lessonMeta.js'
 
 afterEach(cleanup)
 
@@ -35,10 +36,11 @@ describe('App — top-level navigation', () => {
     fireEvent.click(screen.getByTestId('tab-learn'))
 
     expect(screen.getByTestId('learn')).toBeTruthy()
-    // One node per lesson, each carrying its title (the node's h3 starts with the lesson title).
+    // One node per lesson, each carrying its title *head* (the concept name before the colon) — the
+    // qualifier after the colon is the subtitle, shown once, not the full title repeated.
     for (let i = 0; i < FOUNDATIONS.length; i++) {
       const node = within(screen.getByTestId(`node-${i}`))
-      expect(node.getByRole('heading').textContent).toContain(FOUNDATIONS[i]!.title)
+      expect(node.getByRole('heading').textContent).toContain(lessonHead(FOUNDATIONS[i]!))
     }
   })
 

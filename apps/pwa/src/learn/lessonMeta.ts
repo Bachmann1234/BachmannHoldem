@@ -66,6 +66,16 @@ export function lessonMeta(lesson: Lesson): LessonMeta {
   return LESSON_META[lesson.id] ?? EMPTY_META
 }
 
+/**
+ * The **head** of a lesson title — the concept name before the colon (`"Equity: your share of the
+ * pot"` → `"Equity"`). The bit after the colon is the {@link LessonMeta.subtitle}, shown separately,
+ * so a view that renders `head · subtitle` (the path) or `head` over `subtitle` (the read view) never
+ * repeats the qualifier. Returns the whole title unchanged when there is no colon.
+ */
+export function lessonHead(lesson: Lesson): string {
+  return lesson.title.split(':')[0] ?? lesson.title
+}
+
 /** A lesson zipped with its display copy and its 1-based position — what the Learn path renders over. */
 export interface LearnLesson {
   /** The pure content lesson from `@holdem/curriculum`. */
