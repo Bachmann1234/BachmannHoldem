@@ -37,7 +37,7 @@ the label misleads about what the number is.
 - [x] When the hero has high equity in an unbet / small pot and just checks or flat-calls,
       the coach flags a **missed value bet** (over-passivity) rather than only blessing the
       continue. `DecisionVerdict.missedValueBet` fires on `toCall === 0 && check && equity ≥
-    VALUE_BET_THRESHOLD` (0.60); surfaced once for all clients via the `explainDecision`
+VALUE_BET_THRESHOLD` (0.60); surfaced once for all clients via the `explainDecision`
       nudge. (Scoped to the unbet-pot check — the murkier flat-call-could-raise case is left
       out deliberately; see Resolution.)
 - [x] Fix the misleading `EV(call)` label for spots with nothing to call (a free check and a

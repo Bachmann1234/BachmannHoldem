@@ -94,16 +94,29 @@ const CHART_ORDER: readonly Exclude<PreflopTier, 'trash'>[] = [
 ]
 
 /**
- * One short, human-readable line of guidance per tier — the *why*, not just the *what*, so
- * the verdict teaches a principle a learner can carry to the next hand (per
- * [LEARNING-APPROACH.md]). Returned verbatim as the {@link StartingHandVerdict.rationale}.
+ * One short, human-readable line per tier describing **how strong the holding is** — the
+ * *strength classification*, so the verdict teaches a principle a learner can carry to the next
+ * hand (per [LEARNING-APPROACH.md]). Returned verbatim as the {@link StartingHandVerdict.rationale}
+ * (the strength read), and used as the *open*-path label by the position-aware {@link gradePreflop}
+ * (via {@link openFoldRationale}).
+ *
+ * **No false universals (ticket 0056).** These describe *strength*, not absolute advice the
+ * position/action-aware grader can contradict. In particular `trash` does **not** say "it makes no
+ * money over time" — a hand like K7o is `trash` on this single strength map yet a profitable button /
+ * blind / heads-up *steal* (the {@link STEAL_OPEN_RANGE} promotion, 0054), so "never makes money"
+ * would be a confidently-wrong absolute. It is described as the long unconnected/unsuited tail
+ * instead. The premium/strong open lines are honest at every position (those tiers open everywhere),
+ * so they keep their open phrasing; the position/seat-relative advice that *can* contradict the tier
+ * label (marginal opens vs. early folds, trash steals vs. early folds, facing-raise defends) is
+ * produced at grade time by {@link openFoldRationale} / {@link facingRaiseAdvice}, never asserted as a
+ * universal here.
  */
 const TIER_RATIONALE: Readonly<Record<PreflopTier, string>> = {
   premium: 'Premium holding — always raise; you want chips in.',
   strong: 'Strong value hand — open and bet for value.',
-  playable: 'Playable speculative hand — open in position and play it with a plan.',
-  marginal: 'Marginal hand — open only in late position; fold to pressure.',
-  trash: 'Trash — fold; it makes no money over time.',
+  playable: 'Playable speculative hand — flops well and plays nicely in position.',
+  marginal: 'Marginal hand — the thin edge of the chart: offsuit broadways and suited gappers.',
+  trash: 'Trash — the long tail of unconnected, unsuited hands.',
 }
 
 /**
@@ -517,38 +530,74 @@ function adviceFor(
 
 /**
  * A self-consistent open/fold rationale for the **unraised** path, built from the position-aware
- * {@link advice} actually given so the line never contradicts the verdict (ticket 0054). Two cases
- * the static {@link TIER_RATIONALE} alone gets wrong:
+ * {@link advice} actually given so the line **always follows the verdict and asserts no false
+ * universal** (ticket 0056 completes the pass 0054 began). The {@link TIER_RATIONALE} constant is now
+ * a pure *strength* descriptor — it deliberately makes no absolute open/fold claim — so this function
+ * is the single place the position-relative *advice* wording is produced, covering **every**
+ * `(tier, position, advice)` combination:
  *
- * - The rule *folds* a tier whose static label describes an open — a `playable` speculative hand
- *   from {@link Position.early}, or a `marginal` hand from a non-steal seat. Printing "open in
- *   position" above a `fold` would contradict the verdict, so the fold path gets a position-named
- *   fold line instead.
- * - The rule *opens* a `trash` hand via the {@link STEAL_OPEN_RANGE} promotion (a genuine steal:
- *   folded to the hero on the button / small blind / HU button). The static label is "fold; it makes
- *   no money over time" — exactly the false-absolute
- *   [[0056-coach-rationale-not-absolute]] flags — so the open path gets a steal line instead.
+ * - **Opens.** `premium`/`strong` open from every seat, so their strength label already reads as an
+ *   open and stands. `playable`/`marginal` open only from a non-early / widening seat, so the open
+ *   path names that — "open it from here" — rather than the bare strength label (the `marginal` strength
+ *   line carries no advice, and its old static label asserted the false "fold to pressure" absolute
+ *   0056 flags). A `trash` hand only opens via the {@link STEAL_OPEN_RANGE} promotion (a genuine steal:
+ *   folded to the hero on the button / small blind / HU button), so it gets the steal line — never the
+ *   old "fold; it makes no money over time" absolute.
+ * - **Folds.** A tier that folds gets a *position-relative* fold line that never claims the hand never
+ *   makes money: `playable` is "too loose to open from early position", `marginal` opens only later,
+ *   and — the 0056 fix — a `trash` fold is split by `canStealLater` (whether the hand is in the
+ *   {@link STEAL_OPEN_RANGE}): a steal-range hand (e.g. K7o) folding here is "a steal when folded to
+ *   you in a late/blind seat — just not this spot"; the never-open tail (72o, 32o…) is simply "the
+ *   unconnected bottom of the chart; fold it". Neither claims "it makes no money over time", and —
+ *   the symmetric trap — neither claims the never-open tail "opens later".
  *
- * Otherwise the tier's standard {@link TIER_RATIONALE} label stands. (The broader
- * rationale-follows-advice pass across all wording is 0056; this is the minimal consistency fix the
- * position layer requires.)
+ * The result: no emitted line contradicts the verdict, and none asserts a universal the
+ * position-aware grader would itself break — in *either* direction (a `trash` steal it would open, a
+ * `marginal` hand it would open late, or a junk hand it would open *nowhere*).
+ *
+ * `canStealLater` is whether the holding is a {@link STEAL_OPEN_RANGE} hand (so a `trash` *fold* can
+ * honestly say it opens as a steal elsewhere); it only affects the trash-fold wording.
  */
-function openFoldRationale(tier: PreflopTier, position: Position, advice: PreflopAdvice): string {
+function openFoldRationale(
+  tier: PreflopTier,
+  position: Position,
+  advice: PreflopAdvice,
+  canStealLater: boolean,
+): string {
   if (advice === 'open') {
-    // The only open whose static label says "fold" is a trash hand promoted by the steal range.
+    // A trash open is always the steal-range promotion (the only way trash opens an unraised pot).
     if (tier === 'trash') {
       return 'A wide steal spot — folded to you in late position / the small blind / the heads-up button; open this profitably and take it down.'
     }
+    // Marginal/playable open only from non-early/widening seats — phrase it as the open it is, with no
+    // "fold to pressure" absolute (their strength labels carry no advice).
+    if (tier === 'marginal') {
+      return 'Marginal hand — open it from late position / the small blind to pick up the blinds.'
+    }
+    if (tier === 'playable') {
+      return 'Playable speculative hand — open it from here and play it with a plan.'
+    }
+    // premium/strong: the strength label already reads as an open from every seat.
     return TIER_RATIONALE[tier]
   }
-  // Fold paths whose static label describes an open:
+  // Fold paths: a position-relative fold line that never asserts the hand never makes money.
   if (tier === 'playable' && position === 'early') {
     return 'Playable speculative hand — too loose to open from early position; fold and wait for a later seat.'
   }
   if (tier === 'marginal') {
     return 'Marginal hand — open only in late position / the small blind; fold from earlier seats.'
   }
-  // trash and any other fold falls back to the tier's standard fold label.
+  if (tier === 'trash') {
+    // 0056: never assert a universal — in EITHER direction. A steal-range trash hand (e.g. K7o)
+    // genuinely opens when it is folded to the hero in a late/blind seat, so when one of those is
+    // folding here, say so. But the never-open tail (72o, 32o…) opens NOWHERE, so claiming it "opens
+    // later" would be the same false absolute inverted (and there is no "later seat" than the button);
+    // it just folds. `canStealLater` distinguishes the two.
+    return canStealLater
+      ? 'Trash on the strength chart, but a profitable steal when it is folded to you in a late or blind seat — just not this spot.'
+      : 'Trash — the unconnected bottom of the chart; fold it.'
+  }
+  // Any other fold (none in normal flow) falls back to the tier's strength label.
   return TIER_RATIONALE[tier]
 }
 
@@ -748,8 +797,12 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     // The trash steal-promotion fires only in a genuine steal (the pot folded to the hero); over a
     // limper, raising junk is a leak, not a steal — so gate the promotion on isStealSpot.
     const stealSpot = isStealSpot(ctx)
-    advice = adviceFor(tier, position, validateHole(ctx.holeCards), stealSpot)
-    spotRationale = openFoldRationale(tier, position, advice)
+    const hand = validateHole(ctx.holeCards)
+    advice = adviceFor(tier, position, hand, stealSpot)
+    // A trash hand in the steal range opens when it is folded to the hero in a late/blind seat; this
+    // lets the fold-path rationale say so honestly instead of claiming the whole tail "opens later".
+    const canStealLater = rangeContains(PARSED_STEAL_RANGE, hand)
+    spotRationale = openFoldRationale(tier, position, advice, canStealLater)
   }
 
   // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.

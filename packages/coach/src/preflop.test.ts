@@ -185,13 +185,13 @@ describe('classifyStartingHand — suited vs offsuit distinction', () => {
   })
 })
 
-describe('classifyStartingHand — rationale strings', () => {
-  it('returns a tier-specific, human-readable rationale for every tier', () => {
+describe('classifyStartingHand — rationale strings (strength descriptors, no false absolute)', () => {
+  it('returns a tier-specific, human-readable STRENGTH rationale for every tier', () => {
     const cases: ReadonlyArray<readonly [string, PreflopTier, string]> = [
       ['AsAh', 'premium', 'raise'],
       ['TsTh', 'strong', 'value'],
-      ['7h6h', 'playable', 'position'],
-      ['KsJh', 'marginal', 'late position'],
+      ['7h6h', 'playable', 'plays nicely in position'],
+      ['KsJh', 'marginal', 'thin edge'],
       ['7h2c', 'trash', 'Trash'],
     ]
     for (const [cards, tier, needle] of cases) {
@@ -200,6 +200,15 @@ describe('classifyStartingHand — rationale strings', () => {
       expect(v.rationale.length).toBeGreaterThan(0)
       expect(v.rationale).toContain(needle)
     }
+  })
+
+  it('the strength rationale asserts no false universal advice (0056)', () => {
+    // The classification string describes STRENGTH, not absolute advice the position-aware grader
+    // would contradict: trash is NOT "it makes no money over time" (it can be a profitable steal),
+    // and marginal is NOT "fold to pressure" (it opens in late position).
+    expect(classifyStartingHand(hole('7h2c')).rationale).not.toMatch(/makes no money/i)
+    expect(classifyStartingHand(hole('Kh7c')).rationale).not.toMatch(/makes no money/i)
+    expect(classifyStartingHand(hole('KsJh')).rationale).not.toMatch(/fold to pressure/i)
   })
 })
 
@@ -622,7 +631,10 @@ describe('gradePreflop — position-aware across all tiers (0054)', () => {
     expect(gradePreflop(limped, CALL).advice).toBe('fold')
     expect(gradePreflop(limped, CALL).verdict).toBe('leak') // raising junk over the limper is a leak
     expect(gradePreflop(limped, FOLD).verdict).toBe('good') // folding it is correct
-    expect(gradePreflop(limped, CALL).rationale).not.toMatch(/steal/i) // and never claims a steal
+    // The fold line may honestly note the hand steals in OTHER spots, but must not sell THIS spot as a
+    // steal to take now (the open steal line's "open this profitably / take it down").
+    const limpedRationale = gradePreflop(limped, CALL).rationale
+    expect(limpedRationale).not.toMatch(/take it down|open this profitably/i)
   })
 
   it('an involuntary big blind is not a "limper": the SB steal still fires past it', () => {
@@ -663,6 +675,90 @@ describe('gradePreflop — position-aware across all tiers (0054)', () => {
     // widening seat. (Guards the acceptance criterion that the chart tiers are unchanged.)
     expect(STEAL_OPEN_RANGE).toMatch(/K7o/)
     expect(classifyStartingHand(hole('Kh7c')).tier).toBe('trash') // K7o still trash on the chart
+  })
+})
+
+describe('gradePreflop — rationale follows the position/action advice, no false universal (0056)', () => {
+  // 6-max geometry, button on seat 0.
+  const at = (seat: number, holeCards: readonly [Card, Card]) =>
+    preflopCtx({ holeCards, seat, buttonIndex: 0, numPlayers: 6 })
+  const UTG = 3
+  const BTN = 0
+  const HU_BTN = { seat: 0, buttonIndex: 0, numPlayers: 2 }
+
+  it('the SAME trash hand (K7o): early fold ≠ button steal, and neither asserts a false universal', () => {
+    // Folded from early position: the line is an honest, position-relative fold — NOT the old
+    // "it makes no money over time" absolute (it IS a profitable steal from a later seat).
+    const earlyFold = gradePreflop(at(UTG, hole('Kh7c')), FOLD)
+    expect(earlyFold.advice).toBe('fold')
+    expect(earlyFold.verdict).toBe('good')
+    expect(earlyFold.rationale).not.toMatch(/makes no money/i)
+    // K7o is a steal-range hand, so the fold line honestly notes it opens as a steal elsewhere.
+    expect(earlyFold.rationale).toMatch(/steal/i)
+
+    // Opened from the heads-up button: the steal line, describing the open it is.
+    const btnOpen = gradePreflop(preflopCtx({ holeCards: hole('Kh7c'), ...HU_BTN }), CALL)
+    expect(btnOpen.advice).toBe('open')
+    expect(btnOpen.verdict).toBe('good')
+    expect(btnOpen.rationale).toMatch(/steal/i)
+    expect(btnOpen.rationale).not.toMatch(/makes no money/i)
+
+    // The two rationales for the same hand genuinely differ (advice-relative, not a fixed tier label).
+    expect(earlyFold.rationale).not.toBe(btnOpen.rationale)
+  })
+
+  it('the never-open junk tail (72o) folds without claiming it "opens later" — no inverted false universal', () => {
+    // 72o is trash the grader opens NOWHERE (not in the steal range). Its fold line must NOT claim a
+    // steal / a "later seat" (there is none later than the button), and NOT claim "makes no money
+    // over time" either — just an honest fold. Checked at early position AND on the heads-up button
+    // (the latest seat there is no "later" than).
+    for (const ctx of [at(UTG, hole('7h2c')), preflopCtx({ holeCards: hole('7h2c'), ...HU_BTN })]) {
+      const v = gradePreflop(ctx, FOLD)
+      expect(v.advice).toBe('fold')
+      expect(v.verdict).toBe('good')
+      expect(v.rationale).not.toMatch(/makes no money/i)
+      expect(v.rationale).not.toMatch(/steal/i)
+      expect(v.rationale).not.toMatch(/later seat/i)
+      expect(v.rationale).not.toMatch(/open(s| it| profitably)/i)
+    }
+  })
+
+  it('a marginal hand OPENING in late position describes the open, with no bare "fold to pressure"', () => {
+    const open = gradePreflop(at(BTN, hole('KsJd')), CALL) // KJo (marginal) on the button
+    expect(open.advice).toBe('open')
+    expect(open.verdict).toBe('good')
+    expect(open.rationale).toMatch(/open it/i) // phrased as the open it is
+    expect(open.rationale).not.toMatch(/fold to pressure/i) // no false absolute above an open
+  })
+
+  it('no emitted rationale claims "makes no money over time" for a hand the grader would open somewhere', () => {
+    // K7o/A9o/T9o are trash that the grader OPENS as steals — so wherever they fold (early), the line
+    // must NOT assert a universal "no money" the grader itself breaks elsewhere.
+    for (const cards of ['Kh7c', 'Ah9c', 'Td9c']) {
+      const earlyFold = gradePreflop(at(UTG, hole(cards)), FOLD)
+      expect(earlyFold.advice).toBe('fold')
+      expect(earlyFold.rationale).not.toMatch(/makes no money/i)
+      const steal = gradePreflop(preflopCtx({ holeCards: hole(cards), ...HU_BTN }), CALL)
+      expect(steal.advice).toBe('open')
+      expect(steal.rationale).not.toMatch(/makes no money/i)
+    }
+  })
+
+  it('no "fold to pressure" line is ever printed above a Good defend (re-confirms 0053 self-consistency)', () => {
+    // Across tiers and prices, a GOOD continue facing a raise never carries the "fold to pressure"
+    // absolute — the facing-raise rationale follows the defend decision.
+    const INPOS = { seat: 0, buttonIndex: 0, numPlayers: 6 }
+    for (const cards of ['AsAh', 'AsQs']) {
+      for (const raiseBb of [
+        LARGE_RAISE_MIN_BB - 2,
+        LARGE_RAISE_MIN_BB + 1,
+        THREE_BET_MIN_BB + 1,
+      ]) {
+        const v = gradePreflop(preflopCtx({ holeCards: hole(cards), raiseBb, ...INPOS }), CALL)
+        expect(v.verdict).toBe('good')
+        expect(v.rationale).not.toMatch(/fold to pressure/i)
+      }
+    }
   })
 })
 
