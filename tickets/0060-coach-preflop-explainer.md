@@ -2,7 +2,7 @@
 id: 0060
 title: Beginner-readable preflop explainer — say WHY the chart ruled, deterministically
 type: feature
-status: todo
+status: done
 milestone:
 priority: medium
 created: 2026-06-15

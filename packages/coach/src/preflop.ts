@@ -299,8 +299,11 @@ export interface PreflopVerdict {
   readonly heroContinued: boolean
   /**
    * The grade: `'good'` when the hero's action matched the chart {@link advice}, `'leak'` when it
-   * did not. (`'breakEven'` is part of the shared {@link ActionVerdict} union but unused preflop —
-   * the chart gives a crisp open/fold call, not a coin-flip band.)
+   * did not — with one `'breakEven'` case. The chart gives a crisp open/fold call, so there is no
+   * pot-odds coin-flip band preflop; the single `'breakEven'` preflop is the **optional steal**: the
+   * bottom of a steal range ({@link STEAL_OPEN_RANGE}) is a hand you *may* open from a late/blind
+   * steal seat but are never obliged to, so *folding* one is fine, not a leak (ticket 0060). Opening
+   * it is still `'good'`. Every other open/fold is `'good'`/`'leak'`.
    */
   readonly verdict: ActionVerdict
   /**
@@ -845,7 +848,9 @@ function formatRaiseSize(raiseBb: number): string {
  *   `marginal` tier opens only in late/steal seats (preserved), and a {@link STEAL_OPEN_RANGE} hand
  *   is promoted to `open` from the late/small-blind/heads-up steal seats **when the pot is folded to
  *   the hero** (a genuine steal — see {@link isStealSpot}) so standard button & blind steals
- *   (K7o/A9o/T9o) are no longer `Trash`/`Leak`; behind a limper that promotion does not fire.
+ *   (K7o/A9o/T9o) are no longer `Trash`/`Leak`; behind a limper that promotion does not fire. The
+ *   bottom of a steal range is *optional*, so **folding** a steal-promotion open is graded
+ *   `'breakEven'` (fine either way), not a `'leak'` — opening it stays `'good'` (ticket 0060).
  * - **Facing a raise** (`currentBet > bigBlind`): the open chart would bless loose cold-calls a
  *   winning player snap-folds, so we switch to a *defend* standard — {@link facingRaiseAdvice}
  *   tightens the continue range by the price faced and by position, and returns a rationale
@@ -951,8 +956,24 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     mode = 'open'
   }
 
-  // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
-  const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'
+  // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise — with
+  // ONE exception: the bottom of a steal range is *optional*. A `trash` hand only ever reaches
+  // `advice: 'open'` via the {@link STEAL_OPEN_RANGE} promotion (a genuine steal — folded to the hero
+  // in a late/blind seat; the facing-raise path never opens trash), and the bottom of a steal range
+  // is a hand you *may* open but are never obliged to: opening it is good, and *folding* it is fine,
+  // not a leak. So a fold of a steal-promotion open grades `'breakEven'` (the shared coin-flip state),
+  // not `'leak'` — otherwise the coach punishes a perfectly standard fold and the explainer narrates a
+  // false mistake (ticket 0060). Opening it is still `'good'`; every non-steal open/fold is unchanged.
+  const stealPromotionOpen = advice === 'open' && tier === 'trash'
+  let verdict: ActionVerdict
+  if (heroContinued === (advice === 'open')) {
+    verdict = 'good'
+  } else if (stealPromotionOpen) {
+    // The hero folded the bottom of a steal range — optional, never a leak.
+    verdict = 'breakEven'
+  } else {
+    verdict = 'leak'
+  }
   // Preflop grading is always the ranges/strength-tier idea (see PreflopVerdict.concept). The trace
   // records the band/mode/stealSpot the branch above actually took — a pure by-product, no new logic.
   return {

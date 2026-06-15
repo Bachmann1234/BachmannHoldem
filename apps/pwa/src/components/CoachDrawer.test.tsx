@@ -233,6 +233,12 @@ describe('CoachDrawer — preflop state', () => {
     expect(screen.getByTestId('coach-preflop').textContent).toContain('Premium holding')
   })
 
+  it('renders the deterministic preflop "why" explainer (ticket 0060)', () => {
+    render(<CoachDrawer coach={preflopResult(PREFLOP_GOOD)} open onClose={vi.fn()} />)
+    // The beginner why-line is the preflop counterpart to postflop's coach-why explainer.
+    expect(screen.getByTestId('coach-why-preflop').textContent?.toLowerCase()).toContain('premium')
+  })
+
   it('flags folding a chart-open hand as a leak', () => {
     render(
       <CoachDrawer

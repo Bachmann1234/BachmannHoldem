@@ -11,7 +11,7 @@
  * lives only here.
  */
 
-import type { DecisionVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 
 /** Format a `0..1` equity/pot-odds fraction as a one-decimal percent, e.g. `0.625 → "62.5%"`. */
 export function pct(fraction: number): string {
@@ -85,6 +85,130 @@ export function explainDecision(verdict: DecisionVerdict): string {
     return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play — ${chips}.`
   }
   return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play — ${chips}.`
+}
+
+/** Plain-language phrase for a hero's preflop {@link PreflopVerdict.trace} position, for {@link explainPreflop}. */
+function positionPhrase(position: PreflopVerdict['trace']['position']): string {
+  switch (position) {
+    case 'early':
+      return 'early position'
+    case 'middle':
+      return 'middle position'
+    case 'late':
+      return 'late position (the cutoff or button)'
+    case 'small-blind':
+      return 'the small blind'
+    case 'big-blind':
+      return 'the big blind'
+  }
+}
+
+/**
+ * The raise the hero faced, as a short phrase — `"a 3x raise"`, or `"a 9x raise (a 3-bet)"` when the
+ * band is a 3-bet. Reads the already-rounded `raiseBb` and the `band` straight off the trace, the
+ * same pair the coach's own `facingRaiseAdvice` rationale labels with, so the size named in the
+ * explanation can never disagree with the regime the hand was graded against.
+ */
+function raisePhrase(trace: PreflopVerdict['trace']): string {
+  return `a ${trace.raiseBb}x raise${trace.band === '3bet' ? ' (a 3-bet)' : ''}`
+}
+
+/**
+ * The deterministic **"why" line** for a *preflop* decision — the chart-side counterpart to
+ * {@link explainDecision}. A single, label-free, beginner-readable explanation that says *why* the
+ * starting-hand chart ruled the way it did, following **situation → principle → this hand → nuance**,
+ * built entirely from the {@link PreflopVerdict} and its {@link PreflopVerdict.trace} (no equity, no
+ * Monte-Carlo, no I/O — exactly the facts the grade already computed). Preflop had only the terse
+ * tier/advice `rationale`; this is the equivalent of the postflop `explainDecision` walk-through, so a
+ * learner sees teachable reasoning, not just a confident verdict (ticket 0060).
+ *
+ * It is the shared phrasing every play client renders, for the same reason the rest of this module is
+ * shared: the coach must never explain a ruling one way at the table and another in a lesson. It
+ * branches on `trace.mode` — the rule the grade fired — then on the {@link PreflopVerdict.advice} and
+ * the raise-size `band`, so it covers every preflop path:
+ *
+ * - **`'bb-option'`** — the big blind's free check on an unraised pot: nothing to call, so taking the
+ *   flop is automatic (no open/fold lesson applies when continuing is free).
+ * - **`'open'`** — the position-aware opening chart on an unraised pot. An *open* names the strength
+ *   and the position that justify it; the steal-promotion open (a `trash` hand folded to the hero in a
+ *   late/blind seat) adds the **optional-steal nuance** — opening is good, *folding is fine too* — the
+ *   honest reading now that a steal fold grades `breakEven`, not a leak (the paired 0060 grade fix). A
+ *   *fold* gets a position-relative reason the hand is too weak to open from here.
+ * - **`'bb-defend'`** — a big blind defending a raise: the posted-blind discount and closing the
+ *   action widen the defend vs a small raise; vs a large raise / 3-bet only value continues.
+ * - **`'cold-call'`** — any other seat continuing vs a raise with no chips yet in: value tiers call,
+ *   a speculative hand needs position for a thin flat, and everything else is a cold-call to fold.
+ *
+ * **Label-free**, like {@link explainDecision}: it carries no `Good`/`Leak` tag, so a client pairs it
+ * with its own {@link VERDICT_LABEL} headline without repeating the verdict. Pure and deterministic —
+ * string rendering off the verdict/trace, nothing more (rich conversational narration is the optional
+ * LLM layer, not this).
+ */
+export function explainPreflop(verdict: PreflopVerdict): string {
+  const { trace, tier, advice } = verdict
+  const where = positionPhrase(trace.position)
+
+  // The big blind's free option on an unraised pot — nothing to call, so the open/fold chart does
+  // not apply: taking the flop for free is automatic.
+  if (trace.mode === 'bb-option') {
+    return `It folded around to your big blind and no one raised, so you have nothing to call — checking and taking the free flop is automatic. There's no reason to give up a hand when seeing the next card costs you nothing.`
+  }
+
+  // An open (or a fold of one) on an unraised pot — the position-aware opening chart.
+  if (trace.mode === 'open') {
+    if (advice === 'open') {
+      // A trash hand opens ONLY via the steal promotion: folded to the hero in a late/blind seat. The
+      // bottom of a steal range is optional, so this is the one open whose fold is fine too.
+      if (tier === 'trash') {
+        return `It folded around to you in ${where}, so only the blinds are left behind you. From there you can open a wide range — you act last and the blinds fold often, so the position and the steal are the profit, not the cards. This hand is weak but good enough to open here. The bottom of a steal range is optional, though — opening is good, and folding it is fine too.`
+      }
+      if (tier === 'premium' || tier === 'strong') {
+        const strength = tier === 'premium' ? 'a premium holding' : 'a strong hand'
+        return `This is ${strength} — strong enough to open and play for value from any seat, including ${where}. You want chips in the middle with it.`
+      }
+      if (tier === 'playable') {
+        return `From ${where} you can open this playable, speculative hand — it flops well and plays nicely with position, so you enter the pot and play it with a plan.`
+      }
+      // marginal
+      return `This is a marginal hand — the thin edge of the chart. From ${where} few players act behind you, so you open it to try to pick up the blinds; from an earlier seat you'd fold it.`
+    }
+    // A fold on an unraised pot — the chart says this hand is too weak to open from here.
+    if (tier === 'playable') {
+      return `From ${where} a speculative hand like this is too loose to open — too many players still act behind you. Fold it and wait for a later seat where it plays better.`
+    }
+    if (tier === 'marginal') {
+      return `A marginal hand opens only from late position or the blinds. From ${where} there are too many players left to act behind you, so folding it is right.`
+    }
+    // trash fold (no steal available here): scoped to THIS spot — never a "makes no money" universal.
+    return `This is the unconnected bottom of the chart, and from ${where} there's no steal or price that makes opening it profitable — so folding it here is right.`
+  }
+
+  // Facing a raise: a big-blind defend or a cold-call, tightened by the price faced.
+  const raise = raisePhrase(trace)
+  if (trace.mode === 'bb-defend') {
+    if (advice === 'open') {
+      // A small raise → wide defend on the discount; a large raise / 3-bet → only value continues.
+      if (trace.band === 'small-raise') {
+        return `You're in the big blind, so you already posted a blind and you close the action — that discount and last word make ${raise} a fine price to defend with a hand this wide.`
+      }
+      return `Facing ${raise} from the big blind, only strong hands continue — and this one is strong enough to defend for value even out of position.`
+    }
+    // BB fold: too weak even for the discounted price, or the price is simply too steep.
+    if (trace.band === 'small-raise') {
+      return `Even with the big-blind discount, this hand is too weak to defend against ${raise} — fold it.`
+    }
+    return `Facing ${raise} from the big blind, the price is too steep to defend — only strong, value hands continue here, so fold this one.`
+  }
+  // cold-call (any non-BB seat continuing vs a raise — no chips in the pot yet).
+  if (advice === 'open') {
+    if (tier === 'playable') {
+      return `In ${where} you're in position against ${raise}, which makes this a fine price for a thin flat — you'll have position on every later street to make up for the speculative hand.`
+    }
+    const strength = tier === 'premium' ? 'a premium holding' : 'a strong hand'
+    return `This is ${strength} — strong enough to call ${raise} and play the pot for value.`
+  }
+  // cold-call fold.
+  return `You have no chips in the pot yet, so calling ${raise} would be a cold-call — and this hand is too weak, or too far out of position, to flat a raise. Fold and wait for a better spot.`
 }
 
 /**

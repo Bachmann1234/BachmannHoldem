@@ -39,7 +39,7 @@ import {
   type DecisionVerdict,
   type PreflopVerdict,
 } from '@holdem/coach'
-import { explainDecision, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, explainPreflop as explainPreflopWhy, VERDICT_LABEL } from '@holdem/format'
 import { synthesizeContext, type Spot, type ActionChoice } from './spot.js'
 
 /**
@@ -118,12 +118,16 @@ function explainCoach(verdict: DecisionVerdict): string {
 }
 
 /**
- * Build the explanation for a preflop chart-graded verdict. The chart carries no equity/EV numbers
- * (it is a deterministic tier lookup, not a sim), so the explanation is the chart's own tier
- * rationale plus the verdict headline — still sourced from the verdict, never re-authored per spot.
+ * Build the explanation for a preflop chart-graded verdict — the verdict headline plus the shared
+ * deterministic preflop "why" line ({@link explainPreflopWhy}, `@holdem/format`'s `explainPreflop`).
+ * The chart carries no equity/EV numbers (it is a tier lookup, not a sim), so the "why" walks the
+ * position/raise reasoning instead, exactly as the live play coach now renders it — the preflop
+ * counterpart to {@link explainCoach} delegating to `explainDecision`, so a primer lesson and the play
+ * coach phrase the reasoning identically (no duplicated wording here). Sourced from the verdict/trace,
+ * never re-authored per spot.
  */
 function explainPreflop(verdict: PreflopVerdict): string {
-  return `${VERDICT_LABEL[verdict.verdict]} ${verdict.rationale}`
+  return `${VERDICT_LABEL[verdict.verdict]} ${explainPreflopWhy(verdict)}`
 }
 
 /**

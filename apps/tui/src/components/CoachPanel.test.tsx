@@ -108,6 +108,9 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     // The starting-hand chart tier leads, rendered as the self-contained rationale sentence.
     expect(frame).toContain('Starting hand: Premium holding')
     expect(frame).toContain('Good — your action agreed with the math.')
+    // The deterministic preflop "why" line surfaces here too (ticket 0060), like the postflop body's
+    // explainDecision — so the TUI narrates the chart's reasoning, not just the verdict tag.
+    expect(frame.toLowerCase()).toContain('premium holding — strong enough to open')
     // BUG-0001: preflop is graded off the chart, so NO equity / pot-odds / EV-correct line that
     // would contradict it.
     expect(frame).not.toContain('Equity')

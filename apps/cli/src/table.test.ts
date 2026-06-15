@@ -178,6 +178,13 @@ describe('renderPreflopCoach', () => {
     expect(out).toContain('Good')
   })
 
+  it('renders the deterministic preflop "why" explainer line (ticket 0060)', () => {
+    const out = renderPreflopCoach(premiumOpen)
+    // The beginner why-line is rendered the way the postflop block renders explainDecision.
+    expect(out.toLowerCase()).toContain('premium')
+    expect(out.toLowerCase()).toContain('open')
+  })
+
   it('shows no pot-odds math preflop (the chart drives the verdict, not equity)', () => {
     // BUG-0001: preflop must not render the equity / pot-odds / EV-correct lines that would
     // contradict the chart verdict (the old "open for value" + "EV-correct: fold" pairing).

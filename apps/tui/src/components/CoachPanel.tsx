@@ -26,7 +26,7 @@
 
 import { Box, Text } from 'ink'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { explainDecision, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, explainPreflop, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 
 /** The Ink `color` prop for each verdict tag: green good / red leak / yellow break-even. */
@@ -97,6 +97,10 @@ function PreflopGrade({ verdict }: { readonly verdict: PreflopVerdict }): React.
     <Box flexDirection="column">
       <Text>{`  Starting hand: ${verdict.rationale}`}</Text>
       <Text color={VERDICT_COLOR[verdict.verdict]}>{`  ${VERDICT_LABEL[verdict.verdict]}`}</Text>
+      {/* The shared deterministic preflop "why" line (ticket 0060) — the preflop counterpart to the
+          postflop `explainDecision` the {@link Verdict} body renders, so the TUI narrates the chart's
+          reasoning the same way the CLI sim and the PWA coach drawer do. */}
+      <Text dimColor>{`  ${explainPreflop(verdict)}`}</Text>
     </Box>
   )
 }

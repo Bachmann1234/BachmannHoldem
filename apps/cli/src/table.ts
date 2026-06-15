@@ -20,7 +20,14 @@ import {
   type PlayerState,
 } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL, explainDecision, evMetric } from '@holdem/format'
+import {
+  pct,
+  signedChips,
+  VERDICT_LABEL,
+  explainDecision,
+  explainPreflop,
+  evMetric,
+} from '@holdem/format'
 import type { GroundTruth } from './analysis.js'
 
 /** Re-exported for the harness so it has one import surface (`from './table.js'`). */
@@ -162,6 +169,10 @@ export function renderPreflopCoach(verdict: PreflopVerdict): string {
     // position bucket. Compact and greppable (`grep "Rule:"`), self-contained for AI review.
     `  Rule: ${preflopRuleLine(verdict)}`,
     `  ${VERDICT_LABEL[verdict.verdict]}`,
+    // The deterministic beginner "why" line (ticket 0060) — the preflop counterpart to the postflop
+    // `explainDecision` the math block renders, so the scriptable coach narrates the chart's reasoning
+    // the same way the app does.
+    `  ${explainPreflop(verdict)}`,
   ].join('\n')
 }
 

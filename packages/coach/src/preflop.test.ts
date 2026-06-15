@@ -606,11 +606,25 @@ describe('gradePreflop — position-aware across all tiers (0054)', () => {
       expect(v.tier).toBe('trash') // strength tier is UNCHANGED — the steal range is an advice layer
       expect(v.advice).toBe('open') // …but the steal/HU range promotes the open
       expect(v.verdict).toBe('good') // calling/opening is correct, NOT a Leak
-      // Folding the steal is now the leak (it is a profitable open).
+      // Folding the steal is OPTIONAL, not a leak: the bottom of a steal range is a hand you may
+      // open but never have to, so a fold grades break-even — fine either way (ticket 0060).
       expect(gradePreflop(preflopCtx({ holeCards: hole(cards), ...HU_BTN }), FOLD).verdict).toBe(
-        'leak',
+        'breakEven',
       )
     }
+  })
+
+  it('folding a steal-promotion open is break-even (optional), but a real chart open still leaks if folded (0060)', () => {
+    const HU_BTN = { seat: 0, buttonIndex: 0, numPlayers: 2 }
+    // K7o on the HU button is a trash hand promoted to OPEN by the steal range — folding it is fine.
+    const stealFold = gradePreflop(preflopCtx({ holeCards: hole('Kh7c'), ...HU_BTN }), FOLD)
+    expect(stealFold.advice).toBe('open')
+    expect(stealFold.tier).toBe('trash')
+    expect(stealFold.verdict).toBe('breakEven') // optional steal — folding is not a leak
+    // A genuine chart open (a strong hand from the button) is NOT optional: folding it is still a leak.
+    const strongFold = gradePreflop(preflopCtx({ holeCards: hole('AsQs'), ...HU_BTN }), FOLD)
+    expect(strongFold.advice).toBe('open')
+    expect(strongFold.verdict).toBe('leak')
   })
 
   it('those same trash steals still FOLD from early position (the widening is late/blind/HU only)', () => {

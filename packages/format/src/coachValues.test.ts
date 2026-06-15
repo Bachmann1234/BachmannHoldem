@@ -7,8 +7,15 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import type { DecisionVerdict } from '@holdem/coach'
-import { evMetric, explainDecision, pct, signedChips, VERDICT_LABEL } from './coachValues.js'
+import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import {
+  evMetric,
+  explainDecision,
+  explainPreflop,
+  pct,
+  signedChips,
+  VERDICT_LABEL,
+} from './coachValues.js'
 
 describe('pct', () => {
   it('renders a 0..1 fraction as a one-decimal percent', () => {
@@ -150,6 +157,170 @@ describe('explainDecision', () => {
     )
     expect(s.toLowerCase()).toContain('free')
     expect(s.toLowerCase()).not.toContain('bet for value')
+  })
+})
+
+describe('explainPreflop', () => {
+  /** Build a PreflopVerdict fixture; `trace` overrides merge onto a sensible unraised-open default. */
+  const verdict = (
+    v: Partial<Omit<PreflopVerdict, 'trace'>> & { trace?: Partial<PreflopVerdict['trace']> },
+  ): PreflopVerdict => ({
+    tier: 'premium',
+    rationale: 'Premium holding — always raise; you want chips in.',
+    advice: 'open',
+    heroContinued: true,
+    verdict: 'good',
+    concept: 'ranges',
+    ...v,
+    trace: {
+      position: 'late',
+      facingRaise: false,
+      raiseBb: 1,
+      band: 'unraised',
+      mode: 'open',
+      stealSpot: false,
+      ...v.trace,
+    },
+  })
+
+  it('explains the big-blind free option: nothing to call, take the free flop', () => {
+    const s = explainPreflop(
+      verdict({
+        tier: 'trash',
+        advice: 'open',
+        rationale: 'Big-blind option — no raise to call, so check and take the free flop.',
+        trace: { position: 'big-blind', mode: 'bb-option' },
+      }),
+    )
+    expect(s.toLowerCase()).toContain('free flop')
+    expect(s.toLowerCase()).toContain('big blind')
+  })
+
+  it('explains a premium open: strong enough to play for value from any seat', () => {
+    const s = explainPreflop(verdict({ tier: 'premium', advice: 'open' }))
+    expect(s.toLowerCase()).toContain('premium')
+    expect(s.toLowerCase()).toContain('open')
+    // It recommends opening — never tells the hero to fold.
+    expect(s.toLowerCase()).not.toContain('fold')
+  })
+
+  it('explains a steal-promotion open AND says folding it is fine (the optional steal — 0060)', () => {
+    // A trash hand promoted to open by the steal range: opening is good, folding is fine too.
+    const s = explainPreflop(
+      verdict({
+        tier: 'trash',
+        advice: 'open',
+        trace: { position: 'late', stealSpot: true, mode: 'open' },
+      }),
+    )
+    expect(s.toLowerCase()).toContain('steal')
+    expect(s.toLowerCase()).toContain('open')
+    // The nuance the grade fix unlocks: folding the bottom of a steal range is fine, not a mistake.
+    expect(s.toLowerCase()).toContain('folding it is fine')
+    expect(s.toLowerCase()).toContain('optional')
+  })
+
+  it('explains a playable hand folded from early position (too loose to open here)', () => {
+    const s = explainPreflop(
+      verdict({
+        tier: 'playable',
+        advice: 'fold',
+        heroContinued: false,
+        verdict: 'good',
+        trace: { position: 'early', mode: 'open' },
+      }),
+    )
+    expect(s.toLowerCase()).toContain('early position')
+    expect(s.toLowerCase()).toContain('fold')
+    expect(s.toLowerCase()).toContain('too loose')
+  })
+
+  it('explains a big-blind defend vs a small raise (the discount + closing the action — BUG-0007)', () => {
+    const s = explainPreflop(
+      verdict({
+        tier: 'marginal',
+        advice: 'open',
+        trace: {
+          position: 'big-blind',
+          facingRaise: true,
+          raiseBb: 3,
+          band: 'small-raise',
+          mode: 'bb-defend',
+        },
+      }),
+    )
+    expect(s.toLowerCase()).toContain('big blind')
+    expect(s).toContain('a 3x raise')
+    expect(s.toLowerCase()).toContain('defend')
+  })
+
+  it('explains a cold-call fold vs a 3-bet, naming the 3-bet (band-aware raise phrase)', () => {
+    const s = explainPreflop(
+      verdict({
+        tier: 'playable',
+        advice: 'fold',
+        heroContinued: false,
+        verdict: 'leak',
+        trace: {
+          position: 'middle',
+          facingRaise: true,
+          raiseBb: 10,
+          band: '3bet',
+          mode: 'cold-call',
+        },
+      }),
+    )
+    expect(s).toContain('a 10x raise (a 3-bet)')
+    expect(s.toLowerCase()).toContain('cold-call')
+    expect(s.toLowerCase()).toContain('fold')
+  })
+
+  it('explains a cold-call of a strong hand vs a raise (value worth calling)', () => {
+    const s = explainPreflop(
+      verdict({
+        tier: 'strong',
+        advice: 'open',
+        trace: {
+          position: 'late',
+          facingRaise: true,
+          raiseBb: 3,
+          band: 'small-raise',
+          mode: 'cold-call',
+        },
+      }),
+    )
+    expect(s.toLowerCase()).toContain('strong')
+    expect(s.toLowerCase()).toContain('call')
+  })
+
+  it('is label-free (no Good/Leak prefix — clients pair it with their own headline)', () => {
+    expect(explainPreflop(verdict({ verdict: 'good' }))).not.toContain('Good')
+    expect(
+      explainPreflop(verdict({ tier: 'trash', advice: 'fold', verdict: 'leak' })),
+    ).not.toContain('Leak')
+  })
+
+  it('never contradicts the verdict: a fold-advice explanation recommends folding', () => {
+    // Across the fold paths, the explanation must tell the hero to fold (never frame it as an open).
+    const foldCases: PreflopVerdict[] = [
+      verdict({ tier: 'playable', advice: 'fold', trace: { position: 'early', mode: 'open' } }),
+      verdict({ tier: 'marginal', advice: 'fold', trace: { position: 'middle', mode: 'open' } }),
+      verdict({ tier: 'trash', advice: 'fold', trace: { position: 'early', mode: 'open' } }),
+      verdict({
+        tier: 'playable',
+        advice: 'fold',
+        trace: {
+          position: 'middle',
+          facingRaise: true,
+          raiseBb: 6,
+          band: 'large-raise',
+          mode: 'cold-call',
+        },
+      }),
+    ]
+    for (const v of foldCases) {
+      expect(explainPreflop(v).toLowerCase()).toContain('fold')
+    }
   })
 })
 

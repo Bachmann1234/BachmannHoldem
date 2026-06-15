@@ -35,7 +35,7 @@ import {
   type DecisionVerdict,
   type PreflopVerdict,
 } from '@holdem/coach'
-import { explainDecision, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, explainPreflop, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
 
@@ -365,7 +365,9 @@ function preflopCopy(verdict: PreflopVerdict): string {
     case 'leak':
       return `Close one! The chart pointed to ${target} here — you'll catch it next time.`
     default:
-      return `Borderline spot — trust your read and your position.`
+      // The only preflop break-even is the optional steal (ticket 0060): the bottom of a steal range
+      // is a hand you may open but never have to, so opening and folding both work.
+      return `Either way's fine — the bottom of a steal range is optional, so opening and folding both work.`
   }
 }
 
@@ -402,6 +404,9 @@ function PreflopBody({
       </div>
       <div className="coach-note" data-testid="coach-preflop">
         <b>Starting hand:</b> {verdict.rationale}
+      </div>
+      <div className="coach-note" data-testid="coach-why-preflop">
+        {explainPreflop(verdict)}
       </div>
       <button
         type="button"
