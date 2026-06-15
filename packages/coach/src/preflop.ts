@@ -24,7 +24,7 @@
  * coach CLI wiring ([[0023-coach-cli-wiring]]).
  */
 
-import { formatCard, type Action, type Card } from '@holdem/engine'
+import { formatCard, parseCards, type Action, type Card } from '@holdem/engine'
 import type { DecisionContext } from '@holdem/bots'
 import { parseRange, type Combo, type Range } from '@holdem/odds'
 import type { ActionVerdict, Concept } from './verdict.js'
@@ -323,4 +323,82 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
   const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'
   // Preflop grading is always the ranges/strength-tier idea (see PreflopVerdict.concept).
   return { tier, rationale, advice, heroContinued, verdict, concept: 'ranges' }
+}
+
+/**
+ * The thirteen ranks, strongest first — the row/column order of the canonical starting-hand grid.
+ * Used by {@link startingHandChart} to lay out the 13×13 matrix and by a UI to label its axes.
+ */
+export const CHART_RANKS = [
+  'A',
+  'K',
+  'Q',
+  'J',
+  'T',
+  '9',
+  '8',
+  '7',
+  '6',
+  '5',
+  '4',
+  '3',
+  '2',
+] as const
+
+/**
+ * One cell of the {@link startingHandChart} grid: a starting-hand *class* (a `"AA"` / `"AKs"` /
+ * `"AKo"` label and which of the three kinds it is) and the {@link PreflopTier} it classifies into.
+ * A flat, serialisable value — the hand-off shape a chart view renders.
+ */
+export interface ChartCell {
+  /** The hand-class label in standard notation: `"AA"` (pair), `"AKs"` (suited), `"AKo"` (offsuit). */
+  readonly label: string
+  /** Which kind of holding the cell is — drives the grid's three regions (diagonal / upper / lower). */
+  readonly kind: 'pair' | 'suited' | 'offsuit'
+  /** The strength tier the class lands in, from {@link classifyStartingHand}. */
+  readonly tier: PreflopTier
+}
+
+/**
+ * Build the canonical **13×13 starting-hand chart** — the visible form of the same chart the coach
+ * grades preflop decisions against ([[0022-coach-preflop-chart]]). Returns a grid of {@link ChartCell}s,
+ * `grid[row][col]` indexed by {@link CHART_RANKS} (A→2), in the universal poker layout:
+ *
+ * - the **diagonal** (`row === col`) is the pocket pairs (`AA`…`22`);
+ * - the **upper-right** triangle (`col > row`) is the **suited** hands (`AKs`, `AQs`, …);
+ * - the **lower-left** triangle (`col < row`) is the **offsuit** hands (`AKo`, `AQo`, …),
+ *
+ * with the higher rank always first in the label. Each cell's tier is read straight from
+ * {@link classifyStartingHand} on a representative two-card combo of that class, so the chart can
+ * **never disagree** with how the live coach grades a hand — they are the same function. Pure and
+ * deterministic (no randomness, no I/O): the UI just colours the grid by {@link ChartCell.tier}.
+ */
+export function startingHandChart(): ChartCell[][] {
+  return CHART_RANKS.map((rowRank, row) =>
+    CHART_RANKS.map((colRank, col): ChartCell => {
+      // Pick a representative physical combo for the class, then let the coach classify it — no
+      // parallel tier logic here. Suits are arbitrary: same suit for suited, different for the rest.
+      let label: string
+      let kind: ChartCell['kind']
+      let holeText: string
+      if (row === col) {
+        kind = 'pair'
+        label = `${rowRank}${rowRank}`
+        holeText = `${rowRank}h ${rowRank}s`
+      } else if (col > row) {
+        // Upper-right: the row rank is the higher one (ranks descend A→2), so it leads the label.
+        kind = 'suited'
+        label = `${rowRank}${colRank}s`
+        holeText = `${rowRank}h ${colRank}h`
+      } else {
+        // Lower-left: the column rank is the higher one, so it leads the label.
+        kind = 'offsuit'
+        label = `${colRank}${rowRank}o`
+        holeText = `${colRank}h ${rowRank}s`
+      }
+      const [a, b] = parseCards(holeText)
+      const { tier } = classifyStartingHand([a!, b!])
+      return { label, kind, tier }
+    }),
+  )
 }

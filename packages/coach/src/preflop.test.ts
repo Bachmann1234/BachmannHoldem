@@ -6,6 +6,8 @@ import {
   classifyStartingHand,
   gradePreflop,
   PREFLOP_CHART,
+  CHART_RANKS,
+  startingHandChart,
   type PreflopTier,
   type StartingHandVerdict,
 } from './preflop.js'
@@ -304,5 +306,56 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
     expect(gradePreflop(preflopCtx({ holeCards: hole('7c2d'), seat: 1 }), CHECK).concept).toBe(
       'ranges',
     )
+  })
+})
+
+describe('startingHandChart', () => {
+  const chart = startingHandChart()
+
+  it('is a 13×13 grid indexed by CHART_RANKS (A→2)', () => {
+    expect(CHART_RANKS).toHaveLength(13)
+    expect(chart).toHaveLength(13)
+    for (const row of chart) expect(row).toHaveLength(13)
+  })
+
+  it('lays out pairs on the diagonal, suited upper-right, offsuit lower-left', () => {
+    for (let r = 0; r < 13; r++) {
+      for (let c = 0; c < 13; c++) {
+        const cell = chart[r]![c]!
+        if (r === c) expect(cell.kind).toBe('pair')
+        else if (c > r) expect(cell.kind).toBe('suited')
+        else expect(cell.kind).toBe('offsuit')
+      }
+    }
+  })
+
+  it('labels each class in standard notation (higher rank first)', () => {
+    expect(chart[0]![0]!.label).toBe('AA') // top-left pair
+    expect(chart[0]![1]!.label).toBe('AKs') // suited, upper-right
+    expect(chart[1]![0]!.label).toBe('AKo') // offsuit, lower-left (same A-K class)
+    expect(chart[12]![12]!.label).toBe('22') // bottom-right pair
+  })
+
+  it('classifies every cell into a tier that matches the live coach', () => {
+    for (const row of chart) {
+      for (const cell of row) {
+        expect(['premium', 'strong', 'playable', 'marginal', 'trash']).toContain(cell.tier)
+      }
+    }
+    // Spot-check against classifyStartingHand — the chart IS that function, so they cannot diverge.
+    expect(chart[0]![0]!.tier).toBe('premium') // AA
+    expect(chart[0]![1]!.tier).toBe(classifyStartingHand(hole('AhKh')).tier) // AKs
+    expect(chart[1]![0]!.tier).toBe(classifyStartingHand(hole('AhKs')).tier) // AKo
+  })
+
+  it('puts the worst hands in trash (72o) and small pairs in playable (22)', () => {
+    const seven = CHART_RANKS.indexOf('7')
+    const two = CHART_RANKS.indexOf('2')
+    // 72 offsuit is the lower-left cell (row 2, col 7): higher rank (7) leads the label.
+    const cell72o = chart[two]![seven]!
+    expect(cell72o.label).toBe('72o')
+    expect(cell72o.kind).toBe('offsuit')
+    expect(cell72o.tier).toBe('trash')
+    expect(chart[12]![12]!.tier).toBe('playable') // 22
   })
 })

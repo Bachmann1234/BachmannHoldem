@@ -42,6 +42,17 @@ describe('App — top-level navigation', () => {
     }
   })
 
+  it('opens the starting-hand chart from the Learn section (ticket 0050)', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    fireEvent.click(screen.getByTestId('tab-learn'))
+    expect(screen.queryByTestId('chart-modal')).toBeNull()
+    fireEvent.click(screen.getByTestId('open-chart'))
+    expect(screen.getByTestId('chart-grid').children).toHaveLength(169)
+    fireEvent.click(screen.getByTestId('chart-close'))
+    expect(screen.queryByTestId('chart-modal')).toBeNull()
+  })
+
   it('returns to the setup screen when Play is chosen from Learn', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} />)
 

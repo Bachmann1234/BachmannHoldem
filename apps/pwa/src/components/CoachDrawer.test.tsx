@@ -152,6 +152,17 @@ describe('CoachDrawer — preflop state', () => {
     expect(screen.queryByTestId('metric-potodds')).toBeNull()
     expect(screen.queryByTestId('metric-ev')).toBeNull()
   })
+
+  it('offers "see the chart" and opens the starting-hand chart overlay (ticket 0050)', () => {
+    render(<CoachDrawer coach={preflopResult(PREFLOP_GOOD)} open onClose={vi.fn()} />)
+    expect(screen.queryByTestId('chart-modal')).toBeNull()
+    fireEvent.click(screen.getByTestId('open-chart'))
+    expect(screen.getByTestId('chart-modal')).toBeTruthy()
+    // The grid is the full 13×13 = 169 cells, straight from the pure enumerator.
+    expect(screen.getByTestId('chart-grid').children).toHaveLength(169)
+    fireEvent.click(screen.getByTestId('chart-close'))
+    expect(screen.queryByTestId('chart-modal')).toBeNull()
+  })
 })
 
 describe('CoachDrawer — none and error states', () => {
