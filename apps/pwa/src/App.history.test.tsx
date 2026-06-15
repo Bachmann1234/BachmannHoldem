@@ -206,15 +206,17 @@ describe('App — hand-history recording seam', () => {
     await act(async () => {
       screen.getByRole('button', { name: /Deal in/ }).click()
     })
-    // Hero shoves AA; station busts → game-over summary with a "View hand history" CTA.
+    // Hero shoves AA; station busts → final-hand review → "View summary" → game-over summary.
     for (let i = 0; i < 40; i++) {
       await flush()
       if (screen.queryByTestId('summary')) break
+      const viewSummary = screen.queryByRole('button', { name: /View summary/ })
       const allIn = screen.queryByRole('button', { name: 'all-in' })
       const raise = screen.queryByRole('button', { name: /^Raise to/ })
       const call = screen.queryByRole('button', { name: /^Call/ })
       const check = screen.queryByRole('button', { name: /^Check$/ })
-      if (allIn && raise) {
+      if (viewSummary) await act(async () => viewSummary.click())
+      else if (allIn && raise) {
         await act(async () => allIn.click())
         await act(async () => raise.click())
       } else if (call) await act(async () => call.click())

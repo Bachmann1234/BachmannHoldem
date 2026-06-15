@@ -25,8 +25,9 @@
  * a play-again / quit `useInput` is active in `'hand-over'`; and a quit key is live throughout. All
  * gating respects raw-mode support so a piped (non-TTY) run never tries to enter raw mode.
  *
- * Exit: `q` quits to the summary (or out of it); once `'game-over'` the app self-exits cleanly so the
- * process never hangs after the session.
+ * Exit: `q` quits to the summary (or dismisses the `'session-over'` final-hand review to it, or exits
+ * out of it); once `'game-over'` the app self-exits cleanly so the process never hangs after the
+ * session.
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react'
@@ -238,6 +239,11 @@ export function Root({ initial, decks, makeBot = defaultMakeBot }: RootProps): R
       {phase === 'hand-over' ? (
         <Box marginTop={1}>
           <Text>Play another hand? (Y/n) </Text>
+        </Box>
+      ) : null}
+      {phase === 'session-over' ? (
+        <Box marginTop={1}>
+          <Text>Final hand over — press q to view the summary.</Text>
         </Box>
       ) : null}
       <Box marginTop={1}>

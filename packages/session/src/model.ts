@@ -110,8 +110,15 @@ export interface SetupState {
   readonly opponents: readonly BotKind[]
 }
 
-/** The session's lifecycle phase — the reducer owns every transition. */
-export type Phase = 'setup' | 'playing' | 'hand-over' | 'game-over'
+/**
+ * The session's lifecycle phase — the reducer owns every transition.
+ *
+ * `'session-over'` is the final-hand review state: the last hand is complete and the session has
+ * ended (the hero busted, or one survivor remains), but the table is still shown so the hero sees
+ * the showdown of the hand that ended it before the summary. The hero then dismisses it to reach
+ * `'game-over'`, which renders the end-of-session summary.
+ */
+export type Phase = 'setup' | 'playing' | 'hand-over' | 'session-over' | 'game-over'
 
 /**
  * The application model: the setup selection, the stable session players, the live hand (once
@@ -317,7 +324,8 @@ export function removeBusted(players: readonly SessionPlayer[]): {
 /**
  * Has the session ended? It ends when the hero has busted (0 chips) or only one player has chips
  * left (a single survivor — the hero stacked everyone, or a bot did). The reducer uses this after
- * each completed hand to decide between `'hand-over'` and `'game-over'`.
+ * each completed hand to decide between `'hand-over'` and `'session-over'` (which the hero then
+ * dismisses to `'game-over'`).
  */
 export function sessionOver(players: readonly SessionPlayer[]): boolean {
   const live = livePlayers(players)

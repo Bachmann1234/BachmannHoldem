@@ -30,6 +30,12 @@ export interface ActionBarProps {
   readonly isHeroTurn: boolean
   /** Whether the hand is over (between hands) — shows the play-again CTA. */
   readonly handOver: boolean
+  /**
+   * Whether the session has ended on this (now-complete) hand — the hero is busted or only one
+   * player has chips. Shows a single "View summary" CTA instead of play-again, while the completed
+   * hand stays on the table for review.
+   */
+  readonly sessionOver?: boolean
   /** Commit a chosen, already-legal action into the MVU loop. */
   readonly onAction: (action: Action) => void
   /** Deal the next hand (between hands). */
@@ -62,6 +68,7 @@ export function ActionBar({
   heroSeat,
   isHeroTurn,
   handOver,
+  sessionOver = false,
   onAction,
   onNext,
   onQuit,
@@ -102,6 +109,19 @@ export function ActionBar({
     else to = sizeMax
     setBetTo(clamp(to, sizeMin, sizeMax))
     setSizeKey(key)
+  }
+
+  // --- Session over: the completed final hand is on the table for review; one CTA to the summary --
+  if (sessionOver) {
+    return (
+      <div className="actionbar" data-testid="actionbar">
+        <div className="actions">
+          <button type="button" className="btn next-cta" onClick={onQuit}>
+            View summary →
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // --- Between hands: the play-again CTA + quit -------------------------------------------------

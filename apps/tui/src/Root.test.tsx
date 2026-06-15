@@ -137,12 +137,16 @@ describe('Root — multiway multi-hand session', () => {
     await tick()
     stdin.write('\r') // start the hand
     await tick()
-    // Hero shoves; the calling station calls off; the hand runs out and the bot busts.
+    // Hero shoves; the calling station calls off; the hand runs out and the bot busts. The session
+    // then pauses on the final-hand review (the showdown stays visible) until we press q for the
+    // summary — proving the busted-out hand is shown before the session ends.
     for (let i = 0; i < 60; i++) {
       await tick()
       const frame = plain(lastFrame() ?? '')
-      if (frames.map(plain).some((f) => f.includes('Session over'))) break
-      if (frame.includes('(a)llin')) stdin.write('a')
+      if (frames.map(plain).some((f) => f.includes('── Session over ──'))) break
+      if (frame.includes('Final hand over'))
+        stdin.write('q') // dismiss the review to the summary
+      else if (frame.includes('(a)llin')) stdin.write('a')
       else if (frame && !frame.includes('Waiting') && !frame.includes('Table setup')) {
         stdin.write(frame.includes('(c)all') ? 'c' : 'k')
       }

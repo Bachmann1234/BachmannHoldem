@@ -16,9 +16,11 @@
  *   it is a bot's turn, routes the acting engine seat → its stable player id (via `seatToId`) → that
  *   player's persistent bot, and dispatches the decision. Several bots act between the hero's turns.
  *
- * Input is phase-gated by *rendering*: `'setup'` → {@link SetupScreen}; `'playing'`/`'hand-over'` →
- * {@link Table} + {@link ActionBar} (active only on the hero's turn) + the between-hands CTA;
- * `'game-over'` → {@link Summary}. "New table" remounts a fresh session via a key bump.
+ * Input is phase-gated by *rendering*: `'setup'` → {@link SetupScreen};
+ * `'playing'`/`'hand-over'`/`'session-over'` → {@link Table} + {@link ActionBar} (active only on the
+ * hero's turn) + the between-hands / view-summary CTA; `'game-over'` → {@link Summary}.
+ * `'session-over'` keeps the busted-out final hand on the table for review until the hero dismisses
+ * it to the summary. "New table" remounts a fresh session via a key bump.
  *
  * The bot "thinking" delay is injectable (`botDelayMs`, default {@link DEFAULT_BOT_DELAY_MS}) so
  * tests pass `0` and never depend on the wall clock.
@@ -498,6 +500,7 @@ function Session({
           heroSeat={heroSeat}
           isHeroTurn={isHeroTurn}
           handOver={phase === 'hand-over'}
+          sessionOver={phase === 'session-over'}
           onAction={onAction}
           onNext={beginHand}
           onQuit={() => dispatch({ type: 'quit' })}

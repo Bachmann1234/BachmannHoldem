@@ -185,8 +185,8 @@ describe('reducer — apply-action advances the hand and settles the session', (
     expect(total).toBe(400) // chips conserved across the two 200-stacks
   })
 
-  it('ends the session (game-over) once only one player has chips', () => {
-    // Hero shoves, bot calls all-in and loses the whole stack → one survivor → game over.
+  it('pauses on session-over (showing the final hand) once only one player has chips', () => {
+    // Hero shoves, bot calls all-in and loses the whole stack → one survivor → session over.
     const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
     let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
     // Hero (SB/button) raises all-in; bot calls all-in; runout; hero wins everything.
@@ -196,10 +196,32 @@ describe('reducer — apply-action advances the hand and settles the session', (
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
     // Any remaining streets auto-run when both are all-in; the hand completes.
     expect(isComplete(model.hand!)).toBe(true)
-    expect(model.phase).toBe('game-over')
+    // The session has ended, but we pause at 'session-over' (NOT 'game-over') so the completed hand
+    // — the showdown that decided it — stays on screen for review; the hand is still present.
+    expect(model.phase).toBe('session-over')
+    expect(model.hand).not.toBeNull()
     const live = model.players.filter((p) => p.stack > 0)
     expect(live).toHaveLength(1)
     expect(live[0]!.isHero).toBe(true)
+
+    // Dismissing the review (a 'quit') advances to the summary.
+    expect(reducer(model, { type: 'quit' }).phase).toBe('game-over')
+  })
+
+  it('pauses on session-over (not straight to game-over) when the hero busts out', () => {
+    // Hero (SB/button) shoves and loses to the bot → hero busts → session over, but the final hand
+    // must stay visible so the hero sees the showdown that knocked them out (the reported bug).
+    const deck = buildDeck(2, 0, ['7h 2c', 'As Ad'], 'Ah Kd 9s 4c 3d')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    const allIn = legalAllIn(model.hand!)
+    model = reducer(model, { type: 'apply-action', action: allIn })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(isComplete(model.hand!)).toBe(true)
+    expect(model.phase).toBe('session-over')
+    expect(model.hand).not.toBeNull()
+    const hero = model.players.find((p) => p.isHero)!
+    expect(hero.stack).toBe(0)
+    expect(reducer(model, { type: 'quit' }).phase).toBe('game-over')
   })
 
   it('quit jumps straight to game-over', () => {

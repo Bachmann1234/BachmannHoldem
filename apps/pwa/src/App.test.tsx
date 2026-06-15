@@ -104,10 +104,57 @@ describe('App — scripted session', () => {
       screen.getByRole('button', { name: /Deal in/ }).click()
     })
 
-    // Hero shoves (all-in size), then calls down the rest; the station calls off and busts.
+    // Hero shoves (all-in size), then calls down the rest; the station calls off and busts. Once the
+    // session ends we land on the final-hand review ("View summary") which we dismiss to the summary.
     for (let i = 0; i < 40; i++) {
       await flush()
       if (screen.queryByTestId('summary')) break
+      const viewSummary = screen.queryByRole('button', { name: /View summary/ })
+      const allIn = screen.queryByRole('button', { name: 'all-in' })
+      const raise = screen.queryByRole('button', { name: /^Raise to/ })
+      const call = screen.queryByRole('button', { name: /^Call/ })
+      const check = screen.queryByRole('button', { name: /^Check$/ })
+      if (viewSummary) {
+        await act(async () => viewSummary.click())
+      } else if (allIn && raise) {
+        await act(async () => allIn.click())
+        await act(async () => raise.click())
+      } else if (call) {
+        await act(async () => call.click())
+      } else if (check) {
+        await act(async () => check.click())
+      }
+    }
+
+    await waitFor(() => expect(screen.getByTestId('summary')).toBeTruthy())
+    expect(screen.getByText('You stacked the table. Nice.')).toBeTruthy()
+    const standings = within(screen.getByTestId('standings'))
+    expect(standings.getByText('BUSTED')).toBeTruthy()
+  })
+
+  it('shows the busted-out final hand (showdown) before the summary', async () => {
+    // The reported bug: when the HERO busts, jump straight to the summary and the final hand is
+    // never seen. Hero shoves 7-2 into the station's AA and loses; we must land on the final-hand
+    // review — the showdown result-banner visible, the summary NOT yet shown — until we dismiss it.
+    const makeBot = (): Opponent => callingStation
+    const deck = buildDeck(2, 0, ['7h 2c', 'As Ad'], 'Ah Kd 9s 4c 3d')
+    render(
+      <App
+        initial={{ seats: 2, opponents: ['station'] }}
+        decks={[deck]}
+        makeBot={makeBot}
+        botDelayMs={0}
+      />,
+    )
+
+    await act(async () => {
+      screen.getByRole('button', { name: /Deal in/ }).click()
+    })
+
+    // Drive the hero all-in; the station calls off; the board runs out and the hero busts.
+    for (let i = 0; i < 40; i++) {
+      await flush()
+      if (screen.queryByRole('button', { name: /View summary/ })) break
       const allIn = screen.queryByRole('button', { name: 'all-in' })
       const raise = screen.queryByRole('button', { name: /^Raise to/ })
       const call = screen.queryByRole('button', { name: /^Call/ })
@@ -122,8 +169,15 @@ describe('App — scripted session', () => {
       }
     }
 
+    // The final hand is still on the table: the showdown banner is visible and the summary is NOT.
+    expect(screen.getByTestId('result-banner')).toBeTruthy()
+    expect(screen.queryByTestId('summary')).toBeNull()
+
+    // Dismissing the review reveals the summary, with the hero shown busted.
+    await act(async () => {
+      screen.getByRole('button', { name: /View summary/ }).click()
+    })
     await waitFor(() => expect(screen.getByTestId('summary')).toBeTruthy())
-    expect(screen.getByText('You stacked the table. Nice.')).toBeTruthy()
     const standings = within(screen.getByTestId('standings'))
     expect(standings.getByText('BUSTED')).toBeTruthy()
   })

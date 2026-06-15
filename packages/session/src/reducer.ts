@@ -49,8 +49,9 @@ import {
  *   dropped) and enters `'playing'`. The RNG that produced `deck` stays in the shell.
  * - `'apply-action'` — apply an already-validated engine {@link Action} (the hero's keystroke or a
  *   bot's `decide` result) to the live hand, grading the hero's decision, and — if the hand
- *   completes — settling stacks and moving to `'hand-over'` or `'game-over'`.
- * - `'quit'` — the hero quits; jump straight to `'game-over'` with whatever stacks stand.
+ *   completes — settling stacks and moving to `'hand-over'` or `'session-over'`.
+ * - `'quit'` — the hero quits, or dismisses the final-hand review; jump to `'game-over'` with
+ *   whatever stacks stand.
  * - `'noop'` — identity (proves the loop).
  */
 export type Msg =
@@ -173,9 +174,9 @@ function startHand(model: Model, deck: readonly Card[]): Model {
 /**
  * Apply a legal action to the live hand. Grades the hero's decision first (capture-before-apply, so
  * `decisionContext` still accepts the spot), then advances the hand. When the hand completes, settle
- * the per-seat stacks back to the stable players and transition: `'game-over'` if the session is
- * over (hero busted, or one survivor), else `'hand-over'` to offer play-again. No-op outside
- * `'playing'` or with no live hand.
+ * the per-seat stacks back to the stable players and transition: `'session-over'` if the session is
+ * over (hero busted, or one survivor) so the showdown stays on screen for review, else `'hand-over'`
+ * to offer play-again. No-op outside `'playing'` or with no live hand.
  */
 function applyHeroOrBotAction(model: Model, action: Action): Model {
   if (model.phase !== 'playing' || model.hand === null) return model
@@ -190,8 +191,12 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
   }
 
   // Hand done: write the survivors' stacks back to the stable players, then decide the next phase.
+  // When the session has ended we stop at `'session-over'` (not straight to `'game-over'`) so the
+  // completed hand — including the showdown that busted the hero — stays on screen for review; the
+  // hero dismisses it (a `'quit'` message) to reach the summary. A bot busting still goes to
+  // `'hand-over'` to offer play-again.
   const players = applyHandResult(model.players, hand, model.seatToId)
-  const phase = sessionOver(players) ? 'game-over' : 'hand-over'
+  const phase = sessionOver(players) ? 'session-over' : 'hand-over'
   return { ...model, hand, coach, players, phase }
 }
 
