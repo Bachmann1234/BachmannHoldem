@@ -2,7 +2,7 @@
 id: 0051
 title: Coach fidelity — close the gaps between the coach's grade and sound strategy
 type: epic
-status: todo
+status: in-progress
 milestone:
 priority: high
 created: 2026-06-14
