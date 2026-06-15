@@ -2,7 +2,7 @@
 id: 0058
 title: Split the growing preflop coach into position / rationale modules
 type: chore
-status: todo
+status: done
 milestone:
 priority: low
 created: 2026-06-15
