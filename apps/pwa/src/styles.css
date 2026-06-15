@@ -611,6 +611,13 @@ body {
   padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
+  /* Anchor the controls to the bottom and reserve the hero-turn height for every state, so the bar
+     never grows/shrinks as the turn passes (bet-row appears, buttons gain their amount line). The
+     floor is the measured tallest layout — bet-row + a two-line actions row + padding — plus the
+     safe-area inset the padding also carries; shorter states (a bot's "Waiting…", the between-hands
+     CTAs) fill the reserved space above the buttons instead of collapsing and shifting the table. */
+  justify-content: flex-end;
+  min-height: calc(140px + env(safe-area-inset-bottom));
   gap: 9px;
   background: linear-gradient(0deg, var(--bg), var(--bg) 70%, transparent);
 }
