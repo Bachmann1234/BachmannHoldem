@@ -33,7 +33,10 @@
  * coarse value-vs-pot-control read on an unbet pot. We deliberately do **not** grade an
  * exact bet/raise *size*: correct sizing needs fold-equity assumptions
  * ({@link evOfBet}'s `villainCallProbability`) we do not own deterministically. Sizing is
- * left to a later ticket / the optional LLM narration ([[0011-llm-coaching]]).
+ * left to a later ticket / the optional LLM narration ([[0011-llm-coaching]]). We *do* carry
+ * one deterministic aggression signal alongside the verdict — {@link DecisionVerdict.missedValueBet},
+ * a heuristic "you checked an unbet pot while comfortably ahead — bet for value" flag (ticket
+ * 0055) — but that flags *whether* value is being left on the table, never *how much* to bet.
  *
  * **Determinism.** {@link estimateEquity} is Monte-Carlo sampled against a range, so we
  * pin a fixed {@link COACH_SEED}: the same `(ctx, action)` always yields the same verdict,
@@ -211,6 +214,33 @@ export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
 }
 
 /**
+ * The equity, as a fraction `0..1`, at or above which a *checked, unbet pot* is a **missed
+ * value bet** — the over-passivity knob (ticket 0055).
+ *
+ * The deterministic coach grades only *fold vs. continue*, so checking a strong hand into an
+ * unbet pot scores `'good'` (a free check is never a −EV mistake) and the fact that the hero
+ * is **leaving value on the table** by not betting goes unflagged — a beginner drilled on that
+ * line learns to play passively. This threshold is the additional signal: when the hero checks
+ * an unbet pot with equity at/above it, the hero is comfortably ahead of a typical range and
+ * should be *betting for value*, so {@link coachDecision} raises {@link DecisionVerdict.missedValueBet}.
+ *
+ * `0.6` (60% equity) is "comfortably ahead of a typical {@link COACH_ASSUMED_RANGE} range" —
+ * an overpair / top-pair-good-kicker class read — the band where betting for value clearly
+ * beats checking, without firing on marginal hands that genuinely prefer pot control. It is a
+ * *heuristic* over-passivity flag, deliberately **not** a bet-*sizing* recommendation: correct
+ * sizing needs the fold-equity assumption ({@link evOfBet}'s `villainCallProbability`) the
+ * deterministic engine does not own, so sizing stays out of scope (see the module doc / ticket
+ * 0055). A named, tunable knob, like {@link EPSILON} / {@link COACH_SEED} / {@link LARGE_BET_POT_FRACTION}.
+ *
+ * The equity this gates is already table-size aware — {@link coachDecision} reads it against the
+ * `ctx.numActive - 1` opponents actually live in the pot ([[0031-coach-multiway-equity]]) — so 60%
+ * means 60% against the whole live field, not just one villain. What it does *not* model is the
+ * pot-control nuance that a thin value bet multiway can prefer a check; that is a sizing concern,
+ * out of scope here (the flag only ever *adds* a "consider betting" nudge, never flips the verdict).
+ */
+export const VALUE_BET_THRESHOLD = 0.6
+
+/**
  * The break-even tolerance band, in equity-fraction units.
  *
  * A spot where the hero's equity sits *exactly* on the pot-odds threshold is a true
@@ -325,6 +355,21 @@ export interface DecisionVerdict {
   /** Whether the hero's action was a `'good'` play, a `'leak'`, or a `'breakEven'` coin-flip. */
   readonly verdict: ActionVerdict
   /**
+   * Over-passivity signal (ticket 0055): the hero **checked an unbet pot** while holding equity
+   * at/above {@link VALUE_BET_THRESHOLD} — comfortably ahead of a typical range — so the check,
+   * though not a −EV mistake, **leaves value on the table**: the hero should be *betting for value*.
+   *
+   * This is an **additional** signal layered on top of {@link verdict}, **not** a flip to a leak.
+   * The check of a free card is still graded `'good'` (taking a free card is never −EV); this flag
+   * is the coach's "the check is fine, but you're leaving value — bet" nudge, surfaced once for all
+   * clients through {@link explainDecision}. It fires *only* on the unbet-pot check
+   * (`toCall === 0 && action.type === 'check' && equity >= VALUE_BET_THRESHOLD`) and is `false` in
+   * every priced (`toCall > 0`) branch. Deliberately scoped: it does **not** flag a flat-call that
+   * could raise (murkier) and does **not** grade bet *sizing* (needs fold-equity assumptions the
+   * deterministic engine does not own — out of scope per ticket 0055).
+   */
+  readonly missedValueBet: boolean
+  /**
    * The primary mental model this decision turns on — the cross-link to the Foundations primer
    * ([[0042-foundations-primer]]). A single verdict touches equity, pot odds, and EV all at once, so
    * this names the *one* idea the decision hinges on rather than every number it reports:
@@ -422,6 +467,10 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   // A free check has no price: continuing is always correct, and there is no break-even
   // band to fall into (the threshold is exactly 0).
   if (ctx.toCall === 0) {
+    // Over-passivity signal (ticket 0055): a *check* into the unbet pot with equity comfortably
+    // ahead of a typical range leaves value on the table — the hero should be betting. An
+    // ADDITIONAL nudge, not a flip to a leak (the free check itself is still graded 'good').
+    const missedValueBet = action.type === 'check' && equity >= VALUE_BET_THRESHOLD
     return {
       equity,
       potOddsThreshold,
@@ -429,6 +478,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       correctDecision: 'continue',
       heroContinued,
       verdict: heroContinued ? 'good' : 'leak',
+      missedValueBet,
       // No price to weigh — the decision is purely reading your share of the pot.
       concept: 'equity',
     }
@@ -444,6 +494,8 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       correctDecision: 'continue',
       heroContinued,
       verdict: 'breakEven',
+      // A priced spot is never a "missed value bet" — that signal is scoped to the unbet check.
+      missedValueBet: false,
       // Facing a price: the continue decision turns on weighing equity against that price.
       concept: 'equity-vs-price',
     }
@@ -465,6 +517,8 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
     correctDecision,
     heroContinued,
     verdict: heroWasCorrect ? 'good' : 'leak',
+    // A priced spot is never a "missed value bet" — that signal is scoped to the unbet check.
+    missedValueBet: false,
     // Facing a price: the continue decision turns on weighing equity against that price.
     concept: 'equity-vs-price',
   }

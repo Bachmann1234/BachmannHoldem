@@ -20,7 +20,7 @@ import {
   type PlayerState,
 } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL, explainDecision } from '@holdem/format'
+import { pct, signedChips, VERDICT_LABEL, explainDecision, evMetric } from '@holdem/format'
 import type { GroundTruth } from './analysis.js'
 
 /** Re-exported for the harness so it has one import surface (`from './table.js'`). */
@@ -95,9 +95,12 @@ export function renderResult(state: HandState, heroSeat: number): string {
  */
 export function renderCoachFeedback(verdict: DecisionVerdict): string {
   const lines = ['', `── Coach ${'─'.repeat(39)}`]
+  // The EV metric's label is corrected for spots with nothing to call (a free check / a bet),
+  // where `callEv` is really pot-equity, not the EV of a call (ticket 0055 — `evMetric`).
+  const ev = evMetric(verdict)
   lines.push(
     `  Equity ${pct(verdict.equity)}  vs pot odds ${pct(verdict.potOddsThreshold)}` +
-      `  EV(call) ${signedChips(verdict.callEv)}`,
+      `  ${ev.label} ${ev.value}`,
   )
   lines.push(`  EV-correct: ${verdict.correctDecision}`)
   lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
@@ -119,9 +122,12 @@ export function renderGroundTruth(
   verdict: DecisionVerdict,
   toCall: number,
 ): string {
+  // Match the coach block's relabel (ticket 0055): on a free spot (nothing to call) `callEv` is
+  // really equity×pot (pot-equity), so the "EV(call)" label would mislead here too.
+  const evLabel = toCall === 0 ? 'Pot equity' : 'EV(call)'
   const lines = [
     `  Ground truth (vs actual cards): equity ${pct(truth.equity)}` +
-      `  EV(call) ${signedChips(truth.callEv)}  true-correct: ${truth.correct}`,
+      `  ${evLabel} ${signedChips(truth.callEv)}  true-correct: ${truth.correct}`,
   ]
   if (toCall > 0 && verdict.correctDecision !== truth.correct) {
     lines.push(

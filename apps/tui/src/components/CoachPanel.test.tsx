@@ -127,6 +127,33 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     // Near-zero EV renders the bare, unsigned `0` (the bare-0 formatting contract).
     expect(frame).toContain('EV(call) 0')
   })
+
+  it('postflop: a free check (nothing to call) relabels the metric "Pot equity", not "EV(call)" (ticket 0055)', () => {
+    // On a free check callEv is pot-equity, not call-EV, so the shared evMetric relabels it.
+    const frame = plain(
+      render(
+        <CoachPanel
+          coach={{
+            kind: 'verdict',
+            verdict: {
+              equity: 0.62,
+              potOddsThreshold: 0,
+              callEv: 2.5,
+              correctDecision: 'continue',
+              heroContinued: true,
+              verdict: 'good',
+              missedValueBet: true,
+              concept: 'equity',
+            },
+          }}
+        />,
+      ).lastFrame()!,
+    )
+    expect(frame).toContain('Pot equity +2.5')
+    expect(frame).not.toContain('EV(call)')
+    // The over-passivity nudge surfaces through the shared explainDecision why-line.
+    expect(frame.toLowerCase()).toContain('bet for value')
+  })
 })
 
 describe('CoachPanel through the reducer: ordering + advisory contract', () => {

@@ -13,6 +13,7 @@ import {
   COACH_ASSUMED_RANGE,
   COACH_SEED,
   EPSILON,
+  VALUE_BET_THRESHOLD,
   type DecisionVerdict,
 } from './verdict.js'
 
@@ -197,6 +198,56 @@ describe('coachDecision — free check (toCall === 0)', () => {
   it('folding a free check is the pathological leak', () => {
     const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 })
     expect(coachDecision(spot, FOLD).verdict).toBe('leak')
+  })
+})
+
+describe('coachDecision — missed value bet (over-passivity flag, ticket 0055)', () => {
+  const BET: Action = { type: 'bet', amount: 10 }
+
+  it('flags a checked unbet pot with equity ≥ VALUE_BET_THRESHOLD — but keeps the verdict good', () => {
+    // The seed-29 spot: an overpair (Ts Td) on a dry low board in an unbet pot is comfortably
+    // ahead of a typical range, so checking it leaves value — bet for value instead.
+    const holeCards = hole('TsTd')
+    const board = parseCards('6h 7s 2d')
+    const spot = ctx({ holeCards, board, pot: 10, toCall: 0 })
+    const v = coachDecision(spot, CHECK)
+
+    // Premise: the read is comfortably over the value threshold.
+    expect(v.equity).toBeGreaterThanOrEqual(VALUE_BET_THRESHOLD)
+    expect(v.missedValueBet).toBe(true)
+    // The flag is ADDITIONAL — checking a free card is not a −EV mistake, so it stays good.
+    expect(v.verdict).toBe('good')
+  })
+
+  it('does NOT flag a checked unbet pot when equity is below the threshold', () => {
+    // 7-2 offsuit on a dry board is well under VALUE_BET_THRESHOLD — checking is correct,
+    // and there is no value being left, so no nudge.
+    const holeCards = hole('7h2c')
+    const board = parseCards('Ad Ks Qh')
+    const spot = ctx({ holeCards, board, pot: 10, toCall: 0 })
+    const v = coachDecision(spot, CHECK)
+
+    expect(v.equity).toBeLessThan(VALUE_BET_THRESHOLD)
+    expect(v.missedValueBet).toBe(false)
+  })
+
+  it('does NOT flag a BET into an unbet pot — the hero already took the value (it is the action we want)', () => {
+    const holeCards = hole('TsTd')
+    const board = parseCards('6h 7s 2d')
+    const spot = ctx({ holeCards, board, pot: 10, toCall: 0 })
+    const v = coachDecision(spot, BET)
+
+    // Same high-equity unbet pot, but the hero bet — there is no value missed.
+    expect(v.equity).toBeGreaterThanOrEqual(VALUE_BET_THRESHOLD)
+    expect(v.missedValueBet).toBe(false)
+  })
+
+  it('is never set on a priced spot, even a high-equity one (scoped to the unbet check)', () => {
+    // A +EV value call with strong equity: the flag is about over-passivity in an unbet pot,
+    // not about priced spots, so it stays false in every toCall > 0 branch.
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
+    expect(coachDecision(spot, CALL).missedValueBet).toBe(false)
+    expect(coachDecision(spot, FOLD).missedValueBet).toBe(false)
   })
 })
 

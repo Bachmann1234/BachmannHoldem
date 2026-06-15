@@ -50,6 +50,10 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
  *
  * Four cases, mirroring {@link coachDecision}'s own branches:
  * - **Free check** (`potOddsThreshold === 0`): no price, so any equity continues — no EV claim.
+ *   When the verdict also carries `missedValueBet` (ticket 0055 — the hero checked an unbet pot
+ *   while comfortably ahead), the sentence adds the value-bet nudge ("…but with {equity} equity
+ *   you're ahead — bet for value rather than checking."). All clients render this line, so the
+ *   nudge surfaces once, here, for the terminal, TUI, and PWA alike.
  * - **Break-even** (`verdict === 'breakEven'`): equity sits on the price; the call is a wash.
  * - **Priced continue** (`correctDecision === 'continue'`): equity beats the price, so calling is +EV.
  * - **Priced fold** (`correctDecision === 'fold'`): equity trails the price, so folding is +EV.
@@ -62,6 +66,11 @@ export function explainDecision(verdict: DecisionVerdict): string {
   const equity = pct(verdict.equity)
   // A free check has no price to weigh equity against, so it never talks about a break-even % or EV.
   if (verdict.potOddsThreshold === 0) {
+    // Over-passivity nudge (ticket 0055): the check is fine, but with this much equity the hero is
+    // ahead and leaving value by not betting — surfaced here so every client gets it for free.
+    if (verdict.missedValueBet) {
+      return `Taking the free card is fine, but with ${equity} equity you're ahead — bet for value rather than checking.`
+    }
     return `There's no price to call, so taking the free card is automatic — you keep your ${equity} share for nothing.`
   }
   const price = pct(verdict.potOddsThreshold)
@@ -76,4 +85,35 @@ export function explainDecision(verdict: DecisionVerdict): string {
     return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play — ${chips}.`
   }
   return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play — ${chips}.`
+}
+
+/**
+ * The EV-row metric for a verdict — the `{ label, value }` pair every client prints at the top of a
+ * postflop coach block — with the **label corrected for spots that have nothing to call** (ticket
+ * 0055).
+ *
+ * {@link DecisionVerdict.callEv} is `evOfCall(...)`, the chip EV of *calling* relative to folding.
+ * On a priced spot (a real call/raise) that is exactly what it is, so the label is `EV(call)`. But
+ * on a **free check or a bet** there is nothing to call: with `callAmount === 0` the EV-of-call math
+ * collapses to `equity × pot` — the hero's *pot-equity* (their chip share of the pot), not the EV of
+ * any call. The number was always correct; only the `EV(call)` label misled about what it measures.
+ * So when `potOddsThreshold === 0` (the coach's own "no price to call" signal — `potOdds(0, pot)`),
+ * we relabel it `Pot equity`. The **value is unchanged** in both cases — only the label moves — so
+ * the three renderers stay byte-identical and the chip number a player learns to read never shifts.
+ *
+ * A raise into a bet (a priced spot, `toCall > 0`) keeps `EV(call)`: there *is* a call to compare
+ * against, so the EV-of-call framing is the honest one.
+ *
+ * Pure formatting, like the rest of this module: it reads the label off `potOddsThreshold` and runs
+ * the value through {@link signedChips}, so the terminal, the TUI, and the PWA's EV card all derive
+ * the same label/value from one place and can never diverge.
+ */
+export function evMetric(verdict: DecisionVerdict): {
+  readonly label: string
+  readonly value: string
+} {
+  // potOddsThreshold === 0 is exactly potOdds(0, pot) — nothing to call (a free check or a bet),
+  // where callEv is really equity×pot (pot-equity), not the EV of a call. Relabel, keep the value.
+  const label = verdict.potOddsThreshold === 0 ? 'Pot equity' : 'EV(call)'
+  return { label, value: signedChips(verdict.callEv) }
 }

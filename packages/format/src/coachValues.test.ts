@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { DecisionVerdict } from '@holdem/coach'
-import { explainDecision, pct, signedChips, VERDICT_LABEL } from './coachValues.js'
+import { evMetric, explainDecision, pct, signedChips, VERDICT_LABEL } from './coachValues.js'
 
 describe('pct', () => {
   it('renders a 0..1 fraction as a one-decimal percent', () => {
@@ -59,6 +59,7 @@ describe('explainDecision', () => {
     correctDecision: 'continue',
     heroContinued: true,
     verdict: 'good',
+    missedValueBet: false,
     concept: 'equity-vs-price',
     ...v,
   })
@@ -115,5 +116,73 @@ describe('explainDecision', () => {
     const s = explainDecision(verdict({ verdict: 'good' }))
     expect(s).not.toContain('Good')
     expect(s).not.toContain('Leak')
+  })
+
+  it('adds the value-bet nudge on a checked unbet pot with missedValueBet set', () => {
+    // Free check (potOddsThreshold 0) but the hero is comfortably ahead and just checked: the
+    // line keeps the "free card is fine" framing and adds the "bet for value" nudge (ticket 0055).
+    const s = explainDecision(
+      verdict({
+        equity: 0.62,
+        potOddsThreshold: 0,
+        callEv: 62,
+        verdict: 'good',
+        missedValueBet: true,
+      }),
+    )
+    expect(s).toContain('62.0%')
+    expect(s.toLowerCase()).toContain('ahead')
+    expect(s.toLowerCase()).toContain('bet for value')
+    // Still no +EV/price claim on a free decision.
+    expect(s).not.toContain('+EV')
+  })
+
+  it('a free check WITHOUT missedValueBet keeps the plain free-card line (no nudge)', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.4,
+        potOddsThreshold: 0,
+        callEv: 40,
+        verdict: 'good',
+        missedValueBet: false,
+      }),
+    )
+    expect(s.toLowerCase()).toContain('free')
+    expect(s.toLowerCase()).not.toContain('bet for value')
+  })
+})
+
+describe('evMetric', () => {
+  /** Build a DecisionVerdict fixture (only the fields the metric reads matter). */
+  const verdict = (v: Partial<DecisionVerdict>): DecisionVerdict => ({
+    equity: 0.5,
+    potOddsThreshold: 0.33,
+    callEv: 4,
+    correctDecision: 'continue',
+    heroContinued: true,
+    verdict: 'good',
+    missedValueBet: false,
+    concept: 'equity-vs-price',
+    ...v,
+  })
+
+  it('labels a priced spot "EV(call)" with the signed chip value', () => {
+    const m = evMetric(verdict({ potOddsThreshold: 0.33, callEv: 4 }))
+    expect(m.label).toBe('EV(call)')
+    expect(m.value).toBe(signedChips(4))
+  })
+
+  it('relabels to "Pot equity" when there is nothing to call (potOddsThreshold === 0)', () => {
+    // A free check / a bet: callEv is really pot-equity (equity×pot), not the EV of a call.
+    const m = evMetric(verdict({ potOddsThreshold: 0, callEv: 62 }))
+    expect(m.label).toBe('Pot equity')
+    // The VALUE is unchanged — only the label moves.
+    expect(m.value).toBe(signedChips(62))
+  })
+
+  it('keeps "EV(call)" for a priced fold (a real call to weigh, just a −EV one)', () => {
+    const m = evMetric(verdict({ potOddsThreshold: 0.4, callEv: -8, correctDecision: 'fold' }))
+    expect(m.label).toBe('EV(call)')
+    expect(m.value).toBe(signedChips(-8))
   })
 })

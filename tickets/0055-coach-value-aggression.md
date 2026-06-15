@@ -2,7 +2,7 @@
 id: 0055
 title: Coach value betting & aggression, not just fold-vs-continue
 type: feature
-status: todo
+status: done
 milestone:
 priority: medium
 created: 2026-06-14
@@ -34,15 +34,32 @@ the label misleads about what the number is.
 
 ## Acceptance criteria
 
-- [ ] When the hero has high equity in an unbet / small pot and just checks or flat-calls,
+- [x] When the hero has high equity in an unbet / small pot and just checks or flat-calls,
       the coach flags a **missed value bet** (over-passivity) rather than only blessing the
-      continue.
-- [ ] Fix the misleading `EV(call)` label for spots with nothing to call (a free check and a
-      bet) — label it as the pot-equity value it is, or omit it.
-- [ ] Any sizing/aggression guidance stays deterministic where it can be, and is clearly
+      continue. `DecisionVerdict.missedValueBet` fires on `toCall === 0 && check && equity ≥
+    VALUE_BET_THRESHOLD` (0.60); surfaced once for all clients via the `explainDecision`
+      nudge. (Scoped to the unbet-pot check — the murkier flat-call-could-raise case is left
+      out deliberately; see Resolution.)
+- [x] Fix the misleading `EV(call)` label for spots with nothing to call (a free check and a
+      bet) — label it as the pot-equity value it is, or omit it. New shared `evMetric(verdict)`
+      relabels to `Pot equity` when `potOddsThreshold === 0`, used by all three coach renderers
+      (CLI / TUI / PWA) and the CLI ground-truth diagnostic; the value is unchanged.
+- [x] Any sizing/aggression guidance stays deterministic where it can be, and is clearly
       scoped: full bet-sizing optimization is **not** required here (it needs fold-equity
-      assumptions we don't own — see notes).
-- [ ] Tests cover the over-passivity flag and the relabeled metric; `pnpm verify` green.
+      assumptions we don't own — see notes). Bet-sizing is explicitly NOT done.
+- [x] Tests cover the over-passivity flag and the relabeled metric; `pnpm verify` green.
+
+## Resolution
+
+Added `VALUE_BET_THRESHOLD` + `DecisionVerdict.missedValueBet` in `packages/coach/src/verdict.ts`
+(deterministic; the flag is additive and never flips the `good` verdict on a free check). The
+nudge is surfaced through `explainDecision` and the `EV(call)→Pot equity` relabel through a new
+`evMetric` helper in `packages/format/src/coachValues.ts`, so the CLI, TUI, and PWA stay
+identical. Deliberately scoped out: bet-_sizing_ (needs the fold-equity assumption the
+deterministic engine doesn't own — candidate for the optional LLM layer [[0011-llm-coaching]])
+and the flat-call-could-raise case. The gated equity is already table-size aware (read against
+`numActive - 1` villains); the pot-control nuance of a thin multiway value bet is a sizing
+concern left out of scope.
 
 ## Notes
 
