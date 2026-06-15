@@ -27,12 +27,21 @@ function Harness({ seats, onStart }: { seats: number; onStart?: () => void }): R
 }
 
 describe('SetupScreen', () => {
-  it('renders the seat count and one preset cycler per opponent', () => {
+  /** Sum the four archetype count chips currently rendered. */
+  function mixTotal(): number {
+    return ['tag', 'lag', 'rock', 'station']
+      .map((k) => Number(screen.getByTestId(`mix-${k}`).textContent))
+      .reduce((a, b) => a + b, 0)
+  }
+
+  it('renders the seat count and a count per archetype that sums to seats - 1', () => {
     render(<Harness seats={6} />)
     expect(screen.getByTestId('seat-count').textContent).toBe('6')
-    // 6-max → 5 opponent rows.
-    for (let i = 0; i < 5; i++) expect(screen.getByTestId(`opponent-${i}`)).toBeTruthy()
-    expect(screen.queryByTestId('opponent-5')).toBeNull()
+    // One count row per archetype (not per seat); the mix sums to the 5 non-hero seats.
+    for (const k of ['tag', 'lag', 'rock', 'station']) {
+      expect(screen.getByTestId(`mix-${k}`)).toBeTruthy()
+    }
+    expect(mixTotal()).toBe(5)
   })
 
   it('increments / decrements the seat count via the stepper', () => {
@@ -54,14 +63,26 @@ describe('SetupScreen', () => {
     expect(screen.getByRole('button', { name: 'More seats' })).toHaveProperty('disabled', true)
   })
 
-  it('cycles an opponent preset through the four presets', () => {
-    render(<Harness seats={2} />)
-    const cycler = screen.getByTestId('opponent-0')
-    expect(cycler.textContent).toBe('TAG') // heads-up defaults to TAG
-    act(() => cycler.click())
-    expect(screen.getByTestId('opponent-0').textContent).toBe('LAG')
-    act(() => cycler.click())
-    expect(screen.getByTestId('opponent-0').textContent).toBe('Rock')
+  it('adjusts an archetype count, keeping the mix summed to seats - 1', () => {
+    render(<Harness seats={4} />) // 3 opponents
+    expect(mixTotal()).toBe(3)
+    const stationBefore = Number(screen.getByTestId('mix-station').textContent)
+    act(() => screen.getByRole('button', { name: 'More Station' }).click())
+    expect(Number(screen.getByTestId('mix-station').textContent)).toBe(stationBefore + 1)
+    expect(mixTotal()).toBe(3) // total preserved — a slot moved from another archetype
+  })
+
+  it('disables an archetype decrement at 0 and the increment once it fills the table', () => {
+    render(<Harness seats={2} />) // 1 opponent, defaults to a single TAG
+    expect(screen.getByRole('button', { name: 'More TAG' })).toHaveProperty('disabled', true) // tag=1=total
+    expect(screen.getByRole('button', { name: 'Fewer LAG' })).toHaveProperty('disabled', true) // lag=0
+  })
+
+  it('randomizes the mix without changing the table size', () => {
+    render(<Harness seats={5} />) // 4 opponents
+    act(() => screen.getByTestId('randomize').click())
+    expect(screen.getByTestId('seat-count').textContent).toBe('5')
+    expect(mixTotal()).toBe(4)
   })
 
   it('fires onStart when the Deal CTA is tapped', () => {

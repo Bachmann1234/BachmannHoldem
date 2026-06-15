@@ -77,7 +77,7 @@ export function Table({
 
       <div className="table">
         <div className="felt">
-          <Center hand={hand} heroSeat={heroSeat} />
+          <Center hand={hand} heroSeat={heroSeat} seatLabel={seatLabel} />
 
           {/* wager chips — the current-street bet, placed part-way toward the centre */}
           {hand.players.map((p) => {

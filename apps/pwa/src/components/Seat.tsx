@@ -38,10 +38,10 @@ export interface SeatProps {
   readonly position: readonly [number, number]
 }
 
-/** The first two characters of a label, upper-cased, for the bot avatar (e.g. `Seat 1` → `SE`). */
-export function avatarText(label: string, isHero: boolean): string {
-  return isHero ? 'YOU' : label.replace(/\s+/g, '').slice(0, 2).toUpperCase()
-}
+/** The hero's avatar glyph. Opponents render no avatar — the felt position + label identify them,
+ * so dropping the (identical `SE`) bot circle keeps the pill narrow enough that two opposing seats
+ * never overlap on a phone-width felt. */
+export const HERO_AVATAR = 'YOU'
 
 /** Render one seat: avatar, name + position tag, stack, acting ring, and the two hole cards. */
 export function Seat({
@@ -60,7 +60,17 @@ export function Seat({
   const acting = toAct === player.seat
   const tag = posTag(player.seat, buttonIndex, seatCount)
   const [x, y] = position
-  const cls = ['pseat', isHero ? 'hero' : '', acting ? 'acting' : '', folded ? 'folded' : '']
+  // Horizontal anchor: a seat on the felt's left/right flank grows its (wide) info pill INWARD
+  // from that edge rather than centring on its coordinate, so the pill can never spill off the
+  // narrow-phone screen edge. Only near-centre seats (the hero, a top-centre seat) stay centred.
+  const side = x <= 18 ? 'left' : x >= 82 ? 'right' : 'center'
+  const cls = [
+    'pseat',
+    `pseat-${side}`,
+    isHero ? 'hero' : '',
+    acting ? 'acting' : '',
+    folded ? 'folded' : '',
+  ]
     .filter(Boolean)
     .join(' ')
   return (
@@ -77,11 +87,13 @@ export function Seat({
         winning={winning}
       />
       <div className="pseat-info">
-        <div className={isHero ? 'avatar' : 'avatar bot'}>{avatarText(label, isHero)}</div>
+        {isHero && <div className="avatar">{HERO_AVATAR}</div>}
         <div className="seat-meta">
           <div className="seat-name">
-            {label}
-            {tag !== null && <span className={tag === 'BTN' ? 'postag btn' : 'postag'}>{tag}</span>}
+            <span className="seat-label">{label}</span>
+            {tag !== null && (
+              <span className={tag === 'BTN' ? 'postag postag-btn' : 'postag'}>{tag}</span>
+            )}
           </div>
           <div className="seat-stack">{allIn && player.stack === 0 ? 'ALL-IN' : player.stack}</div>
         </div>

@@ -1,15 +1,26 @@
 /**
  * The table-setup screen (ticket 0035) — the DOM analog of the TUI's `SetupScreen`. Touch UI that
- * edits the shared {@link SetupState} the reducer owns: a seat-count stepper (2–6) and one preset
- * cycler per opponent seat (TAG / LAG / Rock / Station), plus a Deal CTA that starts the first hand.
+ * edits the shared {@link SetupState} the reducer owns: a seat-count stepper (2–6) and — since the
+ * felt assigns names to seats randomly per session — a *count* per archetype (how many TAG / LAG /
+ * Rock / Station) rather than a per-seat preset, plus a Randomize reroll and a Deal CTA.
  *
  * Purely a view over the model: every edit dispatches a reducer {@link Msg} (`set-seats` /
- * `cycle-opponent`) — exactly the messages the TUI setup `useInput` dispatched — and the CTA calls
- * the shell's `beginHand()`. No poker logic, no local selection state; the reducer is the single
- * source of truth, this just renders it and forwards intent.
+ * `adjust-mix` / `set-opponents`) and the CTA calls the shell's `beginHand()`. No poker logic, no
+ * local selection state; the reducer is the single source of truth, this just renders it and
+ * forwards intent. `randomOpponents` is the one impure call (the dice roll), kept in the handler.
  */
 
-import { BOT_LABELS, MAX_SEATS, MIN_SEATS, type Msg, type SetupState } from '@holdem/session'
+import {
+  BOT_BLURBS,
+  BOT_KINDS,
+  BOT_LABELS,
+  countsByKind,
+  MAX_SEATS,
+  MIN_SEATS,
+  randomOpponents,
+  type Msg,
+  type SetupState,
+} from '@holdem/session'
 import { TabBar } from './TabBar.js'
 import type { Tab } from './TabBar.js'
 
@@ -39,6 +50,9 @@ export function SetupScreen({
   const setSeats = (seats: number): void => {
     if (seats >= MIN_SEATS && seats <= MAX_SEATS) dispatch({ type: 'set-seats', seats })
   }
+
+  const counts = countsByKind(setup.opponents)
+  const total = setup.seats - 1 // the mix always sums to this (one bot per non-hero seat)
 
   return (
     <div className="app" data-testid="setup">
@@ -91,18 +105,51 @@ export function SetupScreen({
         </div>
 
         <div className="setup-card">
-          {setup.opponents.map((kind, i) => (
-            <div className="setup-row" key={i}>
-              <div className="setup-label">{`Seat ${i + 1}`}</div>
-              <button
-                type="button"
-                className="preset-pill"
-                data-testid={`opponent-${i}`}
-                aria-label={`Seat ${i + 1} opponent: ${BOT_LABELS[kind]} (tap to change)`}
-                onClick={() => dispatch({ type: 'cycle-opponent', opponentIndex: i, direction: 1 })}
-              >
+          <div className="setup-row">
+            <div className="setup-label">
+              Opponents
+              <span className="hint">{total === 1 ? '1 opponent' : `${total} opponents`}</span>
+            </div>
+            <button
+              type="button"
+              className="preset-pill"
+              data-testid="randomize"
+              aria-label="Randomize the opponent mix"
+              onClick={() => dispatch({ type: 'set-opponents', opponents: randomOpponents(total) })}
+            >
+              🎲 Randomize
+            </button>
+          </div>
+
+          {BOT_KINDS.map((kind) => (
+            <div className="setup-row" key={kind}>
+              <div className="setup-label">
                 {BOT_LABELS[kind]}
-              </button>
+                <span className="hint">{BOT_BLURBS[kind]}</span>
+              </div>
+              <div className="stepper">
+                <button
+                  type="button"
+                  className="stepper-btn"
+                  aria-label={`Fewer ${BOT_LABELS[kind]}`}
+                  disabled={counts[kind] === 0}
+                  onClick={() => dispatch({ type: 'adjust-mix', kind, delta: -1 })}
+                >
+                  −
+                </button>
+                <span className="stepper-value" data-testid={`mix-${kind}`}>
+                  {counts[kind]}
+                </span>
+                <button
+                  type="button"
+                  className="stepper-btn"
+                  aria-label={`More ${BOT_LABELS[kind]}`}
+                  disabled={counts[kind] === total}
+                  onClick={() => dispatch({ type: 'adjust-mix', kind, delta: 1 })}
+                >
+                  +
+                </button>
+              </div>
             </div>
           ))}
         </div>
