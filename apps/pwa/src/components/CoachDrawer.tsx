@@ -27,8 +27,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { Card } from '@holdem/engine'
-import { handClassLabel, type DecisionVerdict, type PreflopVerdict } from '@holdem/coach'
+import type { Action, Card } from '@holdem/engine'
+import type { DecisionContext } from '@holdem/bots'
+import {
+  handClassLabel,
+  serializeSpot,
+  type DecisionVerdict,
+  type PreflopVerdict,
+} from '@holdem/coach'
 import { explainDecision, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
@@ -85,6 +91,47 @@ function verdictTone(tag: DecisionVerdict['verdict']): {
     default:
       return { cls: 'neutral', badge: '~' }
   }
+}
+
+/**
+ * "Copy ruling" — serialise the *exact* spot this verdict was graded on into a readable JSON blob
+ * (`serializeSpot`, which carries the verdict too) and write it to the clipboard, so a learner can
+ * paste the whole ruling to an AI for a second opinion (or re-grade it with `pnpm sim --spot=`). The
+ * coach is a pure function of `(ctx, action)`, so the blob reproduces this verdict exactly.
+ *
+ * The serialise lives in the pure `@holdem/coach`; only the clipboard write is here (the one DOM
+ * concern). `navigator.clipboard` is missing in insecure contexts / older browsers, so the write is
+ * guarded — a failure leaves the label unchanged rather than throwing. On success the label briefly
+ * flips to "Copied" as the affordance, matching the minimal `chart-link` button style.
+ */
+function CopyRulingButton({
+  ctx,
+  action,
+  verdict,
+}: {
+  readonly ctx: DecisionContext
+  readonly action: Action
+  readonly verdict: DecisionVerdict | PreflopVerdict
+}): React.JSX.Element {
+  const [copied, setCopied] = useState(false)
+  const onClick = (): void => {
+    const blob = serializeSpot(ctx, action, verdict)
+    // Guard: clipboard is unavailable in insecure contexts / older browsers. Best-effort; never throw.
+    void navigator.clipboard?.writeText?.(blob)?.then(
+      () => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1500)
+      },
+      () => {
+        /* clipboard write rejected — leave the label unchanged */
+      },
+    )
+  }
+  return (
+    <button type="button" className="chart-link" data-testid="copy-ruling" onClick={onClick}>
+      {copied ? 'Copied' : '⧉ Copy ruling'}
+    </button>
+  )
 }
 
 /** Render the bottom sheet + its scrim. */
@@ -214,9 +261,14 @@ export function CoachDrawer({
           </button>
         </div>
         {coach.kind === 'verdict' ? (
-          <VerdictBody verdict={coach.verdict} />
+          <VerdictBody verdict={coach.verdict} ctx={coach.ctx} action={coach.action} />
         ) : coach.kind === 'preflop' ? (
-          <PreflopBody verdict={coach.verdict} heroHoleCards={heroHoleCards} />
+          <PreflopBody
+            verdict={coach.verdict}
+            ctx={coach.ctx}
+            action={coach.action}
+            heroHoleCards={heroHoleCards}
+          />
         ) : coach.kind === 'error' ? (
           <div className="coach-note" data-testid="coach-error">
             {coach.message}
@@ -236,7 +288,15 @@ export function CoachDrawer({
  * bar, and the explainer. Postflop only — preflop is graded by the chart and rendered by
  * {@link PreflopBody} (no equity/EV cards to contradict the chart, ticket BUG-0001).
  */
-function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.JSX.Element {
+function VerdictBody({
+  verdict,
+  ctx,
+  action,
+}: {
+  readonly verdict: DecisionVerdict
+  readonly ctx: DecisionContext
+  readonly action: Action
+}): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
   // The win/lose bar mirrors the design: a green win fill at `pct(equity)`, the rest is lose.
   const winWidth = pct(verdict.equity)
@@ -287,6 +347,7 @@ function VerdictBody({ verdict }: { readonly verdict: DecisionVerdict }): React.
       <div className="coach-note" data-testid="coach-why">
         {explainDecision(verdict)}
       </div>
+      <CopyRulingButton ctx={ctx} action={action} verdict={verdict} />
     </>
   )
 }
@@ -316,9 +377,13 @@ function preflopCopy(verdict: PreflopVerdict): string {
  */
 function PreflopBody({
   verdict,
+  ctx,
+  action,
   heroHoleCards,
 }: {
   readonly verdict: PreflopVerdict
+  readonly ctx: DecisionContext
+  readonly action: Action
   readonly heroHoleCards?: readonly [Card, Card]
 }): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
@@ -349,6 +414,7 @@ function PreflopBody({
       {chartOpen ? (
         <ChartOverlay onClose={() => setChartOpen(false)} highlight={highlight} />
       ) : null}
+      <CopyRulingButton ctx={ctx} action={action} verdict={verdict} />
     </>
   )
 }

@@ -8,11 +8,38 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { parseCards, type Action, type Card } from '@holdem/engine'
 import type { DecisionVerdict } from '@holdem/coach'
+import type { DecisionContext } from '@holdem/bots'
 import type { CoachResult } from '@holdem/session'
 import { CoachFab } from './CoachFab.js'
 
 afterEach(cleanup)
+
+/**
+ * A throwaway spot for the graded `CoachResult` literals: the FAB only reads `coach.kind`/the verdict
+ * tag, never the `ctx`/`action` the spot-capture path carries, so any well-typed pair will do.
+ */
+const STUB_CTX: DecisionContext = {
+  seat: 0,
+  holeCards: parseCards('As Ad') as [Card, Card],
+  board: [],
+  street: 'flop',
+  legalActions: { fold: true, check: true, call: null, bet: null, raise: null },
+  pot: 10,
+  currentBet: 0,
+  toCall: 0,
+  stack: 200,
+  committed: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  buttonIndex: 0,
+  isButton: true,
+  numPlayers: 2,
+  numActive: 2,
+  opponents: [],
+}
+const STUB_ACTION: Action = { type: 'check' }
 
 /** A `verdict` CoachResult with the given verdict tag (other fields are plausible filler). */
 function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
@@ -29,6 +56,8 @@ function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
       concept: 'equity-vs-price',
       trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
     },
+    ctx: STUB_CTX,
+    action: STUB_ACTION,
   }
 }
 
@@ -85,6 +114,8 @@ describe('CoachFab — ring reflects the coach state', () => {
           stealSpot: false,
         },
       },
+      ctx: STUB_CTX,
+      action: STUB_ACTION,
     }
     render(<CoachFab coach={coach} onOpen={vi.fn()} />)
     const ring = screen.getByTestId('coach-fab-ring')

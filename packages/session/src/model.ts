@@ -22,8 +22,9 @@
  * write post-hand stacks). See {@link compactSeating}, {@link rotateButton}, {@link removeBusted}.
  */
 
-import { createHand, makeDeck, type Card, type HandState } from '@holdem/engine'
+import { createHand, makeDeck, type Action, type Card, type HandState } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import type { DecisionContext } from '@holdem/bots'
 
 /** Default table size for the milestone — 6-max (hero plus five opponents). */
 export const DEFAULT_SEATS = 6
@@ -70,11 +71,31 @@ export const BOT_LABELS: Readonly<Record<BotKind, string>> = {
  *   odds (ticket [[BUG-0001]]), so it carries no equity/EV fields to contradict the chart.
  * - `'error'` — coaching is strictly advisory, so any throw from the coach (a malformed spot
  *   the verdict math rejects) degrades to this one-line notice rather than crashing the hand.
+ *
+ * **Spot capture.** The two graded variants also carry the *exact inputs the coach graded* — the
+ * {@link DecisionContext} the hero faced and the {@link Action} they took. The coach is a pure
+ * function of that pair, so a client (the PWA's "Copy ruling" button) can hand `(ctx, action)` to
+ * `serializeSpot` to produce a self-contained blob that re-grades to this same verdict. `'none'` /
+ * `'error'` carry no spot — there is no graded ruling to capture.
  */
 export type CoachResult =
   | { readonly kind: 'none' }
-  | { readonly kind: 'verdict'; readonly verdict: DecisionVerdict }
-  | { readonly kind: 'preflop'; readonly verdict: PreflopVerdict }
+  | {
+      readonly kind: 'verdict'
+      readonly verdict: DecisionVerdict
+      /** The exact context the coach graded — the input `serializeSpot` captures. */
+      readonly ctx: DecisionContext
+      /** The action the hero took — the other half of the captured spot. */
+      readonly action: Action
+    }
+  | {
+      readonly kind: 'preflop'
+      readonly verdict: PreflopVerdict
+      /** The exact context the coach graded — the input `serializeSpot` captures. */
+      readonly ctx: DecisionContext
+      /** The action the hero took — the other half of the captured spot. */
+      readonly action: Action
+    }
   | { readonly kind: 'error'; readonly message: string }
 
 /**
