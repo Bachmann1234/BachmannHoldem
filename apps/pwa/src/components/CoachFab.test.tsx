@@ -54,7 +54,7 @@ function verdictResult(tag: DecisionVerdict['verdict']): CoachResult {
       verdict: tag,
       missedValueBet: false,
       concept: 'equity-vs-price',
-      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     },
     ctx: STUB_CTX,
     action: STUB_ACTION,

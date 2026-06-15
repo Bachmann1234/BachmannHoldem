@@ -70,7 +70,7 @@ const goodCall: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   concept: 'equity-vs-price',
-  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+  trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
 
 /** A leak: the hero called off below the pot-odds threshold. */
@@ -83,7 +83,7 @@ const leakCall: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   concept: 'equity-vs-price',
-  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.7 },
+  trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.7, polarized: null },
 }
 
 /** A preflop grade off the chart: a premium hand the hero correctly entered the pot with. */
@@ -123,6 +123,30 @@ describe('renderCoachFeedback', () => {
     expect(out).toContain('Leak')
   })
 
+  it('renders the board-aware polarised composition on a barreled postflop read (ticket 0057)', () => {
+    const boardAware: DecisionVerdict = {
+      equity: 0.22,
+      potOddsThreshold: 0.3,
+      callEv: -2.1,
+      correctDecision: 'fold',
+      heroContinued: true,
+      verdict: 'leak',
+      missedValueBet: false,
+      concept: 'equity-vs-price',
+      trace: {
+        assumedRange: 'board-aware',
+        lineReason: 'barreled',
+        betFraction: 1.0,
+        polarized: { valueCombos: 180, bluffCombos: 60, bluffFraction: 0.25 },
+      },
+    }
+    const out = renderCoachFeedback(boardAware)
+    // The Read line names the board-aware range and shows the value/bluff split + bluff percentage.
+    expect(out).toContain('Read: board-aware range (barreled)')
+    expect(out).toContain('180 value / 60 bluff')
+    expect(out).toContain('25% bluffs')
+  })
+
   it('shows no starting-hand line postflop (the chart is preflop only)', () => {
     expect(renderCoachFeedback(goodCall)).not.toContain('Starting hand')
   })
@@ -138,7 +162,7 @@ describe('renderCoachFeedback', () => {
       verdict: 'good',
       missedValueBet: true,
       concept: 'equity',
-      trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
+      trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
     }
     const out = renderCoachFeedback(freeCheck)
     expect(out).toContain('Pot equity +2.5')
@@ -158,7 +182,7 @@ describe('renderCoachFeedback', () => {
       verdict: 'breakEven',
       missedValueBet: false,
       concept: 'equity-vs-price',
-      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+      trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     }
     const out = renderCoachFeedback(breakEven)
     expect(out).toContain('EV(call) 0')

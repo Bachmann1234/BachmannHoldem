@@ -49,10 +49,11 @@ import type { Action } from '@holdem/engine'
 import {
   DEFAULT_RANGE_WIDTH,
   estimateEquity,
+  polarizedBarrelRange,
   type DecisionContext,
   type RangeWidth,
 } from '@holdem/bots'
-import { evOfCall, potOdds } from '@holdem/odds'
+import { evOfCall, potOdds, type Range } from '@holdem/odds'
 
 /**
  * The villain range the coach assumes when reading the hero's equity *with no betting-line
@@ -150,6 +151,27 @@ export const FACING_BET_RANGE_WIDTH: RangeWidth = 'tight'
  * {@link UNBET_RANGE_WIDTH} and {@link FACING_BET_RANGE_WIDTH}).
  */
 export const BARRELED_RANGE_WIDTH: RangeWidth = 'ultraTight'
+
+/**
+ * The share of a **barreled, board-aware** villain range that is bluffs (busted draws / air), with
+ * the rest being the texture-supported value hands — the polarisation knob ticket 0057 adds on top
+ * of [[0052-coach-narrow-range-on-action]]'s width narrowing.
+ *
+ * On a barreled *postflop* line the coach no longer reads against the fixed {@link BARRELED_RANGE_WIDTH}
+ * preflop bucket; it reads against the concrete {@link polarizedBarrelRange} built from the board —
+ * the value combos the texture allows plus this fraction of air. A bluff-catcher read against that
+ * range earns roughly *this fraction* in equity (it beats the air, loses to the value), so this knob
+ * is exactly the "how often is villain bluffing when they barrel" dial.
+ *
+ * `0.25` models a **value-heavy** barreller — the recreational/bot pool this trainer grades against
+ * fires three streets far more for value than as a bluff. It sits below the pot-odds price of a
+ * typical (half- to two-thirds-pot) barrel, so a clearly-beaten single pair correctly grades a
+ * −EV continue rather than the `Good` the preflop bucket manufactured (the seed-28 leak). Picked
+ * empirically against the `pnpm sim` ground-truth sweep — low enough to fold beaten bluff-catchers,
+ * high enough not to over-fold hands that genuinely beat a chunk of the barreling range. A named,
+ * tunable knob, like {@link EPSILON} / {@link LARGE_BET_POT_FRACTION} / {@link VALUE_BET_THRESHOLD}.
+ */
+export const BLUFF_FRACTION = 0.25
 
 /**
  * Choose the assumed villain range the coach reads the hero's equity against, *as a pure,
@@ -254,6 +276,103 @@ export function assumedLineRead(ctx: DecisionContext): {
 
   // A small bet/raise on an early street: a real commitment, but the weakest of the signals.
   return { width: FACING_BET_RANGE_WIDTH, reason: 'facing-bet', betFraction }
+}
+
+/**
+ * Build the board-aware polarised range for a barreled spot, returning `null` instead of throwing on a
+ * degenerate board (no value combos, or a non-3/4/5 board size) so {@link coachAssumedRead} can honour
+ * {@link polarizedBarrelRange}'s documented "fall back to a width read" contract. The throw is
+ * unreachable for a legal hold'em board — value combos always survive pruning only the two hero cards —
+ * so this never swallows a real error in practice; it is a guard against a malformed/hand-edited spot
+ * crashing the grade. The narrow `catch` only converts a degenerate-range throw into the width fallback.
+ */
+function tryPolarizedBarrelRange(
+  ctx: DecisionContext,
+): ReturnType<typeof polarizedBarrelRange> | null {
+  try {
+    return polarizedBarrelRange({
+      board: ctx.board,
+      bluffFraction: BLUFF_FRACTION,
+      blocked: new Set(ctx.holeCards),
+    })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The concrete opponent holdings the coach reads the hero's equity against, plus the matching
+ * {@link PostflopTrace} — the **board-aware** layer ticket 0057 adds on top of
+ * {@link assumedLineRead}'s line→width mapping. One function so the range actually read and the trace
+ * recorded can never disagree (the trace is, again, a pure projection of the branch taken, not a
+ * second decision).
+ *
+ * It starts from {@link assumedLineRead} (the unbet / facing-bet / barreled classification) and then,
+ * on a **barreled line with a postflop board**, swaps the fixed {@link BARRELED_RANGE_WIDTH} preflop
+ * bucket for the texture-conditioned {@link polarizedBarrelRange}: the value combos the board supports
+ * plus a {@link BLUFF_FRACTION} slice of air. That is the whole point of the ticket — a barreller's
+ * range is polarised to board-connected made hands + bluffs, not a preflop opening range, so reading a
+ * bluff-catcher against the polarised range stops over-rating it (the residual seed-28 leak). Every
+ * other line is unchanged: it reads against the {@link RangeWidth} bucket as before.
+ *
+ * - **Barreled + board (flop/turn/river)** → `opponentRange` is the polarised {@link Range};
+ *   `trace.assumedRange` is `'board-aware'` and `trace.polarized` carries the value/bluff composition.
+ *   The hero's own cards are passed as blockers so the realised composition excludes holdings villain
+ *   cannot have.
+ * - **Barreled but preflop** (a large preflop bet/3-bet, `board.length === 0`) → there is no texture
+ *   to read, so it falls back to the {@link BARRELED_RANGE_WIDTH} width exactly as before.
+ * - **Unbet / facing-bet** → the {@link UNBET_RANGE_WIDTH} / {@link FACING_BET_RANGE_WIDTH} width, with
+ *   `trace.polarized` `null` (no board-aware read).
+ *
+ * Pure and deterministic: {@link polarizedBarrelRange} is itself a pure function of the board, and the
+ * width path is unchanged. Reads only the betting line + board + hero cards from `ctx`.
+ */
+export function coachAssumedRead(ctx: DecisionContext): {
+  opponentRange: RangeWidth | Range
+  trace: PostflopTrace
+} {
+  const lineRead = assumedLineRead(ctx)
+
+  // The only line that gets the board-aware treatment: a barreled bet with real texture to read.
+  // A barreled *preflop* bet (3-bet) has no board, so it keeps the width fallback.
+  const hasBoard = ctx.board.length >= 3
+  if (lineRead.reason === 'barreled' && hasBoard) {
+    // polarizedBarrelRange is a pure function of the board and documents that the caller should fall
+    // back to a width read on a degenerate board (one with no value combos, or — defensively — a
+    // non-3/4/5 board). That degenerate case is unreachable for a legal hold'em board (top-pair /
+    // overpair combos always survive pruning only the two hero cards), but we honour the contract so a
+    // malformed or hand-edited spot degrades to the width bucket instead of throwing out of
+    // coachDecision into a client without an error boundary.
+    const polarized = tryPolarizedBarrelRange(ctx)
+    if (polarized) {
+      return {
+        opponentRange: polarized.range,
+        trace: {
+          assumedRange: 'board-aware',
+          lineReason: lineRead.reason,
+          betFraction: lineRead.betFraction,
+          polarized: {
+            valueCombos: polarized.valueCombos,
+            bluffCombos: polarized.bluffCombos,
+            bluffFraction: polarized.bluffFraction,
+          },
+        },
+      }
+    }
+    // else: degenerate board — fall through to the width fallback below (BARRELED_RANGE_WIDTH).
+  }
+
+  // Every other line (unbet, facing-bet, a barreled preflop bet, or the degenerate-board fallback):
+  // the width bucket, no board-aware read.
+  return {
+    opponentRange: lineRead.width,
+    trace: {
+      assumedRange: lineRead.width,
+      lineReason: lineRead.reason,
+      betFraction: lineRead.betFraction,
+      polarized: null,
+    },
+  }
 }
 
 /**
@@ -377,15 +496,18 @@ function isContinue(action: Action): boolean {
  */
 export interface PostflopTrace {
   /**
-   * The assumed-range {@link RangeWidth} the equity read was seeded against — the exact width
-   * {@link assumedRangeForLine} / {@link assumedLineRead} picked from the betting line (the
-   * {@link COACH_ASSUMED_RANGE} baseline on an unbet pot, tighter the harder the villain barreled).
+   * The assumed range the equity read was seeded against. Either a {@link RangeWidth} bucket name
+   * (the {@link COACH_ASSUMED_RANGE} baseline on an unbet pot, tighter the harder the villain
+   * barreled — the width {@link assumedRangeForLine} picks), **or** the literal `'board-aware'` when
+   * the read used the {@link polarizedBarrelRange} concrete range instead of a width: that happens on
+   * a barreled *postflop* line (ticket 0057), where a fixed preflop bucket over-rates a bluff-catcher
+   * and the texture-conditioned polarised range ({@link PostflopTrace.polarized}) replaces it.
    */
-  readonly assumedRange: RangeWidth
+  readonly assumedRange: RangeWidth | 'board-aware'
   /**
-   * *Why* that width: which of {@link assumedLineRead}'s three line-strength branches fired.
+   * *Why* that range: which of {@link assumedLineRead}'s three line-strength branches fired.
    * `'unbet'` is the free decision (`toCall === 0`, baseline width); `'barreled'` is a large bet
-   * (≥ {@link LARGE_BET_POT_FRACTION}) and/or a turn/river bet (the tightest, value-heavy width);
+   * (≥ {@link LARGE_BET_POT_FRACTION}) and/or a turn/river bet (the strong, value-heavy read);
    * `'facing-bet'` is any other bet/raise (one bucket tighter than baseline).
    */
   readonly lineReason: 'unbet' | 'facing-bet' | 'barreled'
@@ -396,6 +518,22 @@ export interface PostflopTrace {
    * divide-by-zero guard (a bet into no dead money), which reads as the strong `'barreled'` line.
    */
   readonly betFraction: number | null
+  /**
+   * The composition of the **board-aware polarised range**, present (non-`null`) *only* when
+   * {@link assumedRange} is `'board-aware'` — i.e. on a barreled postflop line where the read used
+   * {@link polarizedBarrelRange} instead of a width bucket. Records how many value vs bluff combos the
+   * texture produced and the realised bluff fraction, so a ruling can show *how polarised* the assumed
+   * villain was without re-deriving it. `null` on every width-based read (unbet, facing-bet, and the
+   * barreled-but-preflop fallback, which has no board to read).
+   */
+  readonly polarized: {
+    /** Texture-supported value combos (two pair+/overpairs) in the assumed range. */
+    readonly valueCombos: number
+    /** Bluff (air) combos in the assumed range — the sampled busted-draw/air fraction. */
+    readonly bluffCombos: number
+    /** Realised bluff share — `bluffCombos / (valueCombos + bluffCombos)` (see {@link BLUFF_FRACTION}). */
+    readonly bluffFraction: number
+  } | null
 }
 
 /**
@@ -525,30 +663,24 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   if (ctx.pot < 0) throw new RangeError(`ctx.pot must be ≥ 0, got ${ctx.pot}`)
   if (ctx.toCall < 0) throw new RangeError(`ctx.toCall must be ≥ 0, got ${ctx.toCall}`)
 
-  // --- The read: equity against the line-narrowed assumed range, seeded for determinism. ---
-  // The width is a deterministic, pure function of the betting line (ticket 0052): the
-  // no-read COACH_ASSUMED_RANGE baseline on an unbet pot, narrowing tighter the more the
-  // villain has committed to the line (a bet/raise → 'tight', a big bet and/or a turn/river
-  // barrel → 'ultraTight'). This grades the hero against a *plausible villain on the line
-  // villain actually took* instead of a fixed wide range, without touching bot behaviour.
-  // Read against the number of opponents ACTUALLY live in the pot — `ctx.numActive - 1`
-  // villains, each on that width — so the equity reflects the real table size. A heads-up
-  // pot (`numActive === 2`) is one villain, i.e. the unchanged single-villain read.
-  // One call yields both the width to seed the read AND the trace's reason/betFraction, so the
-  // recorded "why" can never disagree with the width actually used (assumedRangeForLine is itself
-  // assumedLineRead(ctx).width). The trace is a pure by-product — recording this branch, not taking
-  // a new one — and is stamped onto every verdict return below.
-  const lineRead = assumedLineRead(ctx)
-  const assumedRange = lineRead.width
-  const trace: PostflopTrace = {
-    assumedRange,
-    lineReason: lineRead.reason,
-    betFraction: lineRead.betFraction,
-  }
+  // --- The read: equity against the assumed range, seeded for determinism. ---
+  // The range is a deterministic, pure function of the betting line + board: the no-read
+  // COACH_ASSUMED_RANGE baseline width on an unbet pot, narrowing tighter the more the villain
+  // committed (a small bet → 'tight'); and on a *barreled postflop* line, the texture-conditioned
+  // polarizedBarrelRange (board-connected value + a bluff fraction — ticket 0057) instead of the
+  // fixed 'ultraTight' preflop bucket, since a barreller's range is polarised, not a preflop opener.
+  // This grades the hero against a *plausible villain on the line + board villain actually faced*,
+  // not a fixed preflop bucket, and without touching bot behaviour. Read against the number of
+  // opponents ACTUALLY live in the pot — `ctx.numActive - 1` villains, each on that range — so the
+  // equity reflects the real table size; a heads-up pot (`numActive === 2`) is the single-villain read.
+  // One call yields both the range to seed the read AND the trace, so the recorded "why" can never
+  // disagree with the range actually used. The trace is a pure by-product — recording this branch,
+  // not taking a new one — and is stamped onto every verdict return below.
+  const { opponentRange, trace } = coachAssumedRead(ctx)
   const equity = estimateEquity({
     holeCards: ctx.holeCards,
     board: ctx.board,
-    opponentRange: assumedRange,
+    opponentRange,
     seed: COACH_SEED,
     opponentCount: ctx.numActive - 1,
   }).equity

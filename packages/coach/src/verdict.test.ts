@@ -7,10 +7,12 @@ import {
   coachDecision,
   assumedRangeForLine,
   assumedLineRead,
+  coachAssumedRead,
   LARGE_BET_POT_FRACTION,
   UNBET_RANGE_WIDTH,
   FACING_BET_RANGE_WIDTH,
   BARRELED_RANGE_WIDTH,
+  BLUFF_FRACTION,
   COACH_ASSUMED_RANGE,
   COACH_SEED,
   EPSILON,
@@ -94,13 +96,20 @@ function coachEquity(
 }
 
 /**
- * The exact equity {@link coachDecision} reads for a *whole spot* — same range (the
- * line-narrowed {@link assumedRangeForLine} width), same seed, same opponent count. Tests
- * that assert "the coach's equity equals a standalone read" use this rather than hard-coding
- * the baseline `'medium'`, so they stay correct now that the read narrows on the line.
+ * The exact equity {@link coachDecision} reads for a *whole spot* — same range, same seed, same
+ * opponent count. Reads against the *actual* range {@link coachAssumedRead} resolves (a
+ * {@link RangeWidth} on unbet/facing-bet lines, the board-aware polarised {@link Range} on a barreled
+ * postflop line — ticket 0057), so tests that assert "the coach's equity equals a standalone read"
+ * stay correct whether the spot narrows to a width or swaps in the polarised range.
  */
 function coachEquityForSpot(spot: DecisionContext): number {
-  return coachEquity(spot.holeCards, spot.board, spot.numActive, assumedRangeForLine(spot))
+  return estimateEquity({
+    holeCards: spot.holeCards,
+    board: spot.board,
+    opponentRange: coachAssumedRead(spot).opponentRange,
+    seed: COACH_SEED,
+    opponentCount: spot.numActive - 1,
+  }).equity
 }
 
 const FOLD: Action = { type: 'fold' }
@@ -254,21 +263,22 @@ describe('coachDecision — missed value bet (over-passivity flag, ticket 0055)'
 
 describe('coachDecision — break-even tolerance band', () => {
   it('a spot within EPSILON of the threshold is breakEven, never a leak', () => {
-    // Find a (hand, board) whose coach equity is known, then set toCall so the pot-odds
-    // threshold lands within EPSILON of that equity — a deliberate coin-flip. The read
-    // narrows on the line, and a coin-flip toCall here is a big bet (→ ultraTight), so we
-    // read equity against the width the resulting spot actually uses.
+    // Find a (hand, board) whose coach equity is known, then set toCall so the pot-odds threshold
+    // lands within EPSILON of that equity — a deliberate coin-flip. Use a *turn* board so any bet
+    // is a barrel (the read is the board-aware polarised range for any toCall), and read the coach's
+    // actual equity off a probe spot rather than a fixed width — the read no longer maps to a bucket.
     const holeCards = hole('AsAh')
-    const board = parseCards('Kd 7c 2h')
+    const board = parseCards('Kd 7c 2h 9s')
     const pot = 100
-    const equity = coachEquity(holeCards, board, 2, BARRELED_RANGE_WIDTH)
+    const probe = ctx({ holeCards, board, pot, toCall: 50, street: 'turn' })
+    const equity = coachEquityForSpot(probe)
 
     // Solve potOdds(toCall, pot) = equity for toCall given a fixed pot:
     //   equity = toCall / (pot + toCall)  ⇒  toCall = equity*pot / (1 - equity)
     const toCall = Math.round((equity * pot) / (1 - equity))
-    const spot = ctx({ holeCards, board, pot, toCall })
-    // The big-bet coin-flip toCall narrows to the barreled width, matching `equity` above.
-    expect(assumedRangeForLine(spot)).toBe(BARRELED_RANGE_WIDTH)
+    const spot = ctx({ holeCards, board, pot, toCall, street: 'turn' })
+    // A turn barrel reads against the board-aware range for any bet size, so the probe equity matches.
+    expect(coachAssumedRead(spot).trace.assumedRange).toBe('board-aware')
 
     const v = coachDecision(spot, CALL)
     expect(Math.abs(v.equity - v.potOddsThreshold)).toBeLessThanOrEqual(EPSILON)
@@ -279,15 +289,16 @@ describe('coachDecision — break-even tolerance band', () => {
 
   it('just outside the band on the −EV side flips to a leak', () => {
     const holeCards = hole('AsAh')
-    const board = parseCards('Kd 7c 2h')
+    const board = parseCards('Kd 7c 2h 9s')
     const pot = 100
-    const equity = coachEquity(holeCards, board, 2, BARRELED_RANGE_WIDTH)
+    const probe = ctx({ holeCards, board, pot, toCall: 50, street: 'turn' })
+    const equity = coachEquityForSpot(probe)
 
     // Push the threshold clearly above equity (beyond EPSILON): make the call too expensive.
     // toCall for threshold = equity + 2*EPSILON
     const target = equity + 2 * EPSILON
     const toCall = Math.ceil((target * pot) / (1 - target))
-    const spot = ctx({ holeCards, board, pot, toCall })
+    const spot = ctx({ holeCards, board, pot, toCall, street: 'turn' })
 
     const v = coachDecision(spot, CALL)
     expect(v.potOddsThreshold).toBeGreaterThan(v.equity + EPSILON)
@@ -314,14 +325,15 @@ describe('coachDecision — concept tag (the Foundations cross-link)', () => {
   })
 
   it('a break-even priced spot is also the equity-vs-price idea', () => {
-    // Same coin-flip construction as the tolerance-band test: priced right on the threshold.
-    // The coin-flip toCall is a big bet, so the read narrows to the barreled width.
+    // Same coin-flip construction as the tolerance-band test: priced right on the threshold against
+    // the board-aware barreled read (a turn bet, so any size is a barrel).
     const holeCards = hole('AsAh')
-    const board = parseCards('Kd 7c 2h')
+    const board = parseCards('Kd 7c 2h 9s')
     const pot = 100
-    const equity = coachEquity(holeCards, board, 2, BARRELED_RANGE_WIDTH)
+    const probe = ctx({ holeCards, board, pot, toCall: 50, street: 'turn' })
+    const equity = coachEquityForSpot(probe)
     const toCall = Math.round((equity * pot) / (1 - equity))
-    const spot = ctx({ holeCards, board, pot, toCall })
+    const spot = ctx({ holeCards, board, pot, toCall, street: 'turn' })
 
     const v = coachDecision(spot, CALL)
     expect(v.verdict).toBe('breakEven')
@@ -542,22 +554,28 @@ describe('coachDecision — uses the line-narrowed read', () => {
     expect(coachDecision(spot, CHECK).equity).toBe(coachEquity(holeCards, board))
   })
 
-  it('a barreled line reads against the narrowed (tighter) width, lowering a beatable equity', () => {
-    // A pot-sized turn barrel: the read must use the barreled width, so the reported equity
-    // matches the ultraTight standalone read and (for a beatable hand) is LOWER than the
-    // baseline-medium read — proving the narrowing actually changed the number. This is the
-    // seed-28 hero hand (bottom pair, Kc3d): the static 'medium' read inflated its turn equity
-    // to ~0.58; the barreled read drops it materially (toward the ~0.42 ultraTight read).
+  it('a barreled postflop line reads against the board-aware polarised range, lowering a beatable equity', () => {
+    // A turn barrel: the read swaps the fixed preflop bucket for the board-aware polarised range
+    // (ticket 0057), so the reported equity matches the polarised standalone read and (for a beaten
+    // bluff-catcher) is LOWER than BOTH the baseline-medium read AND the old ultraTight-bucket read —
+    // proving the board-aware range is what actually changed the number. This is the seed-28 hero hand
+    // (bottom pair, Kc3d on a low coordinated board): the structural leak the ticket targets. The
+    // ultraTight bucket still over-rated it (~0.42, beating the AK-high in the bucket); the polarised
+    // range — where value is the texture's sets/two pair/straights and the hero beats only the bluff
+    // fraction — drops it below the pot-odds price, flipping the calldown to the correct fold.
     const holeCards = hole('Kc3d')
     const board = parseCards('5d 3s 7s 6h') // seed-28 turn texture
     const spot = ctx({ holeCards, board, pot: 18, toCall: 8, street: 'turn' })
 
-    expect(assumedRangeForLine(spot)).toBe(BARRELED_RANGE_WIDTH)
-    const narrowed = coachDecision(spot, CALL)
-    expect(narrowed.equity).toBe(coachEquity(holeCards, board, 2, BARRELED_RANGE_WIDTH))
-    // Against the tighter range the hand is rated materially worse than against the baseline.
-    const baseline = coachEquity(holeCards, board, 2, COACH_ASSUMED_RANGE)
-    expect(narrowed.equity).toBeLessThan(baseline)
+    expect(coachAssumedRead(spot).trace.assumedRange).toBe('board-aware')
+    const read = coachDecision(spot, CALL)
+    expect(read.equity).toBe(coachEquityForSpot(spot))
+    // Rated materially worse than the baseline-medium read AND the old ultraTight-bucket read.
+    expect(read.equity).toBeLessThan(coachEquity(holeCards, board, 2, COACH_ASSUMED_RANGE))
+    expect(read.equity).toBeLessThan(coachEquity(holeCards, board, 2, BARRELED_RANGE_WIDTH))
+    // The beaten bottom pair is now a −EV continue (the seed-28 calldown leak), not Good.
+    expect(read.verdict).toBe('leak')
+    expect(read.correctDecision).toBe('fold')
   })
 
   it('flips a calling-station call good → fold on a barreled river (the seed-28-style leak)', () => {
@@ -581,6 +599,103 @@ describe('coachDecision — uses the line-narrowed read', () => {
     expect(v.verdict).toBe('leak')
     expect(v.correctDecision).toBe('fold')
     expect(v.callEv).toBeLessThan(0)
+  })
+})
+
+describe('coachAssumedRead — board-aware polarised range on a barreled line (ticket 0057)', () => {
+  it('only barreled POSTFLOP lines read board-aware; unbet / facing-bet / preflop keep the width', () => {
+    const board = parseCards('Kd 7c 2h')
+    // Unbet and facing-bet keep their width buckets (no board-aware swap).
+    expect(
+      coachAssumedRead(ctx({ holeCards: hole('AsAh'), board, pot: 50, toCall: 0 })).opponentRange,
+    ).toBe(UNBET_RANGE_WIDTH)
+    expect(
+      coachAssumedRead(ctx({ holeCards: hole('AsAh'), board, pot: 13, toCall: 3 })).opponentRange,
+    ).toBe(FACING_BET_RANGE_WIDTH)
+    // A barreled *preflop* bet has no board, so it falls back to the barreled width bucket.
+    const preflopBarrel = coachAssumedRead(ctx({ holeCards: hole('AsAh'), pot: 24, toCall: 12 }))
+    expect(preflopBarrel.opponentRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(preflopBarrel.trace.polarized).toBeNull()
+    // A barreled postflop bet swaps in the concrete polarised range (an array of combos, not a width).
+    const barrel = coachAssumedRead(ctx({ holeCards: hole('AsAh'), board, pot: 24, toCall: 12 }))
+    expect(Array.isArray(barrel.opponentRange)).toBe(true)
+    expect(barrel.trace.assumedRange).toBe('board-aware')
+    expect(barrel.trace.polarized).not.toBeNull()
+  })
+
+  it('excludes the hero cards as blockers (the range never contains a combo the hero holds)', () => {
+    const holeCards = hole('Kc3d')
+    const board = parseCards('5d 3s 7s 6h')
+    const range = coachAssumedRead(
+      ctx({ holeCards, board, pot: 18, toCall: 8, street: 'turn' }),
+    ).opponentRange
+    // The polarised range is a concrete Range here; no combo may reuse a hero card.
+    if (!Array.isArray(range)) throw new Error('expected a concrete board-aware range')
+    for (const combo of range) {
+      expect(combo).not.toContain(holeCards[0])
+      expect(combo).not.toContain(holeCards[1])
+    }
+  })
+
+  it('a beaten bottom pair on a WET, coordinated low board folds (the seed-28 calldown)', () => {
+    // Bottom pair (3s) on 5-3-7-6: a board dense with straights/sets/two pair the polarised value
+    // range holds. The hero beats only the bluff fraction, so a river barrel is a clear −EV continue.
+    const holeCards = hole('Kc3d')
+    const board = parseCards('5d 3s 7s 6h 8h') // seed-28 river
+    const spot = ctx({ holeCards, board, pot: 46, toCall: 20, street: 'river' })
+    const v = coachDecision(spot, CALL)
+    expect(v.trace.assumedRange).toBe('board-aware')
+    expect(v.verdict).toBe('leak')
+    expect(v.correctDecision).toBe('fold')
+    expect(v.callEv).toBeLessThan(0)
+  })
+
+  it('the same pocket pair grades far better on a DRY low board than on a WET high one', () => {
+    // A texture contrast against a barreled flop bet. The same 8-8 is a strong *overpair* on a dry,
+    // disconnected low board (7-4-2 rainbow) but a weak *underpair* on a wet, connected high board
+    // (Q-J-K, dense with straight/high-pair value) — and the polarised read swaps in the board's own
+    // value either way, so the overpair beats most of the dry range while the underpair beats little
+    // of the wet one. (8-8 is chosen so neither board completes a straight for the hero.)
+    const holeCards = hole('8c8d')
+    const pot = 24
+    const toCall = 24 // pot-sized flop bet ⇒ barreled ⇒ board-aware on both
+    const dry = ctx({ holeCards, board: parseCards('7h 4d 2c'), pot, toCall })
+    const wet = ctx({ holeCards, board: parseCards('Qh Js Kd'), pot, toCall })
+    const dryV = coachDecision(dry, CALL)
+    const wetV = coachDecision(wet, CALL)
+    expect(dryV.trace.assumedRange).toBe('board-aware')
+    expect(wetV.trace.assumedRange).toBe('board-aware')
+    // The wet, coordinated high board crushes the pair (now an underpair) far harder than the dry one.
+    expect(wetV.equity).toBeLessThan(dryV.equity)
+  })
+
+  it('the determinism contract holds: a fixed board-aware spot yields a byte-identical verdict', () => {
+    const spot = ctx({
+      holeCards: hole('Kc3d'),
+      board: parseCards('5d 3s 7s 6h'),
+      pot: 18,
+      toCall: 8,
+      street: 'turn',
+    })
+    expect(coachDecision(spot, CALL)).toEqual(coachDecision(spot, CALL))
+  })
+
+  it('falls back to the barreled width (not a throw) on a degenerate board polarizedBarrelRange rejects', () => {
+    // The board-aware builder rejects a non-3/4/5 board; unreachable in real hold'em, but a malformed
+    // spot must degrade to the width bucket rather than throw out of the read. Use a 6-card board on a
+    // barreled (river) line: coachAssumedRead catches the builder's throw and returns the width.
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      board: parseCards('Kd 7c 2h 9s 4d 3c'),
+      pot: 24,
+      toCall: 12,
+      street: 'river',
+    })
+    const read = coachAssumedRead(spot)
+    expect(read.opponentRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(read.trace.assumedRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(read.trace.polarized).toBeNull()
+    expect(read.trace.lineReason).toBe('barreled')
   })
 })
 
@@ -656,7 +771,9 @@ describe('coachDecision — decision trace (the audit by-product)', () => {
     expect(t.betFraction).toBeCloseTo(0.3, 9)
   })
 
-  it('records reason "barreled" with the betFraction on a large/late-street bet', () => {
+  it('records reason "barreled" and a board-aware range with its polarised composition (postflop)', () => {
+    // A pot-sized flop barrel: the read is the board-aware polarised range (ticket 0057), so the
+    // trace records assumedRange 'board-aware' and the value/bluff composition, not a width bucket.
     const spot = ctx({
       holeCards: hole('AsAh'),
       board: parseCards('Kd 7c 2h'),
@@ -664,20 +781,43 @@ describe('coachDecision — decision trace (the audit by-product)', () => {
       toCall: 12,
     })
     const t = coachDecision(spot, CALL).trace
-    expect(t.assumedRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(t.assumedRange).toBe('board-aware')
     expect(t.lineReason).toBe('barreled')
     expect(t.betFraction).toBeCloseTo(1.0, 9)
+    expect(t.polarized).not.toBeNull()
+    expect(t.polarized!.valueCombos).toBeGreaterThan(0)
+    expect(t.polarized!.bluffCombos).toBeGreaterThan(0)
+    expect(t.polarized!.bluffFraction).toBeCloseTo(BLUFF_FRACTION, 1)
   })
 
-  it('the trace.assumedRange always equals the width the read was seeded against', () => {
-    // Across all three line kinds, trace.assumedRange === assumedRangeForLine(spot).
-    for (const spot of [
-      ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 }),
-      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 }),
-      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 24, toCall: 12 }),
-    ]) {
-      expect(coachDecision(spot, CALL).trace.assumedRange).toBe(assumedRangeForLine(spot))
-    }
+  it('records reason "barreled" with a width fallback (no polarised composition) PREFLOP', () => {
+    // A barreled *preflop* bet (3-bet) has no board to read, so the trace keeps the width fallback.
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 24, toCall: 12 })
+    const t = coachDecision(spot, CALL).trace
+    expect(t.lineReason).toBe('barreled')
+    expect(t.assumedRange).toBe(BARRELED_RANGE_WIDTH)
+    expect(t.polarized).toBeNull()
+  })
+
+  it('the trace.assumedRange records the actual read: a width bucket, or board-aware when barreled postflop', () => {
+    // Unbet and facing-bet lines keep the width bucket (and assumedRangeForLine); a barreled postflop
+    // line records 'board-aware' (the polarised range) instead of the width fallback.
+    const unbet = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 })
+    const facingBet = ctx({
+      holeCards: hole('AsAh'),
+      board: parseCards('Kd 7c 2h'),
+      pot: 13,
+      toCall: 3,
+    })
+    const barreled = ctx({
+      holeCards: hole('AsAh'),
+      board: parseCards('Kd 7c 2h'),
+      pot: 24,
+      toCall: 12,
+    })
+    expect(coachDecision(unbet, CALL).trace.assumedRange).toBe(assumedRangeForLine(unbet))
+    expect(coachDecision(facingBet, CALL).trace.assumedRange).toBe(assumedRangeForLine(facingBet))
+    expect(coachDecision(barreled, CALL).trace.assumedRange).toBe('board-aware')
   })
 })
 

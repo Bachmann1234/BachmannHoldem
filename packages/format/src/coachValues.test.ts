@@ -68,7 +68,7 @@ describe('explainDecision', () => {
     verdict: 'good',
     missedValueBet: false,
     concept: 'equity-vs-price',
-    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     ...v,
   })
 
@@ -335,7 +335,7 @@ describe('evMetric', () => {
     verdict: 'good',
     missedValueBet: false,
     concept: 'equity-vs-price',
-    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5 },
+    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     ...v,
   })
 

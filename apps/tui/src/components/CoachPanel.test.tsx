@@ -141,18 +141,17 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
   })
 
   it('postflop: a coin-flip-priced call is a YELLOW break-even, EV rendered as a bare 0', () => {
-    // Hero T9s on a J82 flop faces a bet that prices the call right on the threshold. The coach
-    // narrows the read on the betting line (ticket 0052): the 17-into-12 flop bet is a ~1.4x-pot
-    // overbet (betFraction 17/12 ≈ 1.42 ≥ LARGE_BET_POT_FRACTION), well past the barreled knob ⇒
-    // the tighter 'ultraTight' read, against which T9s sits ~0.369 — and the price (call 17 into
-    // a pot that includes the bet, pot odds 17/46 ≈ 0.370) lands within EPSILON of that equity, a
-    // genuine coin-flip. The pot is built up preflop (hero raises to 6, bot calls → pot 12) so the
-    // integer flop bet can land EV within the bare-0 rounding window.
+    // Hero T9s on a J82 flop faces a bet that prices the call right on the threshold. The flop bet is
+    // a barrel (betFraction ≥ LARGE_BET_POT_FRACTION), so the coach reads against the board-aware
+    // polarised range (ticket 0057), against which T9s (a gutshot/high card) sits ~0.353 — and the
+    // price (call 24 into a pot that includes the bet, pot odds 24/68 ≈ 0.353) lands within EPSILON of
+    // that equity, a genuine coin-flip. The pot is built up preflop (hero raises to 10, bot calls →
+    // pot 20) so the integer flop bet (24) can land EV within the bare-0 rounding window.
     const deck = buildDeck(2, 0, ['Th 9h', 'Ad Ac'], 'Jc 8d 2s Qs 5c')
     let model = dealtModel(2, deck)
-    model = reducer(model, { type: 'apply-action', action: { type: 'raise', amount: 6 } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'raise', amount: 10 } })
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
-    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 17 } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 24 } })
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     expect(frame).toContain('Break-even — a coin-flip spot; either way is fine.')
     // Near-zero EV renders the bare, unsigned `0` (the bare-0 formatting contract).
@@ -175,7 +174,12 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
               verdict: 'good',
               missedValueBet: true,
               concept: 'equity',
-              trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null },
+              trace: {
+                assumedRange: 'medium',
+                lineReason: 'unbet',
+                betFraction: null,
+                polarized: null,
+              },
             },
             ctx: STUB_CTX,
             action: STUB_ACTION,
