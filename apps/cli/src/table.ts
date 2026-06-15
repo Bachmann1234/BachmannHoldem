@@ -20,7 +20,8 @@ import {
   type PlayerState,
 } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { pct, signedChips, VERDICT_LABEL, explainDecision } from '@holdem/format'
+import type { GroundTruth } from './analysis.js'
 
 /** Re-exported for the harness so it has one import surface (`from './table.js'`). */
 export { parseAction, renderLegal } from '@holdem/format'
@@ -100,6 +101,33 @@ export function renderCoachFeedback(verdict: DecisionVerdict): string {
   )
   lines.push(`  EV-correct: ${verdict.correctDecision}`)
   lines.push(`  ${VERDICT_LABEL[verdict.verdict]}`)
+  // The deterministic "why" line the TUI/PWA already render (`explainDecision`); the harness now
+  // renders it too so the scriptable coach matches the app it is meant to exercise.
+  lines.push(`  ${explainDecision(verdict)}`)
+  return lines.join('\n')
+}
+
+/**
+ * Render the **ground-truth** check beneath a postflop coach block: the hero's *exact* equity vs the
+ * villains' actual cards (the omniscient read the coach does not have), the EV-correct call it
+ * implies, and — when the coach's advice disagrees with it — a one-line warning that following the
+ * coach would be a mistake here. This is the testing instrument, not player-facing coaching: it is
+ * what lets a sweep see where the coach's assumed-range read leads the hero astray.
+ */
+export function renderGroundTruth(
+  truth: GroundTruth,
+  verdict: DecisionVerdict,
+  toCall: number,
+): string {
+  const lines = [
+    `  Ground truth (vs actual cards): equity ${pct(truth.equity)}` +
+      `  EV(call) ${signedChips(truth.callEv)}  true-correct: ${truth.correct}`,
+  ]
+  if (toCall > 0 && verdict.correctDecision !== truth.correct) {
+    lines.push(
+      `  ⚠ Coach diverges from ground truth — its "${verdict.correctDecision}" would be a mistake here.`,
+    )
+  }
   return lines.join('\n')
 }
 
