@@ -141,8 +141,12 @@ export function App(props: AppProps): React.JSX.Element {
     (defaultProgressStoreRef.current ??= new LocalStorageLessonProgressStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
-      {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn; just hide it. */}
-      <div hidden={activeTab !== 'play'}>
+      {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn — but hide it
+          with `display: contents`/`none`, NOT a box: `.room` is a centering flexbox, and a normal
+          wrapper div would be a shrink-to-fit flex item that collapses the nested `.app`'s
+          `width: 100%` to min-content. `display: contents` makes the wrapper layout-transparent so
+          `.app`/`.app-stack` is effectively a direct flex child of `.room` again (BUG-0005). */}
+      <div style={{ display: activeTab === 'play' ? 'contents' : 'none' }}>
         <Session
           key={sessionKey}
           {...props}
