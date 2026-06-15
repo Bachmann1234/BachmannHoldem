@@ -14,9 +14,9 @@
  * a labelled `role="dialog"`, focus moved to the close button on open, Escape to close, focus restored.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { startingHandChart, type PreflopTier } from '@holdem/coach'
+import { describeHandClass, startingHandChart, type PreflopTier } from '@holdem/coach'
 
 /** The tiers in strength order — the legend order, strongest first. */
 const TIER_ORDER: readonly PreflopTier[] = ['premium', 'strong', 'playable', 'marginal', 'trash']
@@ -47,6 +47,15 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
   const closeRef = useRef<HTMLButtonElement>(null)
   // The grid is a pure function of nothing (the chart is fixed), so compute it once per open.
   const grid = useMemo(() => startingHandChart(), [])
+  // Tap-to-decode: the selected cell's label drives the caption that spells the shorthand out in
+  // words — the touch-friendly counterpart to the hover `title` (which never fires on a phone). Seed
+  // it with "your hand" when the coach opened the chart, so the decode is already showing on open.
+  const [selected, setSelected] = useState<string | undefined>(highlight)
+  // The tier of the selected cell, for the caption's "— Marginal" suffix (cells carry their tier).
+  const selectedTier = useMemo(
+    () => grid.flat().find((cell) => cell.label === selected)?.tier,
+    [grid, selected],
+  )
 
   // Focus management (mirrors CoachDrawer): focus the close button on open, Escape closes, restore
   // focus to the opener on unmount. The overlay mounts only while open, so this runs once per open.
@@ -107,19 +116,42 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
           {grid.flatMap((row, r) =>
             row.map((cell, c) => {
               const current = highlight !== undefined && cell.label === highlight
+              const isSelected = cell.label === selected
+              const decoded = describeHandClass(cell.label)
               return (
-                <div
+                <button
+                  type="button"
                   key={`${r}-${c}`}
-                  className={`chart-cell tier-${cell.tier}${current ? ' is-current' : ''}`}
-                  title={`${cell.label} — ${TIER_LABEL[cell.tier]}${current ? ' (your hand)' : ''}`}
+                  className={
+                    `chart-cell tier-${cell.tier}` +
+                    (current ? ' is-current' : '') +
+                    (isSelected ? ' is-selected' : '')
+                  }
+                  onClick={() => setSelected(cell.label)}
+                  title={`${cell.label} — ${decoded} — ${TIER_LABEL[cell.tier]}${current ? ' (your hand)' : ''}`}
+                  aria-label={`${decoded}, ${TIER_LABEL[cell.tier]}${current ? ', your hand' : ''}`}
+                  aria-pressed={isSelected}
                   data-testid={current ? 'chart-current' : undefined}
                 >
                   {cell.label}
-                </div>
+                </button>
               )
             }),
           )}
         </div>
+
+        {/* Decode caption: spells the tapped cell's shorthand out in words. aria-live so a screen
+            reader announces the decode when selection changes; a hint prompts the first tap. */}
+        <p className="chart-caption" data-testid="chart-caption" aria-live="polite">
+          {selected && selectedTier ? (
+            <>
+              <b className="chart-your-hand">{selected}</b> — {describeHandClass(selected)} —{' '}
+              {TIER_LABEL[selectedTier]}
+            </>
+          ) : (
+            <span className="chart-caption-hint">Tap any hand to read its full name.</span>
+          )}
+        </p>
 
         <div className="chart-legend" data-testid="chart-legend">
           {TIER_ORDER.map((tier) => (

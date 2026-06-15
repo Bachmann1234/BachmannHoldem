@@ -364,6 +364,56 @@ export function handClassLabel(holeCards: readonly [Card, Card]): string {
 }
 
 /**
+ * Plain-English rank words keyed by the single-character notation the chart and {@link handClassLabel}
+ * use (`A`…`2`, `T` = Ten). The spoken form of a rank, for decoding shorthand into human copy.
+ */
+const RANK_WORD: Readonly<Record<string, string>> = {
+  A: 'Ace',
+  K: 'King',
+  Q: 'Queen',
+  J: 'Jack',
+  T: 'Ten',
+  '9': 'Nine',
+  '8': 'Eight',
+  '7': 'Seven',
+  '6': 'Six',
+  '5': 'Five',
+  '4': 'Four',
+  '3': 'Three',
+  '2': 'Two',
+}
+
+/** Pluralised rank word for a pocket pair, e.g. `"Kings"`, `"Sixes"` (the one irregular plural). */
+function pluralRank(word: string): string {
+  return word === 'Six' ? 'Sixes' : `${word}s`
+}
+
+/**
+ * Decode a hand-class **label** into plain English — the spoken form of the chart's shorthand, so a
+ * UI can expand a terse `"JTo"` cell or coach highlight into words a learner can read:
+ *
+ *   describeHandClass('AA')  // 'pair of Aces'
+ *   describeHandClass('AKs') // 'Ace-King suited'
+ *   describeHandClass('JTo') // 'Jack-Ten offsuit'
+ *
+ * The human-facing companion to {@link handClassLabel}: it takes that function's exact output (and any
+ * {@link ChartCell.label}) and reads it aloud. Pure. Returns the input unchanged if it isn't a
+ * recognisable hand-class label, so callers can pass arbitrary strings without guarding.
+ */
+export function describeHandClass(label: string): string {
+  const hi = RANK_WORD[label[0] ?? '']
+  const lo = RANK_WORD[label[1] ?? '']
+  if (!hi || !lo) return label
+  // Pair: two identical ranks, no suffix ("QQ"). Plural reads as a holding ("pair of Queens").
+  if (label.length === 2 && label[0] === label[1]) return `pair of ${pluralRank(hi)}`
+  // Suited/offsuit: higher-lower plus an s/o suffix ("AKs" / "JTo").
+  if (label.length === 3 && (label[2] === 's' || label[2] === 'o')) {
+    return `${hi}-${lo} ${label[2] === 's' ? 'suited' : 'offsuit'}`
+  }
+  return label
+}
+
+/**
  * One cell of the {@link startingHandChart} grid: a starting-hand *class* (a `"AA"` / `"AKs"` /
  * `"AKo"` label and which of the three kinds it is) and the {@link PreflopTier} it classifies into.
  * A flat, serialisable value — the hand-off shape a chart view renders.

@@ -35,7 +35,7 @@ import {
   type SpotVerdict,
 } from '@holdem/curriculum'
 import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
-import { lessonMeta, positionLabel } from '../learn/lessonMeta.js'
+import { lessonHead, lessonMeta, positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
 import { BackIcon, SparkIcon } from './Icons.js'
 import { SeatRing } from './SeatRing.js'
@@ -202,7 +202,7 @@ function ReadView({
 }): React.JSX.Element {
   const meta = lessonMeta(lesson)
   // The package title is "Equity: your share of the pot"; show just the head, with the subtitle below.
-  const head = lesson.title.split(':')[0] ?? lesson.title
+  const head = lessonHead(lesson)
   const startLabel = lesson.spots.length > 1 ? 'Start the checks →' : 'Start the check →'
   return (
     <>
