@@ -328,7 +328,8 @@ const RANGES_LESSON: Lesson = {
   concept: 'ranges',
   explanation:
     "You never know an opponent's exact two cards — you reason about their RANGE, the whole set of " +
-    'hands they could have. The same lens applies to your own starting hands: sort them into ' +
+    'hands they could have. (Poker players call you the "hero" and that opponent the "villain" — ' +
+    'neutral names for whose decision is being studied.) The same lens applies to your own starting hands: sort them into ' +
     'strength tiers. Premium hands (AA, KK, AK) you always play; strong and playable hands you open ' +
     'in most spots; trash (like 7-2 offsuit) you fold every time. A starting-hand chart is just ' +
     'those tiers written down. Play tiers, not feelings.',

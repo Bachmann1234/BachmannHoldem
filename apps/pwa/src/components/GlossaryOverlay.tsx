@@ -3,7 +3,9 @@
  * everywhere a learner meets it: the starting-hand chart cells (`JTo`), the coach drawer's "your hand"
  * highlight, the seat tags on the felt (`BTN`/`SB`/`BB`), and the card faces. The chart's tap-to-decode
  * caption answers "what is *this* hand"; this answers "what does the *notation* mean" once, for the
- * whole system.
+ * whole system. A closing "Talking about hands" section goes past pure notation to the analytical
+ * vocabulary a learner meets the moment they read a hand review or the coach's reasoning — hero,
+ * villain, range, GTO — so the words are decoded in the same place as the symbols.
  *
  * Presentational only and self-contained: a centred modal over its own scrim, opened from the Learn
  * header next to the chart link. The hand-class examples are read through `@holdem/coach`'s
@@ -74,6 +76,32 @@ const SECTIONS: readonly GlossarySection[] = [
       { term: 'A♥', meaning: 'The Ace of hearts (rank, then suit).' },
     ],
   },
+  {
+    title: 'Talking about hands',
+    intro: 'The words players use to discuss a hand — in reviews, forums, and the coach.',
+    entries: [
+      {
+        term: 'Hero',
+        meaning:
+          'You — the player whose decision is under the microscope. When a hand is reviewed, the hero is the one you follow.',
+      },
+      {
+        term: 'Villain',
+        meaning:
+          'Your opponent. Not an insult — just the neutral name for the player whose hand you have to reason about.',
+      },
+      {
+        term: 'Range',
+        meaning:
+          'Every hand someone could be holding right now, not one exact pair of cards. You play the odds against a whole range.',
+      },
+      {
+        term: 'GTO',
+        meaning:
+          'Game-theory optimal — a balanced, unexploitable baseline strategy. The "textbook" play to measure yourself against.',
+      },
+    ],
+  },
 ]
 
 /** Props for {@link GlossaryOverlay}. */
@@ -131,10 +159,6 @@ export function GlossaryOverlay({ onClose }: GlossaryOverlayProps): React.JSX.El
             ×
           </button>
         </div>
-
-        <p className="chart-note">
-          The terse notation the chart, coach, and table use — decoded once, in plain English.
-        </p>
 
         <div className="glossary" data-testid="glossary-body">
           {SECTIONS.map((section) => (
