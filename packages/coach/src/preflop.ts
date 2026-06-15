@@ -391,20 +391,6 @@ export function classifyPosition(ctx: DecisionContext): Position {
 }
 
 /**
- * Whether the hero is *in position* postflop — the corrected late-position predicate (0054 fixes the
- * heads-up semantics 0053 deferred). True on the button or cutoff at a full table, and — the fix —
- * for the heads-up **button (= small blind) only**, because the heads-up big blind acts *first* on
- * every postflop street and is therefore out of position. (The old `isLatePosition` returned `true`
- * for *both* heads-up seats, so {@link facingRaiseAdvice} mislabelled a HU BB defend "in position".)
- *
- * Defined as "the hero's {@link Position} is `late`" — heads-up only the button classifies `late`,
- * the BB classifies `big-blind`, so the HU BB is correctly out of position here.
- */
-function isInPosition(ctx: DecisionContext): boolean {
-  return classifyPosition(ctx) === 'late'
-}
-
-/**
  * The positional buckets that open a *wider* range than early/middle — the steal/late seats. The
  * cutoff and button ({@link Position.late}, including the heads-up button) and the **small blind**
  * (`small-blind`, where a fold-around leaves only the BB to get through) open wide. The **big blind**
@@ -616,38 +602,49 @@ interface FacingRaiseAdvice {
 }
 
 /**
- * The chart's open/fold-vs-a-*raise* prescription — the defend standard this ticket adds (0053).
- * Unlike {@link adviceFor} (an *opening* chart), this grades a hand the hero is *calling a raise*
- * with, and tightens with the price faced. There are **two** behavioral regimes (continue ranges),
- * split at a single cut — {@link LARGE_RAISE_MIN_BB}:
+ * The chart's open/fold-vs-a-*raise* prescription — the defend standard this ticket adds (0053),
+ * widened for the big blind by BUG-0007. Unlike {@link adviceFor} (an *opening* chart), this grades
+ * a hand the hero is *continuing with against a raise*, and tightens with the price faced. It also
+ * distinguishes a **cold-call** (chips in voluntarily, no money already committed) from a **big-blind
+ * defend** (already posted the blind, getting a discounted price, *closing* the action) — the BB
+ * defends far wider, which is why grading it like an out-of-position cold-call over-folded the single
+ * most common preflop spot (BUG-0007).
  *
- * - **Below {@link LARGE_RAISE_MIN_BB}** — a small / standard raise: keep a reasonable flatting
- *   range. Value tiers (`strong`+) always continue; the speculative `playable` tier flats too, but
- *   only *in position* (a thin flat needs position; OOP it is a cold-call leak); `marginal`/`trash`
- *   fold. This is the one regime where position changes the verdict.
+ * - **Below {@link LARGE_RAISE_MIN_BB}** — a small / standard raise:
+ *   - **Big blind:** a *defend*, not a cold-call. Continue everything down to `marginal` (the price
+ *     discount + closing the action justify it), regardless of position; fold only the unconnected
+ *     `trash` tail.
+ *   - **Cold-call (any other seat):** keep a tighter flatting range — `strong`+ always; the
+ *     speculative `playable` tier flats only *in position* (OOP it is a cold-call leak);
+ *     `marginal`/`trash` fold.
  * - **At/above {@link LARGE_RAISE_MIN_BB}** — a large raise: the price has collapsed the range to
- *   value only. `strong`+ continue; everything else (speculative/marginal/trash) folds, in or out
- *   of position.
+ *   value only. `strong`+ continue; everything else (speculative/marginal/trash) folds, in or out of
+ *   position. The big blind gets no special widening here — vs a large raise even the discounted
+ *   price is too poor, so it folds with everyone else; this preserves the 0053 behaviour that a BB
+ *   call of a 6× raise with a speculative hand is a leak. (In-position set-mining of small pairs vs
+ *   a large raise is a known conservative simplification — the coarse `playable` tier can't isolate
+ *   pairs from suited junk — left for a later refinement.)
  *
  * The **3-bet** cut ({@link THREE_BET_MIN_BB}) sits *inside* the large-raise regime: it applies the
- * **same** continue rule (`strong`+ continue, rest fold) — it does **not** tighten the range
- * further. It differs only in the teaching rationale: at/above {@link THREE_BET_MIN_BB} the spot is
- * labelled and taught as a 3-bet ("3-bet or call") rather than a plain value call. So there are two
- * distinct continue-ranges (small vs large), not three; the 3-bet is the large regime with a 3-bet
- * teaching frame.
+ * **same** value-only continue rule — it does **not** tighten further — and differs only in the
+ * teaching rationale ("3-bet or call").
  *
  * The rationale string is built from the *decision made*, so it always agrees with the verdict (the
- * acceptance criterion). Deterministic and pure — a price×position rule, not a solver.
+ * acceptance criterion). Deterministic and pure — a price × position × seat rule, not a solver.
  */
 function facingRaiseAdvice(
   tier: PreflopTier,
   raiseBb: number,
-  inPosition: boolean,
+  position: Position,
 ): FacingRaiseAdvice {
+  // The hero is in position only on the button/cutoff (heads-up: only the button — see
+  // classifyPosition); the big blind defends from a posted blind, so it gets the wide defend below.
+  const inPosition = position === 'late'
+  const isBigBlind = position === 'big-blind'
   const sizeLabel = `${formatRaiseSize(raiseBb)}${raiseBb >= THREE_BET_MIN_BB ? ' (a 3-bet)' : ''}`
 
-  // A 3-bet (or 3-bet-sized open): only the genuine value tiers continue — 3-bet or fold. Position
-  // does not move this call, so the rationale omits a position label.
+  // A 3-bet (or 3-bet-sized open): only the genuine value tiers continue — 3-bet or fold. The price
+  // is steep enough that even the big blind's discount does not widen it; position does not move it.
   if (raiseBb >= THREE_BET_MIN_BB) {
     if (tierAtLeast(tier, 'strong')) {
       return { advice: 'open', rationale: `Facing ${sizeLabel} — a strong hand: 3-bet or call.` }
@@ -658,8 +655,10 @@ function facingRaiseAdvice(
     }
   }
 
-  // A large raise (but not a 3-bet): the price collapses the range to value only. Position does not
-  // move this call either — speculative junk folds whether in or out of position.
+  // A large raise (but not a 3-bet): the price collapses the range to value only. `strong`+ continue;
+  // everything else (speculative/marginal/trash) folds, in or out of position. The big blind gets no
+  // special widening here either — vs a large raise even its discounted price is too poor — so it
+  // folds speculative hands with everyone else (preserving the 0053 6× behaviour).
   if (raiseBb >= LARGE_RAISE_MIN_BB) {
     if (tierAtLeast(tier, 'strong')) {
       return {
@@ -673,10 +672,28 @@ function facingRaiseAdvice(
     }
   }
 
-  // A small / standard raise (below LARGE_RAISE_MIN_BB): value tiers always flat; the speculative
-  // `playable` tier flats only in position (a thin flat needs position — out of position it is a
-  // cold-call leak). This is the one branch where position changes the verdict, so the rationale
-  // names it. Marginal/trash fold.
+  // A small / standard raise (below LARGE_RAISE_MIN_BB).
+  //
+  // BIG BLIND (BUG-0007): this is a *defend*, not a cold-call — the hero already posted the blind,
+  // is getting a discounted price, and closes the action. Continue everything down to `marginal`
+  // (offsuit broadways, suited gappers) regardless of position; fold only the unconnected `trash`
+  // tail. Treating this like an out-of-position cold-call over-folded the most common preflop spot.
+  if (isBigBlind) {
+    if (tierAtLeast(tier, 'marginal')) {
+      return {
+        advice: 'open',
+        rationale: `Defending the big blind vs ${sizeLabel} — a fine price to continue.`,
+      }
+    }
+    return {
+      advice: 'fold',
+      rationale: `Even from the big blind, this hand is too weak to defend ${sizeLabel}; fold.`,
+    }
+  }
+
+  // COLD-CALL (any other seat): value tiers always flat; the speculative `playable` tier flats only
+  // in position (a thin flat needs position — out of position it is a cold-call leak). This is the
+  // one cold-call branch where position changes the verdict. Marginal/trash fold.
   if (tierAtLeast(tier, 'strong')) {
     return {
       advice: 'open',
@@ -770,7 +787,9 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     }
   }
 
-  const inPosition = isInPosition(ctx)
+  // The hero's seat geometry — drives the facing-raise defend standard (in position / big-blind
+  // defend, BUG-0007) and the unraised opening rule alike, so compute it once.
+  const position = classifyPosition(ctx)
   const heroContinued = action.type !== 'fold'
 
   // Are we facing a raise, or is this an unraised pot? Preflop the BB posts `bigBlind`, so
@@ -786,14 +805,13 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
   let advice: PreflopAdvice
   let spotRationale: string
   if (facingRaise) {
-    ;({ advice, rationale: spotRationale } = facingRaiseAdvice(tier, raiseBb, inPosition))
+    ;({ advice, rationale: spotRationale } = facingRaiseAdvice(tier, raiseBb, position))
   } else {
     // Unraised path: the opening rule is now position-aware across every tier (0054). The advice may
     // fold a tier whose static chart rationale describes an open (e.g. a `playable` hand from early
     // position), so the *open* path keeps the tier's teaching label while the *fold* path gets a
     // position-named line that follows the advice — never the open-chart label above a fold. (The
     // full rationale-follows-advice pass is [[0056-coach-rationale-not-absolute]].)
-    const position = classifyPosition(ctx)
     // The trash steal-promotion fires only in a genuine steal (the pot folded to the hero); over a
     // limper, raising junk is a leak, not a steal — so gate the promotion on isStealSpot.
     const stealSpot = isStealSpot(ctx)

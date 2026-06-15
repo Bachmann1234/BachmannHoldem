@@ -341,9 +341,12 @@ describe('gradePreflop — raise-aware defend grading (0053)', () => {
   const LARGE = LARGE_RAISE_MIN_BB + 1 // ~6x — value-only
   const THREEBET = THREE_BET_MIN_BB + 1 // ~10x — value-only, taught as a 3-bet
 
-  // Position helpers for a 6-handed table: the button is late, an early seat is not.
+  // Position helpers for a 6-handed table (button on seat 0 → SB=1, BB=2): the button is late/in
+  // position; seat 3 is UTG — a genuine out-of-position *cold-caller*, NOT a blind. (Using the BB
+  // seat here would conflate a cold-call with a big-blind defend, which grade differently — see the
+  // dedicated big-blind-defend test below, BUG-0007.)
   const INPOS = { seat: 0, buttonIndex: 0, numPlayers: 6 }
-  const OOP = { seat: 2, buttonIndex: 0, numPlayers: 6 }
+  const OOP = { seat: 3, buttonIndex: 0, numPlayers: 6 }
 
   it('a strong hand still GOOD calling/3-betting at every price (the legitimate defend)', () => {
     const strong = hole('AsQs') // AQs — strong tier
@@ -412,6 +415,53 @@ describe('gradePreflop — raise-aware defend grading (0053)', () => {
     expect(v.advice).toBe('fold')
     expect(v.rationale).toMatch(/fold/i)
     expect(v.rationale).not.toMatch(/fold to pressure/i)
+  })
+
+  it('the big blind defends wide vs a small raise — not graded like an OOP cold-call (BUG-0007)', () => {
+    // 6-max, button on seat 4 → the hero (seat 0) is the big blind. The BB has posted the blind, gets
+    // a discounted price, and closes the action, so it defends far wider than a cold-caller.
+    const BB = { seat: 0, buttonIndex: 4, numPlayers: 6 }
+    const small = LARGE_RAISE_MIN_BB - 2 // ~3x
+
+    // A playable hand (ATo, the reported spot) and a marginal hand defend the BB vs a small raise.
+    for (const cards of ['AhTc', 'KsJh']) {
+      const v = gradePreflop(preflopCtx({ holeCards: hole(cards), raiseBb: small, ...BB }), CALL)
+      expect(v.verdict).toBe('good')
+      expect(v.advice).toBe('open')
+      expect(v.rationale).toMatch(/big blind/i)
+      // Folding a hand the BB should defend is itself the leak.
+      expect(
+        gradePreflop(preflopCtx({ holeCards: hole(cards), raiseBb: small, ...BB }), FOLD).verdict,
+      ).toBe('leak')
+    }
+
+    // The unconnected trash tail still folds even from the BB (defending pure junk is -EV).
+    const junk = gradePreflop(preflopCtx({ holeCards: hole('7h2c'), raiseBb: small, ...BB }), CALL)
+    expect(junk.advice).toBe('fold')
+    expect(junk.verdict).toBe('leak') // calling is the leak
+    expect(junk.rationale).toMatch(/big blind/i)
+
+    // The SAME ATo, but cold-calling from a non-blind OOP seat (seat 3, UTG), is the cold-call leak —
+    // the BB's wide defend does NOT apply to a voluntary cold-call.
+    const coldCall = gradePreflop(
+      preflopCtx({
+        holeCards: hole('AhTc'),
+        raiseBb: small,
+        seat: 3,
+        buttonIndex: 0,
+        numPlayers: 6,
+      }),
+      CALL,
+    )
+    expect(coldCall.verdict).toBe('leak')
+
+    // And vs a LARGE raise the BB no longer defends wide — a playable hand folds (preserving 0053).
+    const vsBig = gradePreflop(
+      preflopCtx({ holeCards: hole('AhTc'), raiseBb: LARGE_RAISE_MIN_BB + 1, ...BB }),
+      CALL,
+    )
+    expect(vsBig.advice).toBe('fold')
+    expect(vsBig.verdict).toBe('leak')
   })
 
   it('the facing-raise rationale never carries the static open-chart label', () => {
@@ -597,20 +647,21 @@ describe('gradePreflop — position-aware across all tiers (0054)', () => {
   })
 
   it('the HU BB defend is no longer labelled "in position" (the 0053-deferred wording fix)', () => {
-    // HU, button on seat 1 → the hero (seat 0) is the BB, out of position. Facing a small raise with
-    // a playable hand: the verdict is the OOP cold-call leak and the rationale must NOT say "in
-    // position" (the old isLatePosition called both HU seats late).
+    // HU, button on seat 1 → the hero (seat 0) is the BB. Facing a small raise with a playable hand,
+    // the BB defends (BUG-0007: a discounted price, closing the action), so the verdict is GOOD — and
+    // the rationale must NOT say "in position" (the old isLatePosition called both HU seats late, so
+    // the BB defend used to print "in position"). It now reads as a big-blind defend.
     const huBb = preflopCtx({
       holeCards: hole('7h6h'),
       seat: 0,
       buttonIndex: 1,
       numPlayers: 2,
-      raiseBb: LARGE_RAISE_MIN_BB - 2, // a small raise — the one regime position moves
+      raiseBb: LARGE_RAISE_MIN_BB - 2, // a small raise — the BB defends wide here
     })
     const v = gradePreflop(huBb, CALL)
     expect(v.rationale).not.toMatch(/in position/i)
-    expect(v.verdict).toBe('leak') // a thin OOP cold-call → leak
-    expect(v.rationale).toMatch(/out of position/i)
+    expect(v.verdict).toBe('good') // BB defends a playable hand vs a small raise
+    expect(v.rationale).toMatch(/big blind/i)
   })
 
   it('a trash steal opens when FOLDED to the hero but is a LEAK over a limper (the steal gate)', () => {
