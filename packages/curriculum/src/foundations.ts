@@ -99,18 +99,21 @@ const EQUITY_LESSON: Lesson = {
 // 2. pot odds — the break-even price a call needs.
 // ---------------------------------------------------------------------------------------------------
 //
-// CoachSpot where the PRICE is the lesson. The hero has a marginal holding (QJ, ~26% equity vs a
-// medium range on an A-K-5 board) and faces a steep price: 75 to call into a 100 pot, so the call
-// must win ~43% to break even. Equity (26%) is well short of the price (43%), so the coach rules the
-// call a leak and folding correct — a clean demonstration that the price, not the cards alone,
-// decides. Proven in the test (eq < threshold, fold correct, call leak).
+// CoachSpot where the PRICE is the lesson. The hero has a marginal holding (QJ on an A-K-5 board)
+// and faces a steep price: 75 to call into a 100 pot, so the call must win ~43% to break even. That
+// 75-into-25 bet is a ~3x-pot overbet, which the line-aware coach (ticket 0052) reads against the
+// tightest 'ultraTight' value range — QJ is only ~17% there (down from the old static-'medium' ~26%
+// read). Either way equity is well short of the price (43%), so the coach rules the call a leak and
+// folding correct — a clean demonstration that the price, not the cards alone, decides. Proven in
+// the test (eq < threshold, fold correct, call leak).
 
 /** pot-odds spot: a marginal hand at too steep a price — fold is correct, call is the leak. */
 const POT_ODDS_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
     'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75 — ' +
-    'a price of 75 / (100 + 75) ≈ 43% to break even. Your hand is only worth ~26%. Call or fold?',
+    'a price of 75 / (100 + 75) ≈ 43% to break even. Against that big a bet your hand is only worth ' +
+    '~17%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
     holeCards: hole('Qs Jd'),

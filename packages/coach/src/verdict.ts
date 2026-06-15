@@ -15,9 +15,11 @@
  * 1. **The read** — how good is the hand right now? Answered by {@link estimateEquity}
  *    from `@holdem/bots` ([[0018-bot-hand-reading]]), entirely through `@holdem/odds`,
  *    against the opponents *actually live in the pot*. The coach has no more X-ray vision
- *    than a bot: it reasons against a plausible range ({@link COACH_ASSUMED_RANGE}) per
- *    villain, so the equity here is an **estimate against an assumed range, not an
- *    omniscient truth**. It does, however, read against the right *number* of villains —
+ *    than a bot: it reasons against a plausible range — the {@link COACH_ASSUMED_RANGE}
+ *    baseline on an unbet pot, narrowed tighter on the betting line by
+ *    {@link assumedRangeForLine} (ticket 0052) — per villain, so the equity here is an
+ *    **estimate against an assumed range, not an omniscient truth**. It does, however, read
+ *    against the right *number* of villains —
  *    `ctx.numActive - 1` of them ([[0031-coach-multiway-equity]]) — so equity at a full
  *    table is not overstated by a heads-up read.
  * 2. **The math** — given that equity and the money on the table, is putting chips in
@@ -50,16 +52,56 @@ import {
 import { evOfCall, potOdds } from '@holdem/odds'
 
 /**
- * The villain range the coach assumes when reading the hero's equity: the "I have no
- * specific read" prior — a typical opening range, neither nit nor maniac. Aliased to the
- * bots' {@link DEFAULT_RANGE_WIDTH} (currently `'medium'`) rather than re-declaring the
- * literal, so the coach grades the hero against the *same* plausible villain every bot
- * assumes by default; retuning that prior moves both in lock-step instead of letting them
- * silently diverge. The verdict's equity is therefore *an estimate of how the hero fares
- * against a plausible villain*, not against villain's actual (hidden) cards. A future
- * ticket may let the caller narrow this with a read.
+ * The villain range the coach assumes when reading the hero's equity *with no betting-line
+ * read*: the "I have no specific read" prior — a typical opening range, neither nit nor
+ * maniac. Aliased to the bots' {@link DEFAULT_RANGE_WIDTH} (currently `'medium'`) rather
+ * than re-declaring the literal, so on an unbet pot the coach grades the hero against the
+ * *same* plausible villain every bot assumes by default; retuning that prior moves both in
+ * lock-step instead of letting them silently diverge.
+ *
+ * This is the **baseline** width: {@link assumedRangeForLine} starts here on a free
+ * decision (`toCall === 0`) and only narrows *tighter* as the villain commits chips to the
+ * line — it never re-widens, so the alias's "no read" meaning is preserved exactly where it
+ * applies (the unbet pot). The verdict's equity is therefore *an estimate of how the hero
+ * fares against a plausible villain on the line villain actually took*, not against
+ * villain's actual (hidden) cards.
+ *
+ * **Coach-only narrowing (a deliberate decision — ticket 0052).** The line-aware narrowing
+ * below lives in the **coach alone**; it does **not** tighten the bots, even though both
+ * share this alias. The reason is a standing project value (LEARNING-APPROACH.md / ROADMAP):
+ * the bots pick their width by *personality* and are deliberately tuned for *believable,
+ * fun* play — a loose-aggressive bot reading itself against a wide range is the point, not a
+ * leak. The coach, by contrast, exists to grade the hero *honestly*; a static read lets it
+ * reward calling stations (a +EV-looking call down vs a barreling villain whose range is in
+ * truth far stronger than `'medium'`). So we narrow the **grading read** without touching
+ * **bot behaviour**. The baseline-unbet width stays aliased to the bots' default so the "no
+ * read" prior remains shared and single-sourced. A future ticket may layer a per-villain
+ * read (personality / observed tendencies) on top of this line-only narrowing.
  */
 export const COACH_ASSUMED_RANGE: RangeWidth = DEFAULT_RANGE_WIDTH
+
+/**
+ * The bet-size threshold, as a fraction of the pot the villain bet *into*, above which a
+ * villain's bet counts as *large* and narrows the assumed range one bucket tighter than a
+ * small bet on the same street.
+ *
+ * **Which pot?** We measure the villain's bet against the pot it was made into — the pot
+ * **before** the hero's pending call — i.e. `ctx.toCall / (ctx.pot - ctx.toCall)`. `ctx.pot`
+ * is the lifetime pot *including* the villain's current bet but **not** the hero's call (see
+ * the pot-accounting note on {@link coachDecision}), so subtracting `ctx.toCall` recovers the
+ * dead money the bet was sized against — exactly the denominator {@link potOdds} reasons from.
+ * On this denominator the ratio is the bet *as a fraction of the pot it faced*: a *pot-sized*
+ * bet = `1.0`, a *3/4-pot* bet = `0.75`, a *2/3-pot* bet ≈ `0.667`, a *half-pot* bet = `0.5`.
+ *
+ * The `0.6` knob therefore fires at roughly a **two-thirds-pot bet or larger** — the sizing
+ * that signals a polarised, value-heavy (i.e. tighter than `'medium'`) range, and the band
+ * where a barreling villain's true holdings most outrun a static read — while a small
+ * continuation-bet (half-pot or less) stays one bucket wider. (The prior `0.4` was correct
+ * only against the old post-bet-pot denominator; re-tuned to `0.6` here so the same
+ * two-thirds-pot intent holds under the corrected bet-into-pot ratio — picked empirically by
+ * the ground-truth sweep.) A named, tunable knob, like {@link EPSILON} / {@link COACH_SEED}.
+ */
+export const LARGE_BET_POT_FRACTION = 0.6
 
 /**
  * The fixed seed threaded into the Monte-Carlo equity read so the verdict is deterministic.
@@ -68,6 +110,105 @@ export const COACH_ASSUMED_RANGE: RangeWidth = DEFAULT_RANGE_WIDTH
  * coaching output is stable across runs, tests, and replays.
  */
 export const COACH_SEED = 0
+
+/**
+ * The assumed-range width the coach reads against on a free decision — no chips owed, so
+ * the villain has revealed nothing about the strength of their line. Stays at the
+ * {@link COACH_ASSUMED_RANGE} baseline (the bots' default "no read" prior). Named so the
+ * line-narrowing starting point is one obvious knob.
+ *
+ * Tunable knob — one of {@link assumedRangeForLine}'s three line-strength settings (alongside
+ * {@link FACING_BET_RANGE_WIDTH} and {@link BARRELED_RANGE_WIDTH}).
+ */
+export const UNBET_RANGE_WIDTH: RangeWidth = COACH_ASSUMED_RANGE
+
+/**
+ * The assumed-range width the coach reads against when the villain has bet/raised on an
+ * *early* street (preflop/flop) with a *small* size — the villain is committing chips to
+ * the line, so the range is narrower than the no-read baseline, but a single small bet is
+ * the weakest of the three "villain is betting" signals, so we narrow only one bucket to
+ * `'tight'`.
+ *
+ * Tunable knob — one of {@link assumedRangeForLine}'s three line-strength settings (alongside
+ * {@link UNBET_RANGE_WIDTH} and {@link BARRELED_RANGE_WIDTH}).
+ */
+export const FACING_BET_RANGE_WIDTH: RangeWidth = 'tight'
+
+/**
+ * The assumed-range width the coach reads against when the villain's line is *strong*: a
+ * large bet (≥ {@link LARGE_BET_POT_FRACTION} of the pot) **and/or** continued aggression
+ * on a *later* street (turn/river — the villain has, in a typical hand, already fired an
+ * earlier street to get here, so a turn/river bet proxies a multi-barrel line we cannot
+ * count directly). Either signal alone narrows the read to `'ultraTight'` — the tightest
+ * value-heavy range — because that is exactly the spot where the static `'medium'` read
+ * over-rated the hero and manufactured calling stations (the seed-28 leak, ticket 0052).
+ *
+ * Tunable knob — one of {@link assumedRangeForLine}'s three line-strength settings (alongside
+ * {@link UNBET_RANGE_WIDTH} and {@link FACING_BET_RANGE_WIDTH}).
+ */
+export const BARRELED_RANGE_WIDTH: RangeWidth = 'ultraTight'
+
+/**
+ * Choose the assumed villain range the coach reads the hero's equity against, *as a pure,
+ * deterministic function of the betting line* in the {@link DecisionContext} — the heart of
+ * ticket 0052. Today's coach read against a single static {@link COACH_ASSUMED_RANGE} no
+ * matter how the villain bet, which over-rated the hero exactly when a villain kept firing
+ * (the hero's hand "improves" against a fixed wide range as the board runs out) and so
+ * rewarded calling down clearly-beaten hands. This narrows the read instead.
+ *
+ * There is **no barrel counter** on a `DecisionContext`, so we proxy "how committed is the
+ * villain to this line" from the two fields that *are* available — the bet size relative to
+ * the pot and the street:
+ *
+ * - **Unbet pot / free check** (`ctx.toCall === 0`): the villain has owed the hero nothing
+ *   and revealed nothing, so we keep the {@link UNBET_RANGE_WIDTH} baseline (= the bots'
+ *   default). This is the only branch that leaves the read at the no-read prior, which is why
+ *   {@link coachDecision}'s free-check behaviour is byte-identical to before.
+ * - **A strong line** — a *large* bet
+ *   (`ctx.toCall / (ctx.pot - ctx.toCall) ≥` {@link LARGE_BET_POT_FRACTION}, the villain's bet
+ *   as a fraction of the pot it was made *into*; see that constant for the exact ratio)
+ *   **or** any bet on a *later* street (turn/river, where reaching the spot at all implies
+ *   the villain already bet an earlier street — a proxy for a multi-barrel line): narrow to
+ *   {@link BARRELED_RANGE_WIDTH} (`'ultraTight'`). Either signal alone is enough.
+ * - **Otherwise a bet/raise** (a small bet on preflop/flop): narrow one bucket to
+ *   {@link FACING_BET_RANGE_WIDTH} (`'tight'`).
+ *
+ * The function reads only `ctx.toCall`, `ctx.pot`, and `ctx.street`, returns a
+ * {@link RangeWidth}, and touches no randomness — so it is a pure mapping that keeps the
+ * verdict deterministic ({@link coachDecision} still pins {@link COACH_SEED}; this only
+ * chooses *which width* to seed the read against). Exported standalone so the mapping is
+ * unit-testable in isolation.
+ *
+ * Guards `ctx.pot`/`ctx.toCall` negativity is left to {@link coachDecision} (which validates
+ * before calling this). The bet-into-pot denominator `ctx.pot - ctx.toCall` is the dead money
+ * *before* the bet, which is `0` only when the villain bet into a pot with no prior money
+ * (pathological postflop, but possible) and negative only in impossible inputs; either way the
+ * `denom > 0` guard falls back to `Infinity`, classifying a no-dead-money bet as the strong
+ * (barreled) read — the conservative (tighter) side, never a crash or a re-widening.
+ */
+export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
+  // No chips owed: the villain has revealed nothing — keep the no-read baseline width.
+  if (ctx.toCall === 0) return UNBET_RANGE_WIDTH
+
+  // A later street (turn/river) means the villain, to be betting here, has in a typical hand
+  // already fired an earlier street: a stand-in for the multi-barrel line we cannot count.
+  const laterStreet = ctx.street === 'turn' || ctx.street === 'river'
+
+  // The villain's bet as a fraction of the pot it was made INTO — the dead money BEFORE the
+  // hero's call (`ctx.pot - ctx.toCall`), the same quantity potOdds reasons from (a pot-sized
+  // bet = 1.0). See LARGE_BET_POT_FRACTION. The denominator is 0 only with no dead money
+  // before the bet and negative only on impossible inputs; the guard treats either as the
+  // strong (barreled) read rather than dividing by zero or under-narrowing.
+  const denom = ctx.pot - ctx.toCall
+  const betFraction = denom > 0 ? ctx.toCall / denom : Infinity
+  const largeBet = betFraction >= LARGE_BET_POT_FRACTION
+
+  // Either a large bet or a later-street bet signals a strong, value-heavy line.
+  if (largeBet || laterStreet) return BARRELED_RANGE_WIDTH
+
+  // A small bet/raise on an early street: a real commitment, but the weakest of the signals.
+  return FACING_BET_RANGE_WIDTH
+}
 
 /**
  * The break-even tolerance band, in equity-fraction units.
@@ -160,8 +301,10 @@ function isContinue(action: Action): boolean {
 export interface DecisionVerdict {
   /**
    * The hero's estimated equity (expected pot share) as a fraction `0..1`, read against the
-   * `ctx.numActive - 1` opponents live in the pot, each on {@link COACH_ASSUMED_RANGE}. An
-   * *estimate against an assumed range per villain*, not omniscient; lower at a fuller table.
+   * `ctx.numActive - 1` opponents live in the pot, each on the {@link assumedRangeForLine}
+   * width for the betting line (the {@link COACH_ASSUMED_RANGE} baseline on an unbet pot,
+   * tighter the harder the villain has barreled). An *estimate against an assumed range per
+   * villain*, not omniscient; lower at a fuller table and against a stronger line.
    */
   readonly equity: number
   /**
@@ -234,12 +377,13 @@ export interface DecisionVerdict {
  * `'equity-vs-price'` idea (the decision turns on weighing equity against the price). See the
  * {@link DecisionVerdict.concept} doc for the full mapping rationale.
  *
- * The equity is a seeded ({@link COACH_SEED}) Monte-Carlo estimate against
- * {@link COACH_ASSUMED_RANGE}, read against the `ctx.numActive - 1` opponents actually live
- * in the pot ([[0031-coach-multiway-equity]]) — deterministic, but an estimate against an
- * *assumed* range per villain, not their actual cards. A heads-up pot reads against one
- * villain (the original behaviour); a fuller table reads against more, so the equity is not
- * overstated.
+ * The equity is a seeded ({@link COACH_SEED}) Monte-Carlo estimate against the width
+ * {@link assumedRangeForLine} picks from the betting line (the {@link COACH_ASSUMED_RANGE}
+ * baseline on an unbet pot, narrowing tighter the more the villain has barreled — ticket
+ * 0052), read against the `ctx.numActive - 1` opponents actually live in the pot
+ * ([[0031-coach-multiway-equity]]) — deterministic, but an estimate against an *assumed*
+ * range per villain, not their actual cards. A heads-up pot reads against one villain; a
+ * fuller table reads against more, so the equity is not overstated.
  *
  * Throws {@link RangeError} (via {@link estimateEquity} / the odds helpers) on malformed
  * inputs: a context with the wrong hole-card count, an illegal board size, a negative pot,
@@ -251,14 +395,20 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   if (ctx.pot < 0) throw new RangeError(`ctx.pot must be ≥ 0, got ${ctx.pot}`)
   if (ctx.toCall < 0) throw new RangeError(`ctx.toCall must be ≥ 0, got ${ctx.toCall}`)
 
-  // --- The read: equity against the assumed range, seeded for determinism. ------------
+  // --- The read: equity against the line-narrowed assumed range, seeded for determinism. ---
+  // The width is a deterministic, pure function of the betting line (ticket 0052): the
+  // no-read COACH_ASSUMED_RANGE baseline on an unbet pot, narrowing tighter the more the
+  // villain has committed to the line (a bet/raise → 'tight', a big bet and/or a turn/river
+  // barrel → 'ultraTight'). This grades the hero against a *plausible villain on the line
+  // villain actually took* instead of a fixed wide range, without touching bot behaviour.
   // Read against the number of opponents ACTUALLY live in the pot — `ctx.numActive - 1`
-  // villains, each on COACH_ASSUMED_RANGE — so the equity reflects the real table size. A
-  // heads-up pot (`numActive === 2`) is one villain, i.e. the unchanged single-villain read.
+  // villains, each on that width — so the equity reflects the real table size. A heads-up
+  // pot (`numActive === 2`) is one villain, i.e. the unchanged single-villain read.
+  const assumedRange = assumedRangeForLine(ctx)
   const equity = estimateEquity({
     holeCards: ctx.holeCards,
     board: ctx.board,
-    opponentRange: COACH_ASSUMED_RANGE,
+    opponentRange: assumedRange,
     seed: COACH_SEED,
     opponentCount: ctx.numActive - 1,
   }).equity

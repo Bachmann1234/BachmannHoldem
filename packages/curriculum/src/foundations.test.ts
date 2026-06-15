@@ -106,7 +106,7 @@ describe('equity lesson — free check, the equity concept (coach-true)', () => 
 })
 
 describe('pot-odds lesson — price too high (coach-true)', () => {
-  // Choice 0 = Call (the leak: 26% equity < 43% price), choice 1 = Fold (correct).
+  // Choice 0 = Call (the leak: ~17% equity vs the line-narrowed read < 43% price), choice 1 = Fold (correct).
   const spot = firstSpot('foundations-pot-odds')
 
   it('grades folding the overpriced marginal hand correct', () => {
