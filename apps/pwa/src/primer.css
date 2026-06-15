@@ -554,13 +554,25 @@
   gap: 5px;
   margin-top: 7px;
   white-space: nowrap;
+  font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 750;
   color: var(--accent-ink);
   background: var(--accent);
+  border: 0;
   border-radius: var(--radius-pill);
   padding: 4px 11px;
   box-shadow: 0 4px 12px var(--accent-soft);
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.start-tag:hover {
+  box-shadow: 0 6px 16px var(--accent-soft);
+}
+.start-tag:active {
+  transform: translateY(1px);
 }
 .node-row.off-r .start-tag {
   flex-direction: row-reverse;

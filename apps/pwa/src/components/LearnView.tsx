@@ -158,10 +158,16 @@ export function LearnView({
                     </h3>
                     <p>{meta.teaser}</p>
                     {current && (
-                      <span className="start-tag">
+                      <button
+                        type="button"
+                        className="start-tag"
+                        data-testid={`start-${i}`}
+                        onClick={handleOpen}
+                        aria-label={`${progress > 0 ? 'Resume' : 'Start'} lesson ${n}: ${lesson.title}`}
+                      >
                         {progress > 0 ? 'Resume here' : 'Start here'}
                         <ChevIcon style={{ width: 13, height: 13 }} />
-                      </span>
+                      </button>
                     )}
                   </div>
                 </div>

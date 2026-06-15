@@ -88,6 +88,18 @@ describe('App — top-level navigation', () => {
     expect(screen.queryByTestId('lesson-player')).toBeNull()
   })
 
+  it('opens the current lesson from the "Start here" tag (not just the medallion)', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    fireEvent.click(screen.getByTestId('tab-learn'))
+    // The "Start here" tag on the current node is a button, wired to the same open as the medallion.
+    fireEvent.click(screen.getByTestId('start-0'))
+
+    const player = screen.getByTestId('lesson-player')
+    expect(within(player).getByText(FOUNDATIONS[0]!.title)).toBeTruthy()
+    expect(screen.queryByTestId('learn')).toBeNull()
+  })
+
   it('opens a lesson via the sticky Resume CTA', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} />)
 
