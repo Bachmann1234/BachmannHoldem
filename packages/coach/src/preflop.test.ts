@@ -4,13 +4,17 @@ import type { DecisionContext } from '@holdem/bots'
 
 import {
   classifyStartingHand,
+  classifyPosition,
   gradePreflop,
   PREFLOP_CHART,
   CHART_RANKS,
+  EARLY_SEATS,
   LARGE_RAISE_MIN_BB,
   THREE_BET_MIN_BB,
+  STEAL_OPEN_RANGE,
   startingHandChart,
   handClassLabel,
+  type Position,
   type PreflopTier,
   type StartingHandVerdict,
 } from './preflop.js'
@@ -237,18 +241,14 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
     expect(gradePreflop(ctx, FOLD).verdict).toBe('leak')
   })
 
-  it('premium / strong / playable are all "open" regardless of position', () => {
-    // Even in early position (seat 1 of 3, button on seat 0), the chart opens these tiers.
-    const early = { seat: 1, buttonIndex: 0, numPlayers: 3 }
-    expect(gradePreflop(preflopCtx({ holeCards: hole('AsAh'), ...early }), CALL).advice).toBe(
-      'open',
-    )
-    expect(gradePreflop(preflopCtx({ holeCards: hole('KsQs'), ...early }), CALL).advice).toBe(
-      'open',
-    )
-    expect(gradePreflop(preflopCtx({ holeCards: hole('7h6h'), ...early }), CALL).advice).toBe(
-      'open',
-    )
+  it('premium / strong open from EVERY position, including UTG (the value tiers never fold)', () => {
+    // UTG of a 6-max table (seat 3 = button+3, first to act): the value tiers still open.
+    const utg = { seat: 3, buttonIndex: 0, numPlayers: 6 }
+    expect(gradePreflop(preflopCtx({ holeCards: hole('AsAh'), ...utg }), CALL).advice).toBe('open')
+    expect(gradePreflop(preflopCtx({ holeCards: hole('KsQs'), ...utg }), CALL).advice).toBe('open')
+    // …and the speculative `playable` tier opens from a non-early seat (the button), with a plan.
+    const btn = { seat: 0, buttonIndex: 0, numPlayers: 6 }
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7h6h'), ...btn }), CALL).advice).toBe('open')
   })
 
   it('a free check (big-blind option) is GOOD for ANY hand — never a leak (BUG-0003)', () => {
@@ -278,21 +278,22 @@ describe('gradePreflop — chart-driven verdict (BUG-0001)', () => {
 
   it('marginal opens only in late position (button/cutoff), folds in early position', () => {
     const marginal = hole('KsJd') // KJo — marginal tier
-    // Button (seat 0) and cutoff (seat 2) of a 3-handed table are late position → open.
+    // 6-max, button on seat 0: the button (seat 0) and the cutoff (seat 5 = button-1) are late
+    // position → the marginal hand opens.
     expect(
       gradePreflop(
-        preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 3 }),
+        preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 6 }),
         CALL,
       ).advice,
     ).toBe('open')
     expect(
       gradePreflop(
-        preflopCtx({ holeCards: marginal, seat: 2, buttonIndex: 0, numPlayers: 3 }),
+        preflopCtx({ holeCards: marginal, seat: 5, buttonIndex: 0, numPlayers: 6 }),
         CALL,
       ).advice,
     ).toBe('open')
-    // Early position (seat 1) → the chart folds it.
-    const early = preflopCtx({ holeCards: marginal, seat: 1, buttonIndex: 0, numPlayers: 3 })
+    // UTG (seat 3 = button+3, first to act 6-max) is early position → the chart folds it.
+    const early = preflopCtx({ holeCards: marginal, seat: 3, buttonIndex: 0, numPlayers: 6 })
     expect(gradePreflop(early, CALL).advice).toBe('fold')
     expect(gradePreflop(early, CALL).verdict).toBe('leak') // opening it early is the leak
     expect(gradePreflop(early, FOLD).verdict).toBe('good') // folding it early is correct
@@ -445,11 +446,223 @@ describe('gradePreflop — raise-aware defend grading (0053)', () => {
     // currentBet <= bigBlind keeps the opening behaviour: a marginal hand opens in late position,
     // folds early — exactly the pre-0053 grading.
     const marginal = hole('KsJd') // KJo — marginal
-    const late = preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 3 })
+    const late = preflopCtx({ holeCards: marginal, seat: 0, buttonIndex: 0, numPlayers: 6 })
     expect(gradePreflop(late, CALL).advice).toBe('open')
     expect(gradePreflop(late, CALL).rationale).toMatch(/late position/i) // open-chart label intact
-    const early = preflopCtx({ holeCards: marginal, seat: 1, buttonIndex: 0, numPlayers: 3 })
+    const early = preflopCtx({ holeCards: marginal, seat: 3, buttonIndex: 0, numPlayers: 6 })
     expect(gradePreflop(early, CALL).verdict).toBe('leak')
+  })
+})
+
+describe('classifyPosition — seat geometry (0054)', () => {
+  // 6-max, button on seat 0: sb=1, bb=2, UTG=3, MP=4, CO=5(=button-1), BTN=0.
+  const np6 = (seat: number): Position =>
+    classifyPosition(preflopCtx({ holeCards: hole('AsAh'), seat, buttonIndex: 0, numPlayers: 6 }))
+
+  it('classes the button and cutoff as late', () => {
+    expect(np6(0)).toBe('late') // BTN
+    expect(np6(5)).toBe('late') // CO (button-1)
+  })
+
+  it('classes the small and big blind as distinct buckets (SB widens, BB does not)', () => {
+    expect(np6(1)).toBe('small-blind') // SB
+    expect(np6(2)).toBe('big-blind') // BB
+  })
+
+  it('classes the EARLY_SEATS just after the BB as early', () => {
+    expect(EARLY_SEATS).toBeGreaterThanOrEqual(1)
+    // 6-max has only UTG(3) and MP(4) as non-blind, non-late seats; with EARLY_SEATS=2 both are
+    // early, so there is no `middle` seat at a 6-max table (middle appears at larger tables — see
+    // the 9-handed case below).
+    expect(np6(3)).toBe('early') // UTG, first to act
+    expect(np6(4)).toBe('early') // MP/HJ — the second early seat
+  })
+
+  it('produces a `middle` bucket at a full ring (9-handed) between early and the cutoff', () => {
+    const np9 = (seat: number): Position =>
+      classifyPosition(preflopCtx({ holeCards: hole('AsAh'), seat, buttonIndex: 0, numPlayers: 9 }))
+    expect(np9(3)).toBe('early') // UTG (first to act, offset 6)
+    expect(np9(4)).toBe('early') // UTG+1
+    expect(np9(5)).toBe('middle') // MP — now genuinely middle
+    expect(np9(8)).toBe('late') // CO (button-1)
+    expect(np9(0)).toBe('late') // BTN
+    expect(np9(1)).toBe('small-blind') // SB
+    expect(np9(2)).toBe('big-blind') // BB
+  })
+
+  it('heads-up: the button(=SB) is late/in-position, the BB is out of position', () => {
+    // The fix 0053 deferred: the OLD isLatePosition treated BOTH HU seats as late.
+    expect(
+      classifyPosition(
+        preflopCtx({ holeCards: hole('AsAh'), seat: 0, buttonIndex: 0, numPlayers: 2 }),
+      ),
+    ).toBe('late')
+    expect(
+      classifyPosition(
+        preflopCtx({ holeCards: hole('AsAh'), seat: 1, buttonIndex: 0, numPlayers: 2 }),
+      ),
+    ).toBe('big-blind')
+  })
+
+  it('classifies a 4-handed table sensibly (the untested boundary)', () => {
+    // 4-handed, button on seat 0: sb=1, bb=2, and seat 3 is the cutoff/UTG (offset 1 → late). There
+    // is no early/middle seat at 4-handed — every non-blind seat is the button or the cutoff.
+    const np4 = (seat: number): Position =>
+      classifyPosition(preflopCtx({ holeCards: hole('AsAh'), seat, buttonIndex: 0, numPlayers: 4 }))
+    expect(np4(0)).toBe('late') // BTN
+    expect(np4(3)).toBe('late') // CO (= button-1, offset 1)
+    expect(np4(1)).toBe('small-blind') // SB
+    expect(np4(2)).toBe('big-blind') // BB
+  })
+})
+
+describe('gradePreflop — position-aware across all tiers (0054)', () => {
+  // 6-max geometry, button on seat 0.
+  const at = (seat: number, holeCards: readonly [Card, Card]) =>
+    preflopCtx({ holeCards, seat, buttonIndex: 0, numPlayers: 6 })
+  const UTG = 3
+  const BTN = 0
+
+  it('a playable speculative hand FOLDS from early position, OPENS from late (EP fold → LP open)', () => {
+    for (const cards of ['7h6h', '6s5s', '4d4c', 'As2s']) {
+      // 76s/65s/44/A2s are playable — a winning 6-max reg folds these UTG, opens them on the button.
+      const early = gradePreflop(at(UTG, hole(cards)), CALL)
+      expect(early.advice).toBe('fold')
+      expect(early.verdict).toBe('leak') // opening them UTG is the leak
+      expect(gradePreflop(at(UTG, hole(cards)), FOLD).verdict).toBe('good')
+      // The fold rationale follows the advice — never the "open in position" label above a fold.
+      expect(early.rationale).not.toMatch(/open in position/i)
+
+      const late = gradePreflop(at(BTN, hole(cards)), CALL)
+      expect(late.advice).toBe('open')
+      expect(late.verdict).toBe('good')
+    }
+  })
+
+  it('the HU button widens: K7o / A9o / T9o OPEN on the button — no longer Trash/Leak', () => {
+    const HU_BTN = { seat: 0, buttonIndex: 0, numPlayers: 2 }
+    for (const cards of ['Kh7c', 'Ah9c', 'Td9c']) {
+      const v = gradePreflop(preflopCtx({ holeCards: hole(cards), ...HU_BTN }), CALL)
+      expect(v.tier).toBe('trash') // strength tier is UNCHANGED — the steal range is an advice layer
+      expect(v.advice).toBe('open') // …but the steal/HU range promotes the open
+      expect(v.verdict).toBe('good') // calling/opening is correct, NOT a Leak
+      // Folding the steal is now the leak (it is a profitable open).
+      expect(gradePreflop(preflopCtx({ holeCards: hole(cards), ...HU_BTN }), FOLD).verdict).toBe(
+        'leak',
+      )
+    }
+  })
+
+  it('those same trash steals still FOLD from early position (the widening is late/blind/HU only)', () => {
+    for (const cards of ['Kh7c', 'Ah9c', 'Td9c']) {
+      const v = gradePreflop(at(UTG, hole(cards)), CALL)
+      expect(v.advice).toBe('fold')
+      expect(v.verdict).toBe('leak') // opening trash UTG is a leak
+    }
+  })
+
+  it('genuine trash (72o) still folds everywhere, even on the HU button', () => {
+    const HU_BTN = { seat: 0, buttonIndex: 0, numPlayers: 2 }
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7h2c'), ...HU_BTN }), CALL).verdict).toBe(
+      'leak',
+    )
+    expect(gradePreflop(preflopCtx({ holeCards: hole('7h2c'), ...HU_BTN }), FOLD).verdict).toBe(
+      'good',
+    )
+  })
+
+  it('premium / strong open from every seat (spot-check across positions and table sizes)', () => {
+    for (const cards of ['AsAh', 'KsKh', 'AsKh', 'AsQs', 'KsQs']) {
+      for (const seat of [UTG, 4, 5, BTN, 1, 2]) {
+        expect(gradePreflop(at(seat, hole(cards)), CALL).advice).toBe('open')
+      }
+      // …and heads-up, both seats.
+      expect(
+        gradePreflop(
+          preflopCtx({ holeCards: hole(cards), seat: 0, buttonIndex: 0, numPlayers: 2 }),
+          CALL,
+        ).advice,
+      ).toBe('open')
+    }
+  })
+
+  it('the HU BB defend is no longer labelled "in position" (the 0053-deferred wording fix)', () => {
+    // HU, button on seat 1 → the hero (seat 0) is the BB, out of position. Facing a small raise with
+    // a playable hand: the verdict is the OOP cold-call leak and the rationale must NOT say "in
+    // position" (the old isLatePosition called both HU seats late).
+    const huBb = preflopCtx({
+      holeCards: hole('7h6h'),
+      seat: 0,
+      buttonIndex: 1,
+      numPlayers: 2,
+      raiseBb: LARGE_RAISE_MIN_BB - 2, // a small raise — the one regime position moves
+    })
+    const v = gradePreflop(huBb, CALL)
+    expect(v.rationale).not.toMatch(/in position/i)
+    expect(v.verdict).toBe('leak') // a thin OOP cold-call → leak
+    expect(v.rationale).toMatch(/out of position/i)
+  })
+
+  it('a trash steal opens when FOLDED to the hero but is a LEAK over a limper (the steal gate)', () => {
+    // K7o on the button. Folded to the hero (no voluntary entrants) it is a profitable steal → open.
+    const folded = preflopCtx({ holeCards: hole('Kh7c'), seat: 0, buttonIndex: 0, numPlayers: 6 })
+    expect(gradePreflop(folded, CALL).verdict).toBe('good') // opening the steal is correct
+    expect(gradePreflop(folded, CALL).advice).toBe('open')
+    expect(gradePreflop(folded, CALL).rationale).toMatch(/steal/i)
+
+    // The SAME K7o with a limper already in the pot (seat 3 voluntarily committed a big blind). Now it
+    // is NOT a steal — raising junk over a limper is a leak — so the promotion does not fire: the
+    // raise is a leak and folding is correct.
+    const limped: DecisionContext = {
+      ...folded,
+      opponents: [
+        { seat: 3, stack: 998, committed: 2, totalCommitted: 2, status: 'active', isButton: false },
+      ],
+    }
+    expect(gradePreflop(limped, CALL).advice).toBe('fold')
+    expect(gradePreflop(limped, CALL).verdict).toBe('leak') // raising junk over the limper is a leak
+    expect(gradePreflop(limped, FOLD).verdict).toBe('good') // folding it is correct
+    expect(gradePreflop(limped, CALL).rationale).not.toMatch(/steal/i) // and never claims a steal
+  })
+
+  it('an involuntary big blind is not a "limper": the SB steal still fires past it', () => {
+    // SB (seat 1) with K7o, folded around to it: only the BB (seat 2) remains, and the BB's POSTED big
+    // blind is involuntary — so this is still a genuine steal spot and the promotion fires.
+    const sbSteal: DecisionContext = {
+      ...preflopCtx({ holeCards: hole('Kh7c'), seat: 1, buttonIndex: 0, numPlayers: 6 }),
+      opponents: [
+        // The BB posted its blind but has not voluntarily entered — must NOT count as an entrant.
+        { seat: 2, stack: 998, committed: 2, totalCommitted: 2, status: 'active', isButton: false },
+      ],
+    }
+    expect(gradePreflop(sbSteal, CALL).advice).toBe('open')
+    expect(gradePreflop(sbSteal, CALL).verdict).toBe('good')
+  })
+
+  it('SB gets steal widening; an unraised BB does not open via the grader', () => {
+    // SB (seat 1) is a widening/steal seat → a steal-range trash hand opens.
+    const sb = preflopCtx({ holeCards: hole('Kh7c'), seat: 1, buttonIndex: 0, numPlayers: 6 })
+    expect(classifyPosition(sb)).toBe('small-blind')
+    expect(gradePreflop(sb, CALL).advice).toBe('open')
+    expect(gradePreflop(sb, CALL).verdict).toBe('good')
+
+    // The BB (seat 2) is NOT a widening seat. In normal flow an unraised BB reaches the grader only via
+    // the free `check` (its option), which is always GOOD — assert the short-circuit covers it.
+    const bb = preflopCtx({ holeCards: hole('Kh7c'), seat: 2, buttonIndex: 0, numPlayers: 6 })
+    expect(classifyPosition(bb)).toBe('big-blind')
+    expect(gradePreflop(bb, CHECK).verdict).toBe('good')
+    expect(gradePreflop(bb, CHECK).rationale).toMatch(/free flop/i)
+    // And the BB-open path through adviceFor folds trash (no steal widening) — if a BB combo did reach
+    // the opening rule (e.g. a non-check action), the steal promotion must not fire.
+    expect(gradePreflop(bb, CALL).advice).toBe('fold')
+    expect(gradePreflop(bb, CALL).verdict).toBe('leak') // entering trash from the BB is a leak
+  })
+
+  it('the STEAL_OPEN_RANGE is a wider, additive layer — it promotes trash, never re-tiers it', () => {
+    // Every steal-range hand is still its same strength tier; the range only changes ADVICE in a
+    // widening seat. (Guards the acceptance criterion that the chart tiers are unchanged.)
+    expect(STEAL_OPEN_RANGE).toMatch(/K7o/)
+    expect(classifyStartingHand(hole('Kh7c')).tier).toBe('trash') // K7o still trash on the chart
   })
 })
 

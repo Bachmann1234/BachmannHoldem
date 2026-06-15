@@ -214,8 +214,8 @@ export function classifyStartingHand(holeCards: readonly [Card, Card]): Starting
  * - `'open'` — the chart says to put chips in (enter the pot / continue).
  * - `'fold'` — the chart says to give the hand up.
  *
- * This is the chart's *prescription* (position-aware for {@link PreflopTier.marginal}); the hero is
- * then graded on whether their action agreed with it — see {@link gradePreflop}.
+ * This is the chart's *prescription* (position-aware across the whole opening range — 0054); the hero
+ * is then graded on whether their action agreed with it — see {@link gradePreflop}.
  */
 export type PreflopAdvice = 'open' | 'fold'
 
@@ -226,7 +226,7 @@ export type PreflopAdvice = 'open' | 'fold'
  * Preflop, pot-odds-vs-equity is the *wrong* lens: it ignores position, fold equity, and implied
  * odds, so it folds textbook opens like AJs on the button. So we grade preflop off the
  * starting-hand chart instead — `classifyStartingHand` gives the tier, the chart's open/fold
- * guidance (position-aware for the marginal tier) gives the {@link advice}, and the hero is `good`
+ * guidance (position-aware across the whole opening range) gives the {@link advice}, and the hero is `good`
  * when their action matched that guidance and a `leak` when it did not. A flat, serialisable value
  * with no equity/EV fields — there is deliberately no pot-odds math here to contradict the chart.
  */
@@ -235,7 +235,7 @@ export interface PreflopVerdict {
   readonly tier: PreflopTier
   /** A short, human-readable line of open/fold guidance — the teaching takeaway. */
   readonly rationale: string
-  /** What the chart recommends in this spot (position-aware for the `marginal` tier). */
+  /** What the chart recommends in this spot (position-aware across the whole opening range). */
   readonly advice: PreflopAdvice
   /** Whether the hero put chips in (any non-fold) or folded. */
   readonly heroContinued: boolean
@@ -297,29 +297,259 @@ function tierAtLeast(tier: PreflopTier, floor: PreflopTier): boolean {
 }
 
 /**
- * Whether the hero is in *late position* — on the button or the cutoff (the seat immediately before
- * the button). This is a seat-geometry property: the cutoff is `buttonIndex - 1` (mod
- * {@link DecisionContext.numPlayers}), so it falls straight out of the button index without any
- * range or fold reasoning. Heads-up (two seats) both seats count as late — the standard read that
- * the marginal tier is playable heads-up.
+ * The hero's positional bucket — the coarse, teachable grouping of seats the opening rule keys off
+ * (ticket 0054). Four buckets, strongest-stealing-leverage last-ish, mirroring how a learner is
+ * taught to think about position rather than naming all nine seats:
  *
- * Late position is the one piece of context the chart needs to grade the `marginal` tier, whose
- * guidance is "open only in late position; fold to pressure".
+ * - `early` — UTG and the seat(s) just after the big blind. Many players still act behind you, so
+ *   you open the *tightest* range and never open speculative junk.
+ * - `middle` — the seats between early and the cutoff. A medium range opens here.
+ * - `late` — the cutoff and the button (and the only non-blind seat heads-up). Few/no players act
+ *   behind; the widest *open* range and the steal seats.
+ * - `small-blind` — the small blind (and the heads-up button, which *is* the small blind). A steal
+ *   seat: when it is folded to the SB only the BB is left, so it widens like late position. One of
+ *   the {@link WIDENING_POSITIONS}.
+ * - `big-blind` — the big blind: the worst seat, always last to act preflop and first to act on
+ *   every later street, and it never *opens* an unraised pot (it checks its free option — the
+ *   `check` short-circuit in {@link gradePreflop} handles that). Deliberately **not** a widening
+ *   seat, so the BB gets no steal/late widening (the SB↔BB conflation fix). Kept distinct from
+ *   `small-blind` precisely so the BB cannot inherit the SB's steal range.
+ *
+ * A grading-time *advice* input only — it never changes the position-independent strength tiers
+ * ({@link classifyStartingHand} / {@link PREFLOP_CHART}), which stay a valid strength map for the
+ * viewable chart ([[0050-starting-hand-chart-view]]).
  */
-function isLatePosition(ctx: DecisionContext): boolean {
-  const cutoff = (ctx.buttonIndex - 1 + ctx.numPlayers) % ctx.numPlayers
-  return ctx.seat === ctx.buttonIndex || ctx.seat === cutoff
+export type Position = 'early' | 'middle' | 'late' | 'small-blind' | 'big-blind'
+
+/**
+ * How many *early* (UTG-style) seats a full ring has, counting from the first seat to act (the seat
+ * just left of the big blind) inward. A *tunable knob*: at this many seats or fewer after the
+ * blinds, the hero is in {@link Position.early} and opens the tightest range. Two models a 6-max
+ * UTG + UTG+1 / a full-ring UTG cluster — small enough that the cutoff and button stay
+ * {@link Position.late} at every table size we deal. Everything between early and the cutoff is
+ * {@link Position.middle}.
+ */
+export const EARLY_SEATS = 2
+
+/**
+ * Classify the hero's {@link Position} from pure seat geometry — the button index, seat count, and
+ * the hero's seat. No range or fold reasoning here; this is the one positional input the opening
+ * rule consults, derived the way a learner derives it: *how many seats act after me when it is
+ * folded to me?*
+ *
+ * **The geometry.** Preflop the button acts last of the non-blind seats, then the blinds. We measure
+ * each seat by its distance *back* from the button — `offset = (buttonIndex - seat) mod numPlayers`:
+ * the button is offset `0`, the cutoff `1`, and so on, with the small blind the highest offset
+ * (`numPlayers - 1`) and the big blind next (`numPlayers - 2`).
+ *
+ * - **Heads-up** (`numPlayers === 2`) is special: there are only two seats, the button (who is also
+ *   the small blind) and the big blind. The button is {@link Position.late} (in position, the steal
+ *   seat); the big blind is `big-blind` (out of position, not a steal seat).
+ * - The **small blind** is `small-blind` (a widening/steal seat); the **big blind** is `big-blind`
+ *   (the worst seat, never a steal opener) — kept distinct so only the SB widens.
+ * - The **button and cutoff** (offsets 0 and 1) are {@link Position.late}.
+ * - The **first {@link EARLY_SEATS}** non-blind seats to act (UTG, just left of the BB) are
+ *   {@link Position.early}.
+ * - Everything else is {@link Position.middle}.
+ */
+export function classifyPosition(ctx: DecisionContext): Position {
+  const { seat, buttonIndex, numPlayers } = ctx
+  const sb = (buttonIndex + 1) % numPlayers
+  const bb = (buttonIndex + 2) % numPlayers
+
+  // Heads-up: button(=SB) is in position/late, the other seat is the BB (out of position).
+  if (numPlayers === 2) return seat === buttonIndex ? 'late' : 'big-blind'
+
+  // The blinds are distinct buckets: the SB widens like a steal seat, the BB never does.
+  if (seat === sb) return 'small-blind'
+  if (seat === bb) return 'big-blind'
+
+  // Distance back from the button: button = 0 (late), cutoff = 1 (late).
+  const offset = (buttonIndex - seat + numPlayers) % numPlayers
+  if (offset <= 1) return 'late'
+
+  // The first EARLY_SEATS non-blind seats to act sit just left of the big blind. The seat just left
+  // of the BB has the *largest* offset among non-blind seats (it acts first, farthest from the
+  // button), so the early cluster is the top of the offset range below the blinds.
+  const firstToActOffset = numPlayers - 3 // the seat left of the BB (UTG): offset = numPlayers-3
+  if (offset >= firstToActOffset - (EARLY_SEATS - 1)) return 'early'
+
+  return 'middle'
 }
 
 /**
- * The chart's open/fold prescription for a tier in this spot. Tiers the chart always plays
- * (`premium` / `strong` / `playable`) say `'open'`; the `marginal` tier opens only in late
- * position and otherwise folds; `trash` always folds.
+ * Whether the hero is *in position* postflop — the corrected late-position predicate (0054 fixes the
+ * heads-up semantics 0053 deferred). True on the button or cutoff at a full table, and — the fix —
+ * for the heads-up **button (= small blind) only**, because the heads-up big blind acts *first* on
+ * every postflop street and is therefore out of position. (The old `isLatePosition` returned `true`
+ * for *both* heads-up seats, so {@link facingRaiseAdvice} mislabelled a HU BB defend "in position".)
+ *
+ * Defined as "the hero's {@link Position} is `late`" — heads-up only the button classifies `late`,
+ * the BB classifies `big-blind`, so the HU BB is correctly out of position here.
  */
-function adviceFor(tier: PreflopTier, latePosition: boolean): PreflopAdvice {
-  if (tier === 'trash') return 'fold'
-  if (tier === 'marginal') return latePosition ? 'open' : 'fold'
-  return 'open'
+function isInPosition(ctx: DecisionContext): boolean {
+  return classifyPosition(ctx) === 'late'
+}
+
+/**
+ * The positional buckets that open a *wider* range than early/middle — the steal/late seats. The
+ * cutoff and button ({@link Position.late}, including the heads-up button) and the **small blind**
+ * (`small-blind`, where a fold-around leaves only the BB to get through) open wide. The **big blind**
+ * is deliberately excluded: it is the worst seat and never opens an unraised pot (it checks its free
+ * option), so it gets no steal/late widening. Used by {@link adviceFor} to decide when the `marginal`
+ * tier opens and the {@link STEAL_OPEN_RANGE} widening applies — a single named set so "does this
+ * seat get to widen?" is one membership test.
+ */
+const WIDENING_POSITIONS: ReadonlySet<Position> = new Set<Position>(['late', 'small-blind'])
+
+/**
+ * Is this a genuine *steal* spot — an unraised pot **folded to the hero**, nobody having voluntarily
+ * entered? The binary gate the {@link STEAL_OPEN_RANGE} trash-promotion rests on (the correctness
+ * fix): blasting junk like K7o *over limpers* is not a steal, it is a leak, so the steal promotion
+ * must only fire when the hero can still take the pot uncontested.
+ *
+ * **Detecting a voluntary entrant.** A "steal" needs everyone before the hero to have folded. We scan
+ * {@link DecisionContext.opponents} for any seat that has *chosen* to put chips in: it is still
+ * `'active'`, has `committed >= ctx.bigBlind` this street, **and** is not the big-blind seat (the BB's
+ * posted big blind is involuntary, not a limp/call). Any such opponent — a limper or a completed
+ * small blind — means the pot is no longer folded to the hero, so this is not a steal spot.
+ *
+ * Note this is a deliberately coarse *binary* (folded-to-hero or not): it does **not** count limpers
+ * or weigh pot odds — that is out of scope. It gates **only** the trash steal-promotion; the
+ * tier-gated `playable`/`marginal` opens (iso-raising over a limper is a defensible standard open)
+ * are unaffected. Pure: reads only redacted opponent views, no I/O.
+ *
+ * The big-blind seat is computed with the same HU-aware geometry the engine posts blinds with
+ * (heads-up the **button is the small blind** and the other seat the big blind, so the BB is
+ * `button+1`, not `button+2`) — otherwise the BB's involuntary post would be misread as a limp.
+ */
+function isStealSpot(ctx: DecisionContext): boolean {
+  const bbSeat =
+    ctx.numPlayers === 2
+      ? (ctx.buttonIndex + 1) % ctx.numPlayers
+      : (ctx.buttonIndex + 2) % ctx.numPlayers
+  const someoneEntered = ctx.opponents.some(
+    (o) => o.status === 'active' && o.committed >= ctx.bigBlind && o.seat !== bbSeat,
+  )
+  return !someoneEntered
+}
+
+/**
+ * The supplementary **steal / heads-up opening range** layered on top of the tier rule (0054). The
+ * single 6-max strength chart applied everywhere is the root of the heads-up/blind false negatives:
+ * hands like K7o, A9o, T9o are `trash` on the chart yet are trivially profitable button & blind
+ * steals (heads-up the button opens ~80%+ of hands). Rather than re-tier those hands — which would
+ * corrupt the position-independent strength map the viewable chart ([[0050-starting-hand-chart-view]])
+ * renders — we keep a separate, wider opening range that only the late/steal/heads-up path consults
+ * to *promote* an otherwise-`trash` hand to `open`.
+ *
+ * A {@link parseRange} token string in the same syntax as the bots' `RANGE_TEXT`
+ * ([[0018-bot-hand-reading]]). A *tunable knob*: a believable button/blind steal range (offsuit
+ * broadways and aces, suited-king/queen junk, offsuit connectors) — not a solver's output. Widen or
+ * tighten freely.
+ *
+ * **Invariant — only hands NOT already openable by tier.** Every hand here must be `trash` on
+ * {@link PREFLOP_CHART}: {@link adviceFor} consults this range *only* in the `trash` branch (the
+ * `premium`/`strong`/`playable`/`marginal` branches return first), so a hand that is also in a named
+ * tier would be dead weight here and contradicts this set's purpose (promoting otherwise-foldable
+ * junk). T8s/97s/86s/75s were removed because they live in {@link PREFLOP_CHART}.marginal — and the
+ * suited/offsuit split keeps the rest distinct from the tiered hands (e.g. T9o/98o/87o here vs. the
+ * suited T9s/98s/87s in `playable`). Deterministic and pure (a membership test, no Monte-Carlo).
+ */
+export const STEAL_OPEN_RANGE =
+  'A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, ' +
+  'K9o, K8o, K7o, K6o, K5o, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, ' +
+  'Q9o, Q8o, Q9s, Q8s, Q7s, Q6s, ' +
+  'J9o, J8s, J7s, T9o, T8o, 98o, 87o, 76o, 65o, 54o'
+
+/** The pre-parsed {@link STEAL_OPEN_RANGE}, built once at module load (parse eagerly, fail fast). */
+const PARSED_STEAL_RANGE: Range = parseRange(STEAL_OPEN_RANGE)
+
+/**
+ * The chart's open/fold prescription for a tier in this spot — now position-aware across the **whole**
+ * opening range, not just the `marginal` tier (ticket 0054). The hero's {@link Position} gates which
+ * tiers open:
+ *
+ * - `premium` / `strong` — open from **every** position.
+ * - `playable` — open from {@link Position.middle} / {@link Position.late} / the small/big blind, but **fold
+ *   from early** at a full table: a winning 6-max reg does not open 87s/65s/76s/A2s/44 UTG.
+ * - `marginal` — opens only in late position / steal seats (the pre-0054 behaviour, preserved):
+ *   QJo/KTo/JTo fold UTG, open CO/BTN.
+ * - `trash` — folds by default, but in a {@link WIDENING_POSITIONS} seat (late / small blind /
+ *   heads-up button) a hand in the supplementary {@link STEAL_OPEN_RANGE} is promoted to `open`
+ *   **only when the pot is folded to the hero** (`stealSpot`) — a genuine steal. Over a limper it is
+ *   not a steal (raising junk over limpers is a leak), so the promotion does not fire (K7o/A9o/T9o on
+ *   the button steal when folded to, but fold behind a limper).
+ *
+ * Heads-up gets the wide treatment for free: the heads-up button classifies {@link Position.late}, a
+ * {@link WIDENING_POSITIONS} seat, so the steal range applies — a wider opening range than the 6-max
+ * chart, as required. The heads-up **big blind** classifies `big-blind` (not widening) and never
+ * reaches this function as an opener anyway (see {@link gradePreflop}'s invariant).
+ *
+ * **BB-open is unreachable.** An *unraised* big blind reaches {@link gradePreflop} only via the
+ * `check` short-circuit (its free option), so the BB-open path through here is unreachable in normal
+ * flow — but the correctness no longer rests silently on that: `big-blind` is excluded from
+ * {@link WIDENING_POSITIONS}, so even if a BB combo did reach here it folds trash rather than stealing.
+ */
+function adviceFor(
+  tier: PreflopTier,
+  position: Position,
+  hand: Combo,
+  stealSpot: boolean,
+): PreflopAdvice {
+  const widening = WIDENING_POSITIONS.has(position)
+
+  // Premium / strong open everywhere.
+  if (tier === 'premium' || tier === 'strong') return 'open'
+
+  // Playable speculative hands fold from early at a full table; open from middle/late/blinds. (An
+  // iso-raise over a limper is a defensible standard open, so this is NOT gated on the steal spot.)
+  if (tier === 'playable') return position === 'early' ? 'fold' : 'open'
+
+  // Marginal opens only in late/steal seats (preserved pre-0054 behaviour; not steal-gated either).
+  if (tier === 'marginal') return widening ? 'open' : 'fold'
+
+  // Trash: fold by default, but a steal-range hand opens from a widening seat ONLY in a genuine steal
+  // spot (the pot folded to the hero). Over a limper this is a leak, not a steal — no promotion.
+  if (widening && stealSpot && rangeContains(PARSED_STEAL_RANGE, hand)) return 'open'
+  return 'fold'
+}
+
+/**
+ * A self-consistent open/fold rationale for the **unraised** path, built from the position-aware
+ * {@link advice} actually given so the line never contradicts the verdict (ticket 0054). Two cases
+ * the static {@link TIER_RATIONALE} alone gets wrong:
+ *
+ * - The rule *folds* a tier whose static label describes an open — a `playable` speculative hand
+ *   from {@link Position.early}, or a `marginal` hand from a non-steal seat. Printing "open in
+ *   position" above a `fold` would contradict the verdict, so the fold path gets a position-named
+ *   fold line instead.
+ * - The rule *opens* a `trash` hand via the {@link STEAL_OPEN_RANGE} promotion (a genuine steal:
+ *   folded to the hero on the button / small blind / HU button). The static label is "fold; it makes
+ *   no money over time" — exactly the false-absolute
+ *   [[0056-coach-rationale-not-absolute]] flags — so the open path gets a steal line instead.
+ *
+ * Otherwise the tier's standard {@link TIER_RATIONALE} label stands. (The broader
+ * rationale-follows-advice pass across all wording is 0056; this is the minimal consistency fix the
+ * position layer requires.)
+ */
+function openFoldRationale(tier: PreflopTier, position: Position, advice: PreflopAdvice): string {
+  if (advice === 'open') {
+    // The only open whose static label says "fold" is a trash hand promoted by the steal range.
+    if (tier === 'trash') {
+      return 'A wide steal spot — folded to you in late position / the small blind / the heads-up button; open this profitably and take it down.'
+    }
+    return TIER_RATIONALE[tier]
+  }
+  // Fold paths whose static label describes an open:
+  if (tier === 'playable' && position === 'early') {
+    return 'Playable speculative hand — too loose to open from early position; fold and wait for a later seat.'
+  }
+  if (tier === 'marginal') {
+    return 'Marginal hand — open only in late position / the small blind; fold from earlier seats.'
+  }
+  // trash and any other fold falls back to the tier's standard fold label.
+  return TIER_RATIONALE[tier]
 }
 
 /**
@@ -363,7 +593,7 @@ interface FacingRaiseAdvice {
 function facingRaiseAdvice(
   tier: PreflopTier,
   raiseBb: number,
-  latePosition: boolean,
+  inPosition: boolean,
 ): FacingRaiseAdvice {
   const sizeLabel = `${formatRaiseSize(raiseBb)}${raiseBb >= THREE_BET_MIN_BB ? ' (a 3-bet)' : ''}`
 
@@ -405,7 +635,7 @@ function facingRaiseAdvice(
     }
   }
   if (tier === 'playable') {
-    return latePosition
+    return inPosition
       ? {
           advice: 'open',
           rationale: `Facing ${sizeLabel} in position — a fine price for a thin flat.`,
@@ -445,8 +675,12 @@ function formatRaiseSize(raiseBb: number): string {
  * **Raise-aware (0053).** The decision is graded against the right *standard* for the spot:
  *
  * - **Unraised pot** (`currentBet <= bigBlind` — limp / the BB's option): the chart is an *opening*
- *   chart, so a charted hand opens / continues per {@link adviceFor}. (Position-awareness beyond the
- *   `marginal` tier and HU widening are ticket 0054; this path keeps today's opening behaviour.)
+ *   chart, so a charted hand opens / continues per {@link adviceFor} — now position-aware across the
+ *   **whole** range (ticket 0054): `playable` speculative hands fold from early position, the
+ *   `marginal` tier opens only in late/steal seats (preserved), and a {@link STEAL_OPEN_RANGE} hand
+ *   is promoted to `open` from the late/small-blind/heads-up steal seats **when the pot is folded to
+ *   the hero** (a genuine steal — see {@link isStealSpot}) so standard button & blind steals
+ *   (K7o/A9o/T9o) are no longer `Trash`/`Leak`; behind a limper that promotion does not fire.
  * - **Facing a raise** (`currentBet > bigBlind`): the open chart would bless loose cold-calls a
  *   winning player snap-folds, so we switch to a *defend* standard — {@link facingRaiseAdvice}
  *   tightens the continue range by the price faced and by position, and returns a rationale
@@ -462,13 +696,19 @@ function formatRaiseSize(raiseBb: number): string {
  * Throws {@link RangeError} (via {@link classifyStartingHand}) on malformed hole cards.
  */
 export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdict {
-  const { tier, rationale } = classifyStartingHand(ctx.holeCards)
+  const { tier } = classifyStartingHand(ctx.holeCards)
 
   // A free check is never a leak. Checking is only legal when there is nothing to call — the big
   // blind's option after the pot is limped/folded around — and a free flop strictly dominates
   // folding regardless of how weak the hand is. The open/fold chart is about *entering the pot for
   // chips*; it simply does not apply when continuing costs nothing. (Raising the limpers is graded
   // through the chart path below; only the bare check short-circuits here.)
+  //
+  // INVARIANT: this is the ONLY path an *unraised* big blind takes — the BB has nothing to call, so
+  // its action is a check that lands here. The BB therefore never reaches the opening rule below as an
+  // opener, which is why the BB-open path through adviceFor is unreachable in normal flow. (And as a
+  // belt-and-braces, `big-blind` is excluded from WIDENING_POSITIONS, so a BB combo would fold trash
+  // even if it did reach adviceFor — the correctness no longer rests silently on this short-circuit.)
   if (action.type === 'check') {
     return {
       tier,
@@ -481,7 +721,7 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     }
   }
 
-  const latePosition = isLatePosition(ctx)
+  const inPosition = isInPosition(ctx)
   const heroContinued = action.type !== 'fold'
 
   // Are we facing a raise, or is this an unraised pot? Preflop the BB posts `bigBlind`, so
@@ -493,9 +733,24 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
   // the price-gate bands and the rationale label — so the size the learner reads ("a 5x raise")
   // always matches the regime the hand was graded in. Coarse rounding is fine for a teaching chart.
   const raiseBb = Math.round(ctx.currentBet / ctx.bigBlind)
-  const { advice, rationale: spotRationale } = facingRaise
-    ? facingRaiseAdvice(tier, raiseBb, latePosition)
-    : { advice: adviceFor(tier, latePosition), rationale }
+
+  let advice: PreflopAdvice
+  let spotRationale: string
+  if (facingRaise) {
+    ;({ advice, rationale: spotRationale } = facingRaiseAdvice(tier, raiseBb, inPosition))
+  } else {
+    // Unraised path: the opening rule is now position-aware across every tier (0054). The advice may
+    // fold a tier whose static chart rationale describes an open (e.g. a `playable` hand from early
+    // position), so the *open* path keeps the tier's teaching label while the *fold* path gets a
+    // position-named line that follows the advice — never the open-chart label above a fold. (The
+    // full rationale-follows-advice pass is [[0056-coach-rationale-not-absolute]].)
+    const position = classifyPosition(ctx)
+    // The trash steal-promotion fires only in a genuine steal (the pot folded to the hero); over a
+    // limper, raising junk is a leak, not a steal — so gate the promotion on isStealSpot.
+    const stealSpot = isStealSpot(ctx)
+    advice = adviceFor(tier, position, validateHole(ctx.holeCards), stealSpot)
+    spotRationale = openFoldRationale(tier, position, advice)
+  }
 
   // Good when the hero's continue/fold matched the chart's open/fold call; a leak otherwise.
   const verdict: ActionVerdict = heroContinued === (advice === 'open') ? 'good' : 'leak'

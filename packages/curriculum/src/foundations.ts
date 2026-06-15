@@ -240,12 +240,13 @@ const EV_LESSON: Lesson = {
 // 5. position — acting later is an edge.
 // ---------------------------------------------------------------------------------------------------
 //
-// The coach DOES rule on position — but only through the chart's MARGINAL tier, which opens in late
-// position and folds in early position (gradePreflop -> adviceFor: marginal && latePosition). So this
-// lesson is a genuine coach-graded PreflopSpot pair on the SAME marginal hand (KJo), contrasting the
-// button (late: open is correct) against UTG (early: fold is correct). No declarative carve-out is
-// needed — the chart itself encodes "acting later lets you play more hands." Proven in the test (KJo
-// button open == good, KJo UTG fold == good, and the opposite actions == leak).
+// The coach rules on position across the whole opening range now (gradePreflop -> adviceFor is
+// position-aware: each tier consults the hero's classifyPosition bucket — e.g. the MARGINAL tier opens
+// only in late/steal seats and folds in early position). This lesson leans on the clearest case: a
+// genuine coach-graded PreflopSpot pair on the SAME marginal hand (KJo), contrasting the button (late:
+// open is correct) against UTG (early: fold is correct). No declarative carve-out is needed — the
+// chart itself encodes "acting later lets you play more hands." Proven in the test (KJo button open ==
+// good, KJo UTG fold == good, and the opposite actions == leak).
 
 /** position spot A: KJo on the button — late position, so opening is correct (open is good). */
 const POSITION_BUTTON_SPOT: PreflopSpot = {
@@ -268,8 +269,11 @@ const POSITION_UTG_SPOT: PreflopSpot = {
     'you to act after the flop). Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('Kc Jd'),
+  // Seat 0 is UTG only when the button is at seat 3 (sb=4, bb=5, UTG=button+3=0) — the seat just left
+  // of the big blind, first to act. (0054 corrected the position classifier so the SB/BB are no
+  // longer mislabelled as "not late"; this spot's geometry now genuinely puts the hero UTG.)
   seat: 0,
-  buttonIndex: 5,
+  buttonIndex: 3,
   numPlayers: 6,
 }
 
