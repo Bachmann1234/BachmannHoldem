@@ -2,7 +2,7 @@
 id: 0009
 title: 'Epic: Drills & quizzes'
 type: epic
-status: in-progress
+status: done
 milestone: M5
 priority: medium
 created: 2026-06-13
@@ -15,9 +15,9 @@ full hands.
 
 ## Acceptance criteria
 
-- [ ] Spot generator: deal a situation, ask for the right action, score it via the coach
-- [ ] Themed drill sets (preflop ranges, pot-odds calls, etc.)
-- [ ] **Interleave** spot types within a session (randomized, not blocked by topic) — the
+- [x] Spot generator: deal a situation, ask for the right action, score it via the coach
+- [x] Themed drill sets (preflop ranges, pot-odds calls, etc.)
+- [x] **Interleave** spot types within a session (randomized, not blocked by topic) — the
       learning-science evidence says interleaved + retrieval practice transfers better than
       blocked drilling
 
