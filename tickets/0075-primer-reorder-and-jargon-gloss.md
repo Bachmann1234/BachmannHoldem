@@ -2,7 +2,7 @@
 id: 0075
 title: Reorder primer to preflop-first and gloss jargon on first use
 type: task
-status: todo
+status: done
 milestone: M4.6
 priority: medium
 created: 2026-06-16
@@ -23,14 +23,24 @@ rather than any single lesson:
 
 ## Acceptance criteria
 
-- [ ] Reorder the `FOUNDATIONS` sequence so **preflop foundations (ranges + position) precede
+- [x] Reorder the `FOUNDATIONS` sequence so **preflop foundations (ranges + position) precede
       postflop evaluation (equity → pot odds → continue rule → EV)**, then draws
       ([[0074-lesson-draws-implied-odds]]). New v2 lessons slot into the reordered arc coherently.
-- [ ] Gloss jargon on first use in graded prompts: brief parenthetical definitions for "overcards",
+      _(Final order: ranges → position → facing-a-raise → equity → pot-odds → continue-rule → draws →
+      ev → board-texture → bet-sizing. Draws kept immediately after the continue rule so the
+      continue-rule lesson's "the very next lesson, on draws" copy stays true.)_
+- [x] Gloss jargon on first use in graded prompts: brief parenthetical definitions for "overcards",
       "top set", "set / trips", "overbet" (and any other term that appears before its definition).
-- [ ] Add a strong "read the rules reference first" signpost / soft gate before the primer, so a
+      _(overcards → equity prompt; overbet → pot-odds prompt; "set" → continue-rule prompt. A
+      code-review caught the first-draft gloss wrongly equating "set" and "trips" (distinct hands) —
+      corrected to define "set" only ("trips" appears nowhere in the prompts). Redundant re-gloss of
+      "outs" trimmed.)_
+- [x] Add a strong "read the rules reference first" signpost / soft gate before the primer, so a
       learner doesn't hit the equity lesson without knowing what a flush draw or overcard is.
-- [ ] Existing tests stay green after the reorder (spot grading is unchanged — only sequence and
+      _(A dismissible "New to poker? Start with the rules." banner shown only to a brand-new learner
+      (progress 0, never seen), opening the existing `RulesOverlay`; soft (never blocks lessons),
+      persisted via a new localStorage `rulesGateStore` mirroring `progressStore`.)_
+- [x] Existing tests stay green after the reorder (spot grading is unchanged — only sequence and
       copy move); purity preserved.
 
 ## Notes

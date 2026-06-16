@@ -1424,6 +1424,67 @@
   gap: 8px;
 }
 
+/* the one-time rules-reference soft gate (ticket 0075): a prominent, dismissible nudge before the path */
+.rules-gate {
+  margin: 4px 22px 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft, rgba(120, 160, 255, 0.12));
+  box-shadow: 0 0 14px var(--accent-soft);
+}
+.rules-gate .rg-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.rules-gate .rg-text {
+  margin: 6px 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.rules-gate .rg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rules-gate .rg-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink, #0b0f1a);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.rules-gate .rg-primary:hover {
+  filter: brightness(1.08);
+}
+.rules-gate .rg-skip {
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.rules-gate .rg-skip:hover {
+  color: var(--text);
+  border-color: var(--text-2);
+}
+
 /* poker-shorthand glossary (reuses .chart-modal / .chart-scrim / .chart-note for the shell) */
 .glossary {
   display: flex;

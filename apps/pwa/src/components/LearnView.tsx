@@ -14,8 +14,9 @@
  * lesson player at that index. Locked nodes are inert.
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { learnLessons, lessonHead } from '../learn/lessonMeta.js'
+import { LocalStorageRulesGateStore, type RulesGateStore } from '../learn/rulesGateStore.js'
 import { ChartOverlay } from './ChartOverlay.js'
 import { GlossaryOverlay } from './GlossaryOverlay.js'
 import { RulesOverlay } from './RulesOverlay.js'
@@ -36,6 +37,13 @@ export interface LearnViewProps {
   readonly onOpenLesson: (index: number) => void
   /** Navigate to another top-level tab (the bottom tab bar). */
   readonly onNavigate: (tab: Tab) => void
+  /**
+   * The on-device store for the one-time rules-reference soft-gate (ticket 0075). Defaults to the
+   * `localStorage`-backed impl; tests inject a fake. The gate is a *nudge*: it shows once for a brand
+   * new learner (so they meet a flush draw / overcard in the rules before the equity lesson), and is
+   * dismissed forever the moment they open the rules or skip it.
+   */
+  readonly rulesGateStore?: RulesGateStore
 }
 
 /** Render the Learn path: progress meter, the medallion spine over `FOUNDATIONS`, resume CTA, tabs. */
@@ -43,6 +51,7 @@ export function LearnView({
   progress,
   onOpenLesson,
   onNavigate,
+  rulesGateStore,
 }: LearnViewProps): React.JSX.Element {
   const lessons = learnLessons
   const count = lessons.length
@@ -52,6 +61,18 @@ export function LearnView({
   const [glossaryOpen, setGlossaryOpen] = useState(false)
   // The poker-rules reference (the prerequisites the path assumes) — another sibling overlay.
   const [rulesOpen, setRulesOpen] = useState(false)
+  // The rules-reference SOFT GATE (ticket 0075). The store defaults to the localStorage impl but is
+  // constructed once (a ref) so re-renders never make a fresh one. The gate shows only for a learner
+  // who has never seen/dismissed it AND has not started the primer — a brand-new beginner — so a
+  // returning learner mid-path never re-meets the nudge.
+  const gateStoreRef = useRef<RulesGateStore | null>(null)
+  const gateStore = rulesGateStore ?? (gateStoreRef.current ??= new LocalStorageRulesGateStore())
+  const [gateOpen, setGateOpen] = useState(() => progress === 0 && !gateStore.seen())
+  // Dismiss the gate for good (open-the-rules and skip both land here so it never nags again).
+  const dismissGate = (): void => {
+    gateStore.markSeen()
+    setGateOpen(false)
+  }
   // The current node is the first unfinished lesson (clamped); once all are done the path is "all done".
   const allDone = progress >= count
   const currentIdx = Math.min(progress, count - 1)
@@ -117,6 +138,40 @@ export function LearnView({
               </button>
             </div>
           </div>
+
+          {gateOpen ? (
+            <div className="rules-gate" data-testid="rules-gate" role="note">
+              <div className="rg-body">
+                <div className="rg-title">New to poker? Start with the rules.</div>
+                <p className="rg-text">
+                  The lessons assume you already know the basics — what a flush draw or an overcard
+                  is, and how a hand plays out. Skim the rule reference first so the very first
+                  lesson lands.
+                </p>
+                <div className="rg-actions">
+                  <button
+                    type="button"
+                    className="rg-primary"
+                    data-testid="rules-gate-open"
+                    onClick={() => {
+                      dismissGate()
+                      setRulesOpen(true)
+                    }}
+                  >
+                    📖 Read the rules
+                  </button>
+                  <button
+                    type="button"
+                    className="rg-skip"
+                    data-testid="rules-gate-skip"
+                    onClick={dismissGate}
+                  >
+                    I know the rules
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="path" style={{ height: count * ROW_H + 8 }}>
             {/* the dim full-height spine, then the accent fill up to the current node */}

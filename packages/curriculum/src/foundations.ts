@@ -10,23 +10,37 @@
  * is a ~30-second plain-language teach followed by a {@link Spot} the player must *answer* — the
  * retrieval check is the lesson; the prose is just the setup.
  *
- * **Scope discipline (the epic's rule): a primer, not a course.** Still **six concepts** — but seven
- * lessons, because the v2 facing-a-raise lesson (ticket 0071) reuses the `ranges` concept rather than
- * extending the union. Each lesson earns its ~30 seconds; we add a lesson only when a concept has a
- * second, distinct must-teach angle (open-or-fold vs. facing-a-raise), never to pad. Depth lives in
- * the feedback loop — the live coach, the M5 drills, M6 — not in more reading here. We resisted
- * padding this into a textbook.
+ * **Order (ticket 0075): preflop-first, the way a hand actually plays.** The ten lessons run in the
+ * sequence a real hand unfolds — first the *preflop* decisions (ranges, position, facing-a-raise:
+ * which hands, which seat, vs a raise), then *postflop evaluation* (equity → pot odds → the continue
+ * rule → draws → EV), then the *deeper postflop* reads (board texture, bet sizing). See the
+ * {@link FOUNDATIONS} doc-comment for the full annotated order. The lessons below are authored
+ * concept-by-concept (six concepts, in the coach's emit order) for readability; the canonical *play*
+ * order is set once, in the `FOUNDATIONS` array at the foot of the file.
+ *
+ * **Scope discipline (the epic's rule): a primer, not a course.** Still **six concepts** — but ten
+ * lessons, because the v2 lessons (facing-a-raise, draws, board-texture, bet-sizing; tickets 0071–0074)
+ * reuse the existing concept tags rather than extending the union. Each lesson earns its ~30 seconds;
+ * we add a lesson only when a concept has a second, distinct must-teach angle (open-or-fold vs.
+ * facing-a-raise; respond-to-a-size vs. choose-a-size), never to pad. Depth lives in the feedback loop
+ * — the live coach, the M5 drills, M6 — not in more reading here. We resisted padding this into a
+ * textbook.
  *
  * **Coach-true by construction (the cardinal rule).** Wherever the deterministic coach *can* rule, a
  * lesson's spot is graded by the coach, never by a hand-authored answer key — so a future coach
  * retune can never silently desync the primer from the table. The continue-decision concepts
  * (equity, pot odds, equity-vs-price, EV) are {@link CoachSpot}s graded by `coachDecision`; the
- * range/position concepts are {@link PreflopSpot}s graded by `gradePreflop`'s chart. There is **no**
- * {@link DeclarativeSpot} carve-out in this primer: every concept the ticket needs maps onto a coach
- * or chart ruling, including position (see the position lesson note). The coach's equity is a seeded
- * Monte-Carlo read against `COACH_ASSUMED_RANGE`, so each spot's cards/price were *tuned* until the
- * coach returns the verdict the lesson teaches, and `foundations.test.ts` *proves* that verdict for
- * every spot — the test is the guard against desync.
+ * range/position concepts are {@link PreflopSpot}s graded by `gradePreflop`'s chart (position
+ * included — no carve-out needed there). The **two** sanctioned exceptions are flagged
+ * {@link DeclarativeSpot} carve-outs (the 0045 escape hatch), used only where the coach genuinely
+ * cannot rule: the draws lesson's implied-odds spot (ticket 0074 — the coach models only immediate
+ * equity, not the future-street winnings that make a light draw call correct) and the bet-sizing
+ * lesson's spot (ticket 0072 — the coach grades whether to *continue*, never what *size* to bet).
+ * Each authored explanation is honest about that seam and never contradicts the coach. The coach's
+ * equity is a seeded Monte-Carlo read against `COACH_ASSUMED_RANGE`, so each coach-graded spot's
+ * cards/price were *tuned* until the coach returns the verdict the lesson teaches, and
+ * `foundations.test.ts` *proves* that verdict for every coach-graded spot (and that each declarative
+ * spot is well-formed) — the test is the guard against desync.
  *
  * **A note on the `concept` tags.** A live continue-verdict rolls pot-odds and EV into the single
  * `'equity-vs-price'` tag (and a free check into `'equity'`) — that is the coach's mapping and we do
@@ -86,8 +100,9 @@ const THREE_BET = { label: '3-bet (re-raise)', action: { type: 'raise', amount: 
 const EQUITY_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold A♥K♥ on Q♥7♥2♣, a flush draw plus two overcards. It checks to you and continuing ' +
-    'is FREE (nothing to call). Check or fold?',
+    'You hold A♥K♥ on Q♥7♥2♣, a flush draw plus two overcards (your A and K are both higher than ' +
+    'every board card, so pairing either likely makes the best pair). It checks to you and ' +
+    'continuing is FREE (nothing to call). Check or fold?',
   choices: [CHECK, FOLD],
   context: {
     holeCards: hole('Ah Kh'),
@@ -132,7 +147,8 @@ const POT_ODDS_SPOT: CoachSpot = {
   prompt:
     'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75, ' +
     'a price of 75 / (100 + 75) ≈ 43% to break even. Your gutshot and two overcards are worth more ' +
-    'in a vacuum, but a bet this big (a ~3x-pot overbet) usually means a strong, narrow range — and ' +
+    'in a vacuum, but a bet this big (a ~3x-pot overbet — a bet larger than the pot itself) usually ' +
+    'means a strong, narrow range — and ' +
     'against that tight a range the coach reads your hand at only ~17%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
@@ -172,7 +188,9 @@ const POT_ODDS_LESSON: Lesson = {
 const CONTINUE_RULE_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold A♠A♥ on A♣K♦7♥, top set. Your opponent bets, bringing the pot to 100, and you must ' +
+    'You hold A♠A♥ on A♣K♦7♥, top set (a "set" is three of a kind made from your pocket pair plus a ' +
+    'matching card on the board; "top" because it is the highest card on the board, a near-unbeatable ' +
+    'hand here). Your opponent bets, bringing the pot to 100, and you must ' +
     'call just 10, a price of only ~9%. Your hand is worth ~96%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
@@ -483,8 +501,8 @@ const FACING_RAISE_LESSON: Lesson = {
 const DRAWS_COACH_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold T♥9♥ on A♥7♥2♣, a flush draw (any heart makes your flush — those are your "outs", the ' +
-    'cards that complete your hand). Your opponent bets a small amount, bringing the pot to 100, and ' +
+    'You hold T♥9♥ on A♥7♥2♣, a flush draw (any heart makes your flush — those nine hearts are your ' +
+    'outs). Your opponent bets a small amount, bringing the pot to 100, and ' +
     'you must call just 25, a price of 25 / (100 + 25) = 20%. Your draw is worth well more than that ' +
     'right now. Call or fold?',
   choices: [CALL, FOLD],
@@ -708,11 +726,25 @@ const BET_SIZING_LESSON: Lesson = {
 }
 
 /**
- * The Foundations primer — the original six concept lessons (equity → pot odds → the continue rule
- * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 lessons appended
- * here: facing-a-raise (ticket 0071), draws & implied odds (ticket 0074), board texture (ticket 0073),
- * and bet sizing (ticket 0072). The final canonical ordering is ticket 0075's job; for now we append.
- * The lesson player walks this front-to-back; M5 drills and both shells reuse it.
+ * The Foundations primer — ten lessons in their canonical, **preflop-first** order (ticket 0075). A
+ * hand happens in this sequence, so the primer teaches it in this sequence: first *which hands you
+ * play and from where* (the preflop block), then *how to evaluate a bet you face* (postflop), then the
+ * *deeper postflop reads* (texture, sizing). The order is:
+ *
+ *   1. ranges → 2. position → 3. facing-a-raise — the **preflop block**: which hands, which seat,
+ *      and what to do when someone has already raised. These are the first decisions in every hand,
+ *      made before any postflop equity-vs-price spot exists, so they come first (tickets 0071, 0075).
+ *   4. equity → 5. pot-odds → 6. continue-rule → 7. draws → 8. ev — **postflop evaluation**: your
+ *      share of the pot, the price a bet sets, the rule that combines them, the draw caveat that
+ *      makes the rule honest (kept immediately after the continue rule — its copy forward-points to
+ *      "the very next lesson, on draws"), and the same rule counted in chips (tickets 0074).
+ *   9. board-texture → 10. bet-sizing — **deeper postflop**: reading what the board makes possible,
+ *      and choosing a size as the bettor (the mirror of pot odds) (tickets 0073, 0072).
+ *
+ * The lesson player walks this front-to-back; M5 drills and both shells reuse it. The order is *not*
+ * pinned by `foundations.test.ts` (it asserts per-id invariants), so this array is the single source
+ * of truth for sequence — reordering it reorders the Learn path automatically (the path number is
+ * positional, `lessonMeta.ts`).
  *
  * Every spot is coach- or chart-graded — so the primer can never silently disagree with the live
  * coach — with **two sanctioned exceptions**, both flagged {@link DeclarativeSpot} carve-outs (the
@@ -724,14 +756,17 @@ const BET_SIZING_LESSON: Lesson = {
  * spot's verdict and that every declarative spot is well-formed.
  */
 export const FOUNDATIONS: readonly Lesson[] = [
+  // Preflop block: which hands, which seat, vs a raise.
+  RANGES_LESSON,
+  POSITION_LESSON,
+  FACING_RAISE_LESSON,
+  // Postflop evaluation: equity, price, the rule, the draw caveat, the rule in chips.
   EQUITY_LESSON,
   POT_ODDS_LESSON,
   CONTINUE_RULE_LESSON,
-  EV_LESSON,
-  POSITION_LESSON,
-  RANGES_LESSON,
-  FACING_RAISE_LESSON,
   DRAWS_LESSON,
+  EV_LESSON,
+  // Deeper postflop: reading the board, sizing as the bettor.
   BOARD_TEXTURE_LESSON,
   BET_SIZING_LESSON,
 ]
