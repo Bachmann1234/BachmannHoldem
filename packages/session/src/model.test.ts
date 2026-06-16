@@ -9,7 +9,6 @@ import { describe, it, expect } from 'vitest'
 import { makeDeck, formatCard } from '@holdem/engine'
 import {
   BLIND_LADDER,
-  BLIND_PRESETS,
   DEFAULT_BLIND_LEVEL,
   sessionBlinds,
   shuffledDeck,
@@ -30,9 +29,9 @@ describe('shuffledDeck', () => {
 })
 
 describe('tournamentLevel', () => {
-  it('keeps the cash presets as the bottom rungs of the ladder', () => {
-    // BLIND_PRESETS must be a genuine prefix of the ladder so a chosen preset is a rung to climb from.
-    expect(BLIND_LADDER.slice(0, BLIND_PRESETS.length)).toEqual(BLIND_PRESETS)
+  it('starts on the ladder bottom rung (1/2), the default for every session', () => {
+    expect(DEFAULT_BLIND_LEVEL).toEqual(BLIND_LADDER[0])
+    expect(DEFAULT_BLIND_LEVEL).toEqual({ sb: 1, bb: 2 })
   })
 
   it('steps up exactly one rung every level-length hands, starting from the chosen rung', () => {
@@ -78,16 +77,16 @@ describe('tournamentLevel', () => {
 describe('sessionBlinds', () => {
   const base = { seats: 2, opponents: ['tag'] as const, startingStack: 200 }
 
-  it('returns the fixed chosen level every hand in cash mode (and as the default)', () => {
-    const setup = { ...base, blinds: { sb: 2, bb: 5 }, mode: 'cash' as const }
-    expect(sessionBlinds(setup, 1)).toEqual({ sb: 2, bb: 5 })
-    expect(sessionBlinds(setup, 50)).toEqual({ sb: 2, bb: 5 }) // never escalates
-    // Mode absent → cash by default, still fixed.
-    expect(sessionBlinds({ ...base, blinds: { sb: 2, bb: 5 } }, 50)).toEqual({ sb: 2, bb: 5 })
+  it('returns the fixed 1/2 level every hand in cash mode (and as the default)', () => {
+    const setup = { ...base, mode: 'cash' as const }
+    expect(sessionBlinds(setup, 1)).toEqual({ sb: 1, bb: 2 })
+    expect(sessionBlinds(setup, 50)).toEqual({ sb: 1, bb: 2 }) // never escalates
+    // Mode absent → cash by default, still fixed at 1/2.
+    expect(sessionBlinds(base, 50)).toEqual({ sb: 1, bb: 2 })
   })
 
   it('escalates each hand in tournament mode, tracking the level schedule', () => {
-    const setup = { ...base, blinds: DEFAULT_BLIND_LEVEL, mode: 'tournament' as const }
+    const setup = { ...base, mode: 'tournament' as const }
     expect(sessionBlinds(setup, 1)).toEqual({ sb: 1, bb: 2 })
     expect(sessionBlinds(setup, TOURNAMENT_LEVEL_LENGTH + 1)).toEqual({ sb: 2, bb: 5 })
   })

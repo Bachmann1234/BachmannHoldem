@@ -45,11 +45,11 @@ export interface BlindLevel {
 }
 
 /**
- * The full blind **ladder** a session can move through, low to high. Cash mode sits on one rung for
- * the whole session (the hero's pick); tournament mode ({@link SessionMode}) starts on the hero's
- * rung and climbs one rung every {@link TOURNAMENT_LEVEL_LENGTH} hands, topping out at the last rung.
- * The cash picker's {@link BLIND_PRESETS} are this ladder's first rungs, so a chosen preset is always
- * a real rung the escalation can step up from (see {@link tournamentLevel}).
+ * The full blind **ladder** a session can move through, low to high. Cash mode sits on the bottom
+ * rung ({@link DEFAULT_BLIND_LEVEL}, `1/2`) for the whole session; tournament mode
+ * ({@link SessionMode}) starts there too and climbs one rung every {@link TOURNAMENT_LEVEL_LENGTH}
+ * hands, topping out at the last rung (see {@link tournamentLevel}). Blinds are scale-invariant in
+ * cash play, so there is no level picker — the lever that matters is stack depth in big blinds.
  */
 export const BLIND_LADDER: readonly BlindLevel[] = [
   { sb: SMALL_BLIND, bb: BIG_BLIND },
@@ -61,16 +61,8 @@ export const BLIND_LADDER: readonly BlindLevel[] = [
   { sb: 100, bb: 200 },
 ]
 
-/**
- * The blind levels the setup screen offers as one-tap presets, in display order — the first three
- * rungs of {@link BLIND_LADDER}. `1/2` is the default (today's hardcoded behaviour); `2/5` and `5/10`
- * are stiffer stakes. In cash mode the level is fixed for the session; in tournament mode it is the
- * *starting* rung the blinds escalate up from.
- */
-export const BLIND_PRESETS: readonly BlindLevel[] = BLIND_LADDER.slice(0, 3)
-
-/** The default blind level — `1/2`, preserving the behaviour from before the picker existed. */
-export const DEFAULT_BLIND_LEVEL: BlindLevel = BLIND_PRESETS[0]!
+/** The default blind level — `1/2`, the bottom rung of {@link BLIND_LADDER} and every session's start. */
+export const DEFAULT_BLIND_LEVEL: BlindLevel = BLIND_LADDER[0]!
 
 /**
  * How a session's blinds behave over time:
@@ -133,31 +125,29 @@ export function tournamentLevel(
 
 /**
  * The blinds in force for a given (1-based) `handNumber` of a session — the single place the
- * {@link SessionMode} escalation rule is applied. Cash mode returns the fixed chosen level every
- * hand; tournament mode climbs the ladder via {@link tournamentLevel}. Pure; the reducer calls it at
- * each `start-hand` and {@link dealHand} freezes the result into that hand.
+ * {@link SessionMode} escalation rule is applied. Every session starts on the bottom rung
+ * ({@link DEFAULT_BLIND_LEVEL}, `1/2`): cash mode stays there every hand; tournament mode climbs the
+ * ladder from it via {@link tournamentLevel}. Pure; the reducer calls it at each `start-hand` and
+ * {@link dealHand} freezes the result into that hand.
  */
 export function sessionBlinds(setup: SetupState, handNumber: number): BlindLevel {
-  const start = setup.blinds ?? DEFAULT_BLIND_LEVEL
-  if ((setup.mode ?? DEFAULT_MODE) === 'cash') return start
-  return tournamentLevel(start, handNumber).blinds
+  if ((setup.mode ?? DEFAULT_MODE) === 'cash') return DEFAULT_BLIND_LEVEL
+  return tournamentLevel(DEFAULT_BLIND_LEVEL, handNumber).blinds
 }
 
 /**
  * The starting-stack depths the setup screen offers as one-tap presets, expressed in **big blinds**
  * — the unit the coaching speaks in and the lever that actually changes how long a session runs. A
  * shallow 25bb is shove-or-fold and fast; 50bb is a brisk middle; 100bb is the deep cash-game
- * default. Depth is denominated in *the chosen* big blind: "100bb deep" is 100 × the picked bb, so
- * {@link stackForDepthBb} takes the chosen big blind and {@link setBlinds} re-chips the stack when
- * the hero changes level so the selected depth stays honest. The hero picks a depth;
- * {@link stackForDepthBb} turns it into chips.
+ * default. Depth is denominated in big blinds: "100bb deep" is 100 × the big blind, which
+ * {@link stackForDepthBb} turns into chips. The hero picks a depth, not a chip count.
  */
 export const STACK_DEPTH_PRESETS_BB: readonly number[] = [25, 50, 100]
 
 /**
- * Chips for a starting depth given in big blinds, at the chosen big blind (depth × bigBlind). Depth
- * is denominated in big blinds, so the chips depend on which blind level the hero picked; pass the
- * session's big blind ({@link BIG_BLIND} preserves the old default for callers without a choice).
+ * Chips for a starting depth given in big blinds (depth × bigBlind). The `bigBlind` defaults to
+ * {@link BIG_BLIND} (`2`), the session's fixed level, but stays a parameter so callers can express a
+ * depth at any blind level if needed.
  */
 export function stackForDepthBb(bigBlinds: number, bigBlind: number = BIG_BLIND): number {
   return Math.max(bigBlind, Math.round(bigBlinds) * bigBlind)
@@ -165,7 +155,7 @@ export function stackForDepthBb(bigBlinds: number, bigBlind: number = BIG_BLIND)
 
 /**
  * A starting stack (chips) expressed back in big blinds — the depth label the setup screen shows.
- * Inverse of {@link stackForDepthBb}, so it needs the same chosen big blind to read the depth back.
+ * Inverse of {@link stackForDepthBb}, so it takes the same big blind to read the depth back.
  */
 export function depthBbForStack(stack: number, bigBlind: number = BIG_BLIND): number {
   return Math.round(stack / bigBlind)
@@ -354,20 +344,12 @@ export interface SetupState {
    */
   readonly startingStack?: number
   /**
-   * The chosen blind level (a small/big-blind pair from {@link BLIND_PRESETS}), fixed for the whole
-   * session and frozen into every hand by {@link dealHand}. Optional with the same fallback shape as
-   * {@link startingStack}: older {@link SetupState} literals (and the inert curriculum) still
-   * type-check and fall back to {@link DEFAULT_BLIND_LEVEL} (1/2). {@link createInitialModel} always
-   * sets it. Because stack depth is denominated in big blinds, {@link setBlinds} re-chips
-   * {@link startingStack} when this changes so the selected bb-depth stays honest.
-   */
-  readonly blinds?: BlindLevel
-  /**
    * Whether the session's blinds are fixed (`'cash'`) or escalate over time (`'tournament'`) — see
-   * {@link SessionMode}. Optional with the same fallback shape as {@link blinds}: older
+   * {@link SessionMode}. Optional with the same fallback shape as {@link startingStack}: older
    * {@link SetupState} literals (and the inert curriculum) still type-check and fall back to
-   * {@link DEFAULT_MODE} (cash, today's behaviour). {@link createInitialModel} always sets it. In
-   * tournament mode {@link blinds} is the *starting* rung the schedule climbs from.
+   * {@link DEFAULT_MODE} (cash, today's behaviour). {@link createInitialModel} always sets it. Both
+   * modes start on the bottom rung ({@link DEFAULT_BLIND_LEVEL}, `1/2`); tournament mode climbs from
+   * there (see {@link sessionBlinds}) — there is no blind-level picker.
    */
   readonly mode?: SessionMode
 }
@@ -453,8 +435,6 @@ export interface InitialModelOptions {
   opponents?: readonly BotKind[]
   /** Initial starting stack (chips). Defaults to {@link STARTING_STACK} (the deep 100bb default). */
   startingStack?: number
-  /** Initial blind level. Defaults to {@link DEFAULT_BLIND_LEVEL} (1/2, today's behaviour). */
-  blinds?: BlindLevel
   /** Initial session mode. Defaults to {@link DEFAULT_MODE} (cash — fixed blinds). */
   mode?: SessionMode
 }
@@ -514,11 +494,10 @@ export function createInitialModel(options: InitialModelOptions = {}): Model {
   const seats = clampSeats(options.seats ?? DEFAULT_SEATS)
   const opponents = (options.opponents ?? defaultOpponents(seats)).slice(0, seats - 1)
   const startingStack = options.startingStack ?? STARTING_STACK
-  const blinds = options.blinds ?? DEFAULT_BLIND_LEVEL
   const mode = options.mode ?? DEFAULT_MODE
   return {
     phase: 'setup',
-    setup: { seats, opponents, startingStack, blinds, mode },
+    setup: { seats, opponents, startingStack, mode },
     players: [],
     hand: null,
     seatToId: [],

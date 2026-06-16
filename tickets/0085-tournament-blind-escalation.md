@@ -36,6 +36,11 @@ this is pulled. Not part of the current batch — filed for later.
 
 ## Implementation
 
+> **Update 2026-06-16:** the cash blind picker ([[0084-blinds-picker-setup]]) was reverted, so the
+> hero-chosen _starting rung_ is gone — tournament mode now always starts from the bottom rung
+> (`DEFAULT_BLIND_LEVEL`, `1/2`). The escalation engine itself is unchanged; `sessionBlinds` and
+> `App.tsx` just pass `DEFAULT_BLIND_LEVEL` as the start. This feature stays `done`.
+
 Built on 0084's `set-blinds` plumbing. The cash picker's `BLIND_PRESETS` became the bottom three
 rungs of a longer `BLIND_LADDER`; tournament mode starts on the hero's chosen rung and climbs one
 rung every `TOURNAMENT_LEVEL_LENGTH` (4) hands, topping out at the ladder's ceiling.

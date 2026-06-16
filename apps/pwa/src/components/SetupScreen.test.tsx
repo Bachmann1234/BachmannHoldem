@@ -85,26 +85,13 @@ describe('SetupScreen', () => {
     expect(mixTotal()).toBe(4)
   })
 
-  it('defaults to the 1/2 blind level with it shown active', () => {
+  it('renders no blind-level picker — blinds are fixed at 1/2 — and shows it in the stack hint', () => {
     render(<Harness seats={2} />)
-    const oneTwo = screen.getByTestId('blinds-1-2')
-    expect(oneTwo.className).toContain('active')
-    expect(oneTwo.getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByTestId('blinds-5-10').getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('selects a stiffer blind preset, moving the active state and keeping the bb-depth honest', () => {
-    render(<Harness seats={2} />)
-    // Default is 100bb deep at 1/2 → 200 chips, shown active on the 100bb stack chip.
+    expect(screen.queryByTestId('blinds-1-2')).toBeNull()
+    expect(screen.queryByTestId('blinds-5-10')).toBeNull()
+    // The fixed 1/2 level is still surfaced in the stack-depth hint (100bb deep at 1/2 → 200 chips).
     expect(screen.getByTestId('stack-100').getAttribute('aria-pressed')).toBe('true')
-    act(() => screen.getByTestId('blinds-5-10').click())
-    // The 5/10 preset is now active and 1/2 is not.
-    expect(screen.getByTestId('blinds-5-10').className).toContain('active')
-    expect(screen.getByTestId('blinds-1-2').getAttribute('aria-pressed')).toBe('false')
-    // Depth stays 100bb: the 100bb stack chip is still the selected one (now 1000 chips at 5/10),
-    // and the hint reflects the chosen level rather than the old constant.
-    expect(screen.getByTestId('stack-100').getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByText(/100bb deep · blinds 5\/10/)).toBeTruthy()
+    expect(screen.getByText(/100bb deep · blinds 1\/2/)).toBeTruthy()
   })
 
   it('fires onStart when the Deal CTA is tapped', () => {
@@ -120,14 +107,13 @@ describe('SetupScreen', () => {
     const tourney = screen.getByTestId('mode-tournament')
     expect(cash.className).toContain('active')
     expect(tourney.getAttribute('aria-pressed')).toBe('false')
-    // Cash: the blinds card reads "Blinds … fixed for the session".
-    expect(screen.getByText(/fixed for the session/)).toBeTruthy()
+    // Cash: the format hint says the blinds stay fixed all session.
+    expect(screen.getByText(/blinds stay fixed all session/)).toBeTruthy()
 
     act(() => tourney.click())
     expect(tourney.className).toContain('active')
     expect(cash.getAttribute('aria-pressed')).toBe('false')
-    // Tournament: the format hint mentions the escalation cadence and the blinds become the start.
+    // Tournament: the format hint mentions the escalation cadence.
     expect(screen.getByText(/blinds rise every \d+ hands/)).toBeTruthy()
-    expect(screen.getByText(/climbs from here/)).toBeTruthy()
   })
 })

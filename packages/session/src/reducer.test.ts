@@ -19,13 +19,11 @@ import {
 } from '@holdem/engine'
 import {
   BIG_BLIND,
-  BLIND_PRESETS,
   BOT_TIPS,
   buildSessionPlayers,
   compactSeating,
   countsByKind,
   createInitialModel,
-  DEFAULT_BLIND_LEVEL,
   defaultOpponents,
   depthBbForStack,
   MAX_SEATS,
@@ -164,47 +162,18 @@ describe('reducer — setup phase', () => {
     expect(reducer(playing, { type: 'set-stack', startingStack: 50 })).toBe(playing)
   })
 
-  it('defaults the blind level to 1/2, and set-blinds chooses a stiffer level', () => {
-    let model = createInitialModel({ seats: 2 })
-    expect(model.setup.blinds).toEqual(DEFAULT_BLIND_LEVEL)
-    expect(model.setup.blinds).toEqual({ sb: 1, bb: 2 })
-    expect(BLIND_PRESETS[0]).toEqual(DEFAULT_BLIND_LEVEL) // the default is the first preset
-    model = reducer(model, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })
-    expect(model.setup.blinds).toEqual({ sb: 5, bb: 10 })
-  })
-
-  it('set-blinds re-chips the starting stack so the chosen bb-depth stays honest (5/10)', () => {
-    // Pick 50bb deep at the default 1/2 → 100 chips, then move to 5/10. The depth (50bb) must hold,
-    // so the chips must become 50 × 10 = 500, not stay at 100 (which would be only 10bb at 5/10).
-    let model = createInitialModel({ seats: 2 })
-    model = reducer(model, { type: 'set-stack', startingStack: stackForDepthBb(50) })
-    expect(model.setup.startingStack).toBe(100) // 50bb × 2
-    model = reducer(model, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })
-    expect(model.setup.startingStack).toBe(500) // 50bb × 10 — depth preserved across the level change
-    expect(depthBbForStack(model.setup.startingStack!, 10)).toBe(50)
-  })
-
-  it('set-blinds is a no-op outside setup', () => {
-    const playing = reducer(createInitialModel({ seats: 2 }), {
-      type: 'start-hand',
-      deck: makeDeck(),
-    })
-    expect(reducer(playing, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })).toBe(playing)
-  })
-
   it('depth↔chips conversions honour a non-default blind level (5/10)', () => {
     expect(stackForDepthBb(100, 10)).toBe(1000) // 100bb deep at a 10 big blind
     expect(depthBbForStack(1000, 10)).toBe(100) // …and reads back to 100bb
     expect(stackForDepthBb(25, 10)).toBe(250)
   })
 
-  it('defaults to cash mode, and set-mode chooses tournament (leaving the chosen blinds as the start)', () => {
-    let model = createInitialModel({ seats: 2, blinds: { sb: 2, bb: 5 }, startingStack: 100 })
+  it('defaults to cash mode, and set-mode chooses tournament (leaving the stack untouched)', () => {
+    let model = createInitialModel({ seats: 2, startingStack: 100 })
     expect(model.setup.mode).toBe('cash')
     model = reducer(model, { type: 'set-mode', mode: 'tournament' })
     expect(model.setup.mode).toBe('tournament')
-    // The starting blinds and the chips are untouched — only the escalation rule changed.
-    expect(model.setup.blinds).toEqual({ sb: 2, bb: 5 })
+    // The chips are untouched — only the escalation rule changed; both modes start on the 1/2 rung.
     expect(model.setup.startingStack).toBe(100)
   })
 
@@ -235,20 +204,18 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
     expect(model.coach).toEqual({ kind: 'none' })
   })
 
-  it('freezes the chosen blind level into the dealt hand (reaches createHand)', () => {
-    let model = createInitialModel({ seats: 2, blinds: { sb: 5, bb: 10 } })
-    model = reducer(model, { type: 'start-hand', deck: FIXED_DECK })
-    expect(model.hand!.smallBlind).toBe(5)
-    expect(model.hand!.bigBlind).toBe(10)
-    // Default level (no override) still deals 1/2, preserving today's behaviour.
-    const dflt = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck: FIXED_DECK })
-    expect(dflt.hand!.smallBlind).toBe(1)
-    expect(dflt.hand!.bigBlind).toBe(2)
+  it('freezes the 1/2 blinds into the dealt hand (reaches createHand)', () => {
+    const model = reducer(createInitialModel({ seats: 2 }), {
+      type: 'start-hand',
+      deck: FIXED_DECK,
+    })
+    expect(model.hand!.smallBlind).toBe(1)
+    expect(model.hand!.bigBlind).toBe(2)
   })
 
-  it('keeps the same blind level across play-again hands (no escalation)', () => {
+  it('keeps the 1/2 blinds across play-again hands (cash, no escalation)', () => {
     const deck1 = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    let model = reducer(createInitialModel({ seats: 2, blinds: { sb: 2, bb: 5 } }), {
+    let model = reducer(createInitialModel({ seats: 2 }), {
       type: 'start-hand',
       deck: deck1,
     })
@@ -258,19 +225,19 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
       model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
     }
     expect(model.phase).toBe('hand-over')
-    // Deal the next hand — the blinds must stay 2/5 (chosen once at setup, no escalation).
+    // Deal the next hand — cash blinds stay fixed at 1/2 (no escalation).
     const deck2 = buildDeck(2, 1, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
     model = reducer(model, { type: 'start-hand', deck: deck2 })
-    expect(model.hand!.smallBlind).toBe(2)
-    expect(model.hand!.bigBlind).toBe(5)
+    expect(model.hand!.smallBlind).toBe(1)
+    expect(model.hand!.bigBlind).toBe(2)
   })
 
   it('escalates the blinds across play-again hands in tournament mode', () => {
     // Tournament from the 1/2 starting rung. Hand 1 deals the starting level…
-    let model = reducer(
-      createInitialModel({ seats: 2, blinds: DEFAULT_BLIND_LEVEL, mode: 'tournament' }),
-      { type: 'start-hand', deck: makeDeck() },
-    )
+    let model = reducer(createInitialModel({ seats: 2, mode: 'tournament' }), {
+      type: 'start-hand',
+      deck: makeDeck(),
+    })
     expect(model.handNumber).toBe(1)
     expect(model.hand!.bigBlind).toBe(2) // level 1: 1/2
     // …then end each heads-up hand in a single fold (whoever is first to act) and deal again. With
