@@ -18,10 +18,12 @@
  *   the spot carries **no answer key** — its correct answer (which action, or which number bucket) is
  *   whatever the deterministic `potOdds`/coach math rules at grade time.
  * - {@link DrillConfig} / {@link DrillKind} / {@link PriceMode} / {@link CalculationQuantity} /
- *   {@link resolveConfig} — the minimal parameterisation [[0066-drills-themed-sets]] hangs its theme
- *   catalogue + session composer on (and [[0077-drills-calculation-spots]] extends with the calculation
- *   kind + asked quantity), without a rewrite here. This package builds the generation *primitive*, not
- *   the themes.
+ *   {@link BoardStreet} / {@link ActionSet} / {@link resolveConfig} — the minimal parameterisation
+ *   [[0066-drills-themed-sets]] hangs its theme catalogue + session composer on (and
+ *   [[0077-drills-calculation-spots]] extends with the calculation kind + asked quantity;
+ *   [[0078-drills-board-reading-and-actions]] with the `'hand-reading'` kind, the turn/river `street`
+ *   knob, and the `'call-raise-fold'` action set), without a rewrite here. This package builds the
+ *   generation *primitive*, not the themes.
  * - {@link makeDealer} / {@link Dealer} / {@link BOARD_SIZE} — the seeded dealing primitives the
  *   generator threads, exported so 0066 (and tests) can build reproducible deals directly.
  * - {@link DRILL_THEMES} / {@link DrillTheme} / {@link SessionItem} / {@link composeSession} — the

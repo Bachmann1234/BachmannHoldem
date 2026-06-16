@@ -32,6 +32,7 @@
  */
 
 import type { DecisionContext } from '@holdem/bots'
+import { evaluate7, HAND_CATEGORY_NAMES } from '@holdem/engine'
 import {
   coachDecision,
   gradePreflop,
@@ -52,6 +53,7 @@ import {
   type ActionChoice,
   type CalculationSpot,
   type CalculationQuantity,
+  type HandReadingSpot,
   type NumericChoice,
 } from './spot.js'
 
@@ -223,6 +225,38 @@ function explainCalculation(
 }
 
 /**
+ * The true hand category a {@link HandReadingSpot} resolves to — the *derived* answer that makes the
+ * hand-reading kind honour the no-answer-key invariant (ticket 0078). *Nothing is stored*: the category
+ * is read here, at grade time, from the **same** {@link evaluate7} the showdown ranks every real hand
+ * with, so a board-reading drill can never disagree with the live evaluator.
+ *
+ * Returns the human category *name* (`HAND_CATEGORY_NAMES[category]`, e.g. `"Two Pair"`) rather than the
+ * numeric category, because that name is exactly the {@link HandReadingChoice.label} the player taps, so
+ * {@link gradeSpot} can match the derived answer to an offered choice by plain string equality.
+ *
+ * Throws {@link RangeError} (via {@link evaluate7}) on a board that, with the two hole cards, is not a
+ * legal 5..7-card hand — i.e. a board shorter than the flop. The generator only ever deals flop/turn/river
+ * boards, so this guards a hand-authored spot, in the odds/bots idiom.
+ */
+function handReadingAnswer(spot: HandReadingSpot): string {
+  // Read the made hand off the SAME evaluator the showdown uses — never a stored flag. 5..7 cards
+  // (2 hole + a flop/turn/river board) is exactly what evaluate7 accepts, so this reads the best hand
+  // correctly on every street.
+  const value = evaluate7([...spot.holeCards, ...spot.board])
+  return HAND_CATEGORY_NAMES[value.category]
+}
+
+/**
+ * Build the explanation for a graded {@link HandReadingSpot} — the made hand named in plain English, so
+ * a wrong read still teaches *what the cards actually were*. States the true category the evaluator
+ * derived; the cards themselves are already on the felt the drill renders, so this names only the verdict
+ * the read resolved to (the show-the-cards-spelled-out feedback pairs with ticket 0079).
+ */
+function explainHandReading(answer: string): string {
+  return `You have ${answer} here — that's the best five-card hand your cards make on this board.`
+}
+
+/**
  * Run the spot's grader over a coach-graded choice's action and return the verdict. Postflop spots
  * run {@link coachDecision} over the synthesised context; preflop spots run {@link gradePreflop}. One
  * helper so {@link gradeSpot} stays a thin dispatcher and the "grade by running the coach" rule lives
@@ -261,9 +295,16 @@ function gradeChoiceVerdict(
  * It throws when no offered bucket contains the value (an ill-posed spot), mirroring the coach path's
  * "offers no choice the coach grades as correct" guard.
  *
+ * **The hand-reading kind (ticket 0078) derives its answer too — a made hand, not an action or number.**
+ * A {@link HandReadingSpot} carries no correct flag: {@link gradeSpot} runs `evaluate7([...holeCards,
+ * ...board])` (the same evaluator the showdown ranks every real hand with) and the correct choice is
+ * whichever offered category *label* equals `HAND_CATEGORY_NAMES[category]`. The player is correct iff
+ * their chosen label is that one. It throws when no offered label matches the true category (an ill-posed
+ * spot), mirroring the same guard.
+ *
  * Throws {@link RangeError} on a malformed spot (bad context, via {@link synthesizeContext}), an
- * out-of-range `chosenIndex`, or — for a calculation spot — buckets that do not cover the computed
- * value, in the odds/bots idiom.
+ * out-of-range `chosenIndex`, a calculation spot whose buckets do not cover the computed value, or a
+ * hand-reading spot that offers no label matching the true category, in the odds/bots idiom.
  *
  * @param spot The retrieval check to grade.
  * @param chosenIndex The index into `spot.choices` the player picked.
@@ -312,6 +353,32 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       // No coach verdict to attach (like the declarative carve-out): the value is the whole grade, and
       // the explanation shows it derived from the spot's own numbers via @holdem/format.
       explanation: explainCalculation(spot.quantity, value, spot.context.pot, spot.context.toCall),
+    }
+  }
+
+  if (spot.kind === 'hand-reading') {
+    // The board-reading recognition kind: derive the made hand from the SAME evaluate7 the showdown uses
+    // and the correct choice is whichever offered category LABEL equals that derived name — derived here,
+    // never stored on the spot (the no-answer-key invariant, applied to the engine's evaluator instead of
+    // the coach). The player is correct iff their own chosen label is that derived category.
+    const answer = handReadingAnswer(spot)
+    const correctIndex = spot.choices.findIndex((c) => c.label === answer)
+    if (correctIndex < 0) {
+      // No offered choice names the true category — an ill-posed spot (the generator failed to offer the
+      // true category). Mirror the calculation path's "no bucket contains the value" guard.
+      throw new RangeError(
+        `hand-reading spot offers no choice matching the true category "${answer}"`,
+      )
+    }
+    return {
+      // Correct iff the player named the category the evaluator derived.
+      correct: chosenIndex === correctIndex,
+      chosenIndex,
+      correctIndex,
+      concept: spot.concept,
+      // No coach verdict to attach (like the calculation/declarative kinds): the made hand IS the grade,
+      // and the explanation names it so a wrong read still teaches what the cards were.
+      explanation: explainHandReading(answer),
     }
   }
 

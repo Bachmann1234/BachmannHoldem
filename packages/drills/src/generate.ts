@@ -39,7 +39,13 @@
  * only `@holdem/*` and relative `.js`.
  */
 
-import { formatCard, type Card } from '@holdem/engine'
+import {
+  evaluate7,
+  formatCard,
+  HAND_CATEGORY_NAMES,
+  type Card,
+  type HandCategory,
+} from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
 import { coachDecision, describeHandClass, handClassLabel } from '@holdem/coach'
 import {
@@ -47,13 +53,21 @@ import {
   type ActionChoice,
   type CalculationSpot,
   type CoachSpot,
+  type HandReadingChoice,
+  type HandReadingSpot,
   type NumericChoice,
   type PreflopSpot,
   type Spot,
   type SpotContext,
 } from '@holdem/curriculum'
 import { makeDealer, type Dealer } from './deal.js'
-import { resolveConfig, type CalculationQuantity, type DrillConfig } from './config.js'
+import {
+  resolveConfig,
+  type ActionSet,
+  type CalculationQuantity,
+  type DrillConfig,
+  type PostflopStreet,
+} from './config.js'
 
 /**
  * Generate one drill {@link Spot} from a `seed` and an optional {@link DrillConfig}.
@@ -78,7 +92,13 @@ export function generateSpot(seed: number, config?: DrillConfig): Spot {
   const dealer = makeDealer(seed)
   if (resolved.kind === 'preflop') return generatePreflopSpot(dealer)
   if (resolved.kind === 'calculation') return generateCalculationSpot(dealer, resolved.quantity)
-  return generateCoachSpot(dealer, resolved.priceMode === 'priced')
+  if (resolved.kind === 'hand-reading') return generateHandReadingSpot(dealer, resolved.street)
+  return generateCoachSpot(
+    dealer,
+    resolved.priceMode === 'priced',
+    resolved.street,
+    resolved.actions,
+  )
 }
 
 /**
@@ -139,6 +159,64 @@ function pick<T>(dealer: Dealer, items: readonly T[]): T {
 }
 
 /**
+ * Choose the **start index of a seeded `count`-wide window** over a contiguous integer grid `0..maxIndex`
+ * that is guaranteed to *contain* `target`, with the window position varied by the seed. The single
+ * source of truth for the window-placement algorithm both {@link buildBuckets} (number buckets) and
+ * {@link buildCategoryChoices} (hand-category buttons) lean on — extracted so the subtle boundary clamp
+ * lives, and is fixed, in exactly one place.
+ *
+ * **The invariant it guarantees.** The returned `start` satisfies
+ * `0 <= start <= maxIndex - count + 1` **and** `start <= target <= start + count - 1` — i.e. the window
+ * `[start, start + count - 1]` is wholly inside `[0, maxIndex]` *and* covers `target`. Callers can then
+ * read off `count` consecutive elements from `start` knowing the correct one (at `target`) is always on
+ * offer and every offered index is legal. (Assumes `0 <= target <= maxIndex` and
+ * `count <= maxIndex + 1`, which both callers satisfy by construction.)
+ *
+ * **The 4 steps (and the boundary bug they encode).**
+ * 1. **Offset draw** — the seeded dealer picks how many slots *before* `target` the window starts
+ *    (`offset` in `0..count-1`), so the correct element is not always in the same button position.
+ * 2. **Clamp into `[0, maxStart]`** — keep the whole window inside `[0, maxIndex]`, where
+ *    `maxStart = max(0, maxIndex - count + 1)` is the latest a `count`-wide window can start.
+ * 3. **Re-nudge to keep `target` in-window** — if clamping pushed the window past `target` (because
+ *    `target` sits near `0` or near `maxIndex`), slide it back to cover `target` — but **never past
+ *    `maxStart`**. That cap is the load-bearing fix: an earlier copy re-nudged *without* it and so could
+ *    re-introduce an out-of-range index (the calc grid's "96–104%" ceiling-spill bug). Capping the
+ *    upper re-nudge at `maxStart` is exactly what kept the ceiling clamp from being overridden.
+ * 4. **Final `max(0, …)`** — clamp the floor so a degenerate `target === 0` window can never start
+ *    negative.
+ *
+ * Pure: the only randomness is the seeded `dealer`'s `offset` draw.
+ *
+ * @param dealer The seeded dealer the window `offset` is drawn from.
+ * @param target The index that MUST end up inside the returned window (the containing bucket / true category).
+ * @param count How many consecutive indices the window spans (`CALC_CHOICES` / `HAND_READING_CHOICES`).
+ * @param maxIndex The largest legal index on the grid (`CEILING_BUCKET` / `n - 1`).
+ */
+export function pickWindowStart(
+  dealer: Dealer,
+  target: number,
+  count: number,
+  maxIndex: number,
+): number {
+  // The latest a count-wide window can start and still fit within [0, maxIndex].
+  const maxStart = Math.max(0, maxIndex - (count - 1))
+
+  // 1. Seeded variety: how many slots BEFORE the target the window starts (0 ⇒ target is the lowest
+  //    offered, count-1 ⇒ the highest). Drawn off the same reproducible stream as every other choice.
+  const offset = dealer.nextInt(count)
+  let start = target - offset
+  // 2. Clamp the window into [0, maxStart] so every offered index is legal (≤ maxIndex)…
+  start = Math.max(0, Math.min(maxStart, start))
+  // 3. …then re-nudge so the target is still inside the (possibly clamped) window — but NEVER past
+  //    `maxStart` (which would re-introduce an out-of-range index — the ceiling-spill bug). After this,
+  //    `start <= target <= start + count - 1` holds AND `start <= maxStart`.
+  if (target < start) start = target
+  if (target > start + count - 1) start = Math.min(maxStart, target - (count - 1))
+  // 4. Floor clamp so a target === 0 window can never start negative.
+  return Math.max(0, start)
+}
+
+/**
  * The two answer choices a postflop continue decision offers: **Call** then **Fold**, in that fixed
  * order. The hero either continues for the price or gives the hand up — the exact binary the coach's
  * fold-vs-continue verdict rules on. Order is fixed (Call first) so `gradeSpot`'s `correctIndex` scan
@@ -152,13 +230,51 @@ const COACH_CHOICES: readonly ActionChoice[] = [
 ]
 
 /**
- * Generate a postflop {@link CoachSpot}: deal the hero a holding and a flop, pick a coherent
- * pot/price, and offer the Call/Fold binary the coach grades.
+ * A nominal raise size, in chips, for the **Raise** choice's {@link Action} on a `'call-raise-fold'`
+ * coach spot (ticket 0078). Like the preflop open size, the exact amount is *grading-inert*: the coach
+ * grades only *whether* the hero puts chips in (a raise is a continue, scored exactly like a call), never
+ * *how much* — so any positive amount serves and a clean small raise reads sensibly if ever surfaced.
+ * Named so the "size doesn't matter to the grade" intent is one obvious constant. (Bet *sizing* drills —
+ * picking the specific amount — are deferred precisely because that part *isn't* coach-gradable; see
+ * {@link ActionSet}.)
+ */
+const COACH_RAISE_AMOUNT = 1_000
+
+/**
+ * The three answer choices a `'call-raise-fold'` postflop continue decision offers: **Call**, **Raise**,
+ * then **Fold** (ticket 0078) — the binary broken open with a third *continue* button. `raise` and
+ * `call` are graded *identically* by `coachDecision` (both non-fold continues: both `'good'` when
+ * continuing is EV-correct, both `'leak'` when folding is) — so this is still a pure continue-or-fold
+ * drill the coach rules entirely, never an authored "raise is correct" key. When continuing is right BOTH
+ * Call and Raise come back correct (exactly as the coach would at the table); when folding is right both
+ * are leaks. Fixed order (continues first) for the same stable-`correctIndex` reason as
+ * {@link COACH_CHOICES}. The raise `amount` is the grading-inert {@link COACH_RAISE_AMOUNT}.
+ */
+const COACH_RAISE_CHOICES: readonly ActionChoice[] = [
+  COACH_CHOICES[0]!, // Call — single-sourced from the binary so the two sets can't drift on it
+  { label: 'Raise', action: { type: 'raise', amount: COACH_RAISE_AMOUNT } },
+  COACH_CHOICES[1]!, // Fold — single-sourced from the binary
+]
+
+/**
+ * Pick the {@link ActionChoice}s a coach spot offers for the requested {@link ActionSet} — the classic
+ * Call/Fold binary, or the Call/Raise/Fold triple (ticket 0078). One table so the "which buttons" choice
+ * lives in one place and `'call-fold'` returns the *exact* pre-0078 array (byte-identical existing spots).
+ */
+function coachChoicesFor(actions: ActionSet): readonly ActionChoice[] {
+  return actions === 'call-raise-fold' ? COACH_RAISE_CHOICES : COACH_CHOICES
+}
+
+/**
+ * Generate a postflop {@link CoachSpot}: deal the hero a holding and a board, pick a coherent
+ * pot/price, and offer the continue/fold choices the coach grades.
  *
- * **The deal.** Hole cards and a three-card flop come off one seeded, shuffled deck
- * ({@link Dealer}), so they are duplicate-free by construction and the board is a legal flop size.
- * (We deal a flop — the simplest legal postflop board — rather than a turn/river; richer board-street
- * variety is a fine future config knob, out of scope for the generation primitive.)
+ * **The deal.** Hole cards and a `street`-sized board come off one seeded, shuffled deck
+ * ({@link Dealer}), so they are duplicate-free by construction and the board is a legal size for its
+ * street. `street` defaults to `'flop'` (3 cards — the pre-0078 behaviour, byte-identical), and ticket
+ * 0078's turn/river themes pass `'turn'`/`'river'` so continue decisions appear on every street; the
+ * coach grades a turn/river continue and the multiway equity read identically (it reads `evaluate7` over
+ * 2 hole + 3..5 board cards either way).
  *
  * **The money (the pot-accounting rule).** We draw `deadPot` (the dead money *before* the villain's
  * bet) and a price *fraction*, derive the villain's bet `toCall = round(deadPot * fraction)`, and then
@@ -168,17 +284,28 @@ const COACH_CHOICES: readonly ActionChoice[] = [
  * read recovers the dead money as `pot - toCall`), so a generated half-pot bet grades as 25% pot odds
  * and reads as a half-pot bet — never the pot-sized barrel the old "pot = dead money" convention
  * manufactured. A `priced` request draws the fraction from {@link PRICED_FRACTIONS} (no free check, so
- * `toCall > 0`); an unconstrained request may draw the `0` free fraction.
+ * `toCall > 0`); an unconstrained request may draw the `0` free fraction. The money model is identical
+ * on every street — a turn/river spot is priced exactly as a flop spot is.
  *
- * The returned spot carries *no* correct flag: `gradeSpot` runs `coachDecision` over the
- * {@link SpotContext} to rule which of Call/Fold is right.
+ * **The choices (ticket 0078's richer actions).** `actions` selects the answer buttons: the default
+ * `'call-fold'` binary (byte-identical existing spots) or the `'call-raise-fold'` triple. **Either way
+ * the spot carries no correct flag** — `gradeSpot` runs `coachDecision` over *each* choice's action to
+ * rule which are right, and Raise grades exactly like Call (both continues). So the richer set never
+ * authors an answer; it only offers a second coach-graded continue button.
  *
  * @param dealer The seeded dealer every choice is drawn from.
  * @param priced Whether a non-trivial price is required (the `'priced'` price mode).
+ * @param street The board street to deal — `'flop'` (default), `'turn'`, or `'river'`.
+ * @param actions Which answer buttons to offer — `'call-fold'` (default) or `'call-raise-fold'`.
  */
-function generateCoachSpot(dealer: Dealer, priced: boolean): CoachSpot {
+function generateCoachSpot(
+  dealer: Dealer,
+  priced: boolean,
+  street: PostflopStreet,
+  actions: ActionSet,
+): CoachSpot {
   const holeCards = dealer.dealHole()
-  const board = dealer.dealBoard('flop')
+  const board = dealer.dealBoard(street)
   const numActive = MIN_ACTIVE + dealer.nextInt(MAX_ACTIVE - MIN_ACTIVE + 1)
 
   const deadPot = pick(dealer, POT_BUCKETS)
@@ -197,8 +324,8 @@ function generateCoachSpot(dealer: Dealer, priced: boolean): CoachSpot {
 
   return {
     kind: 'coach',
-    prompt: buildCoachPrompt(holeCards, board, pot, toCall, numActive),
-    choices: COACH_CHOICES,
+    prompt: buildCoachPrompt(holeCards, board, pot, toCall, numActive, actions),
+    choices: coachChoicesFor(actions),
     context,
   }
 }
@@ -294,13 +421,13 @@ function gridBucketBounds(k: number): { lo: number; hi: number } {
  * always on offer and the distractors are the neighbouring deciles — a genuine "is it ~25% or ~33%?"
  * retrieval, never an absurd "5% vs 95%".
  *
- * **The window placement (seeded variety, always in range).** The dealer picks how far *before* the
- * containing bucket the window starts (`offset` in `0..CALC_CHOICES-1`), so the correct answer is not
- * always the same button position across seeds. The start is then clamped so the whole window stays at
- * non-negative buckets and within `[0, CEILING_BUCKET]` (no bucket above the 100% ceiling), and re-nudged
- * to keep the containing bucket inside the clamped window — so wherever the value falls (a tiny pot-odds
- * price, a near-coin-flip equity, a flopped 100% lock), the offered buckets are legal percentages whose
- * labels never exceed 100% and the answer is always present.
+ * **The window placement (seeded variety, always in range).** Delegated to the shared
+ * {@link pickWindowStart}: the dealer picks how far *before* the containing bucket the window starts, then
+ * the window is clamped within `[0, CEILING_BUCKET]` (no bucket above the 100% ceiling) and re-nudged to
+ * keep the containing bucket inside it — so wherever the value falls (a tiny pot-odds price, a
+ * near-coin-flip equity, a flopped 100% lock), the offered buckets are legal percentages whose labels
+ * never exceed 100% and the answer is always present. (The boundary clamp — the ceiling-spill fix — lives
+ * in `pickWindowStart`, so it can never again drift between this and the category-window caller.)
  *
  * Returns the buckets in ascending order (a stable, readable low→high button column), so `gradeSpot`'s
  * `correctIndex` and the UI's order agree. Pure: all randomness is the seeded `dealer`.
@@ -310,25 +437,9 @@ export function buildBuckets(dealer: Dealer, value: number): NumericChoice[] {
   // CLAMPED to CEILING_BUCKET so value === 1.0 (floor(1/0.08) === 12) — and any float-dust overshoot —
   // lands in the 1.0-inclusive ceiling bucket rather than an out-of-range index.
   const containing = Math.min(CEILING_BUCKET, Math.floor(value / BUCKET_WIDTH))
-  // The window may start at most this far back and still hold CALC_CHOICES buckets within [0, CEILING].
-  const maxStart = Math.max(0, CEILING_BUCKET - (CALC_CHOICES - 1))
-
-  // Seeded variety: how many buckets BEFORE the containing one the window starts (0 ⇒ correct is the
-  // lowest offered, CALC_CHOICES-1 ⇒ the highest). Drawn off the same reproducible stream.
-  const offset = dealer.nextInt(CALC_CHOICES)
-  let start = containing - offset
-  // Clamp the window into [0, maxStart] so every offered bucket is a legal bucket (≤ the ceiling)…
-  start = Math.max(0, Math.min(maxStart, start))
-  // …then re-nudge so the containing bucket is still inside the (possibly clamped) window — if clamping
-  // pushed the window past the value (value near 0 or near 1), slide it back to cover the containing
-  // bucket, but never past `maxStart` (which would re-introduce an out-of-ceiling bucket — the old bug,
-  // where this re-nudge OVERRODE the ceiling clamp and emitted a "96–104%" bucket). After this,
-  // `start <= containing <= start + CALC_CHOICES - 1` holds AND `start <= maxStart`.
-  if (containing < start) start = containing
-  if (containing > start + CALC_CHOICES - 1) {
-    start = Math.min(maxStart, containing - (CALC_CHOICES - 1))
-  }
-  start = Math.max(0, start)
+  // Place a CALC_CHOICES-wide window over the grid 0..CEILING_BUCKET that contains the value's bucket —
+  // the shared, boundary-correct algorithm (the ceiling-spill fix lives in pickWindowStart, not here).
+  const start = pickWindowStart(dealer, containing, CALC_CHOICES, CEILING_BUCKET)
 
   const buckets: NumericChoice[] = []
   for (let i = 0; i < CALC_CHOICES; i++) {
@@ -399,6 +510,109 @@ function generateCalculationSpot(dealer: Dealer, quantity: CalculationQuantity):
     context,
     concept,
   }
+}
+
+/**
+ * How many category buttons a generated {@link HandReadingSpot} offers — a 3-choice recognition check
+ * (the true category plus two plausible distractors), the same tappable-on-a-phone count the calculation
+ * kind uses ({@link CALC_CHOICES}). Three is enough that a lucky guess is a 1-in-3, few enough to stay a
+ * clean column of buttons. The number of distractors is `HAND_READING_CHOICES - 1`.
+ */
+const HAND_READING_CHOICES = 3
+
+/**
+ * Build the offered category choices for a hand-reading spot: the **true** category (so the answer is
+ * always on offer) plus `{@link HAND_READING_CHOICES} - 1` *neighbouring* distractor categories, in
+ * ascending rank order (a stable, readable weak→strong button column).
+ *
+ * **The distractors are neighbours on the rank ladder (plausible, never absurd).** We take a contiguous
+ * window of {@link HAND_READING_CHOICES} categories that *includes* the true one, placed by the shared
+ * {@link pickWindowStart} — the seeded dealer varies how far *before* the true category the window starts,
+ * clamped so the whole window stays within the legal `0..8` category range and the true category is always
+ * inside it (the SAME boundary-correct window placement {@link buildBuckets} uses for number buckets). So
+ * the distractors are always the
+ * categories just weaker/stronger than the real hand — "is this Two Pair or just a Pair? or a Set?" — a
+ * genuine recognition check, and the true category's button position varies across seeds rather than
+ * always being, say, the lowest.
+ *
+ * The choices carry **only labels**, never a correct flag — {@link gradeSpot} derives the correct one
+ * from `evaluate7` at grade time. Pure: all randomness is the seeded `dealer`.
+ *
+ * @param dealer The seeded dealer the window offset is drawn from.
+ * @param trueCategory The category the hero's cards actually make — always included in the window.
+ */
+export function buildCategoryChoices(
+  dealer: Dealer,
+  trueCategory: HandCategory,
+): HandReadingChoice[] {
+  const n = HAND_CATEGORY_NAMES.length // 9 categories, ranks 0..8
+  // Place a HAND_READING_CHOICES-wide window over the rank ladder 0..n-1 that contains the true category
+  // — the SAME shared, boundary-correct placement buildBuckets uses for number buckets.
+  const start = pickWindowStart(dealer, trueCategory, HAND_READING_CHOICES, n - 1)
+
+  const choices: HandReadingChoice[] = []
+  for (let i = 0; i < HAND_READING_CHOICES; i++) {
+    // The label is the VERBATIM HAND_CATEGORY_NAMES string gradeSpot matches the true category against —
+    // so the offered label and the derived answer are spelled identically and the grade can never miss.
+    choices.push({ label: HAND_CATEGORY_NAMES[start + i]! })
+  }
+  return choices
+}
+
+/**
+ * Generate a board-reading {@link HandReadingSpot} (ticket 0078): deal the hero a holding and a
+ * `street`-sized board, then offer the made-hand category plus plausible neighbours — *"what's the best
+ * hand you have here?"*.
+ *
+ * **The deal.** Hole cards and a flop/turn/river board come off one seeded, shuffled deck
+ * ({@link Dealer}), duplicate-free by construction. `street` defaults to `'flop'`; a turn/river theme
+ * passes `'turn'`/`'river'` so board reading is drilled on later streets too (the evaluator reads 5..7
+ * cards either way). A hand-reading spot is *not* a continue decision — it has no pot, price, or
+ * Call/Fold — so unlike a coach spot it draws no money buckets.
+ *
+ * **The true category is computed only to PLACE the choices around it (the no-answer-key invariant).**
+ * We run `evaluate7([...holeCards, ...board])` *here* only to centre the distractor window on the real
+ * category — the SAME evaluator {@link gradeSpot} re-runs at grade time to rule the correct choice. The
+ * spot stores the category *labels*, never which is right; `gradeSpot` derives that from the evaluator.
+ * So the true category is always on offer and the grade can never disagree with the live evaluator.
+ *
+ * **Concept.** `'ranges'` — see the {@link HandReadingSpot} doc: reading the made hand is the
+ * strength-tier recognition the `'ranges'` lens is built on, and no other {@link Concept} fits board
+ * reading (the coach has no continue-verdict for "what do you have").
+ *
+ * @param dealer The seeded dealer every choice is drawn from.
+ * @param street The board street to deal — `'flop'` (default), `'turn'`, or `'river'`.
+ */
+function generateHandReadingSpot(dealer: Dealer, street: PostflopStreet): HandReadingSpot {
+  const holeCards = dealer.dealHole()
+  const board = dealer.dealBoard(street)
+
+  // Read the made hand off the SAME evaluator gradeSpot re-runs — only to PLACE the distractor window
+  // around the true category; the spot stores no correct flag (gradeSpot derives it from evaluate7).
+  const trueCategory = evaluate7([...holeCards, ...board]).category
+  const choices = buildCategoryChoices(dealer, trueCategory)
+
+  return {
+    kind: 'hand-reading',
+    prompt: buildHandReadingPrompt(holeCards, board),
+    choices,
+    holeCards,
+    board,
+    // Reading the made hand is the strength-tier recognition the 'ranges' lens rests on — the closest fit
+    // in the shared Concept vocabulary; the coach has no verdict for board reading. See the spot doc.
+    concept: 'ranges',
+  }
+}
+
+/**
+ * Build the question shown on a {@link HandReadingSpot}. A plain, deterministic sentence of the public
+ * facts — the holding and the board — then the recognition ask. States the situation only; it never
+ * hints at the made hand (the evaluator rules that, and the category buttons are the answer surface).
+ * Same seed ⇒ same prompt.
+ */
+function buildHandReadingPrompt(holeCards: readonly [Card, Card], board: readonly Card[]): string {
+  const boardText = board.map(formatCard).join(' ')
+  return `You hold ${formatHole(holeCards)} on ${boardText}. What's the best hand you have?`
 }
 
 /**
@@ -520,6 +734,7 @@ function buildCoachPrompt(
   pot: number,
   toCall: number,
   numActive: number,
+  actions: ActionSet,
 ): string {
   const boardText = board.map(formatCard).join(' ')
   const villains = numActive - 1
@@ -528,7 +743,10 @@ function buildCoachPrompt(
     toCall === 0
       ? `It's checked to you (pot ${pot}, ${opp})`
       : `${opp}, pot ${pot}, ${toCall} to call`
-  return `You hold ${formatHole(holeCards)} on ${boardText}. ${price}. Call or fold?`
+  // The closing question names the buttons on offer so it never hints at an answer — "Call or fold?" for
+  // the binary, "Call, raise, or fold?" for the richer set (ticket 0078).
+  const question = actions === 'call-raise-fold' ? 'Call, raise, or fold?' : 'Call or fold?'
+  return `You hold ${formatHole(holeCards)} on ${boardText}. ${price}. ${question}`
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   type CoachSpot,
   type PreflopSpot,
 } from '@holdem/curriculum'
+import type { HandReadingSpot } from '@holdem/curriculum'
 import { composeSession, DRILL_THEMES, type DrillTheme, type SessionItem } from './themes.js'
 
 /** A spread of session seeds to exercise the composer across many distinct draws. */
@@ -109,6 +110,49 @@ describe('DRILL_THEMES — each theme generates only legal spots of its declared
       expect(spot.quantity).toBe('equity')
       expect(gradeSpot(spot, 0).concept).toBe('equity')
       expect(item!.theme.concept).toBe('equity')
+    }
+  })
+
+  it('hand-reading → HandReadingSpots on a flop, graded against evaluate7 (ticket 0078)', () => {
+    for (const seed of SEEDS) {
+      const [item] = composeSession([theme('hand-reading')], 1, seed)
+      const spot = item!.spot as HandReadingSpot
+      expect(spot.kind).toBe('hand-reading')
+      expect(spot.board).toHaveLength(3) // flop by default
+      // Graded with no answer key — the correct category is derived; the concept flows through as 'ranges'.
+      expect(gradeSpot(spot, 0).concept).toBe('ranges')
+      expect(item!.theme.concept).toBe('ranges')
+    }
+  })
+
+  it('turn-river-reading → HandReadingSpots on a full river board (ticket 0078)', () => {
+    for (const seed of SEEDS) {
+      const [item] = composeSession([theme('turn-river-reading')], 1, seed)
+      const spot = item!.spot as HandReadingSpot
+      expect(spot.kind).toBe('hand-reading')
+      expect(spot.board).toHaveLength(5) // river
+      expect(gradeSpot(spot, 0).concept).toBe('ranges')
+    }
+  })
+
+  it('turn-decisions → CoachSpots on a 4-card turn board with a real price (ticket 0078)', () => {
+    for (const seed of SEEDS) {
+      const [item] = composeSession([theme('turn-decisions')], 1, seed)
+      const spot = item!.spot as CoachSpot
+      expect(spot.kind).toBe('coach')
+      expect(spot.context.board).toHaveLength(4) // the turn
+      expect(spot.context.toCall).toBeGreaterThan(0) // priced
+      expect(() => synthesizeContext(spot.context)).not.toThrow()
+    }
+  })
+
+  it('raise-or-fold → CoachSpots offering Call/Raise/Fold, all coach-graded (ticket 0078)', () => {
+    for (const seed of SEEDS) {
+      const [item] = composeSession([theme('raise-or-fold')], 1, seed)
+      const spot = item!.spot as CoachSpot
+      expect(spot.kind).toBe('coach')
+      expect(spot.choices.map((c) => c.label)).toEqual(['Call', 'Raise', 'Fold'])
+      expect(spot.context.toCall).toBeGreaterThan(0) // priced
     }
   })
 })

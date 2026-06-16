@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { parseCards, rankIndex, suitIndex, type Card } from '@holdem/engine'
+import {
+  evaluate7,
+  HAND_CATEGORY_NAMES,
+  parseCards,
+  rankIndex,
+  suitIndex,
+  type Card,
+} from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
 import { classifyPosition, coachDecision, gradePreflop } from '@holdem/coach'
 import {
@@ -7,9 +14,10 @@ import {
   synthesizeContext,
   type CalculationSpot,
   type CoachSpot,
+  type HandReadingSpot,
   type PreflopSpot,
 } from '@holdem/curriculum'
-import { buildBuckets, generateSpot } from './generate.js'
+import { buildBuckets, buildCategoryChoices, generateSpot, pickWindowStart } from './generate.js'
 import { makeDealer } from './deal.js'
 
 /** A spread of seeds to exercise the generator across many distinct deals. */
@@ -534,6 +542,288 @@ describe('generateSpot — prompts state the situation, not the answer', () => {
       const calc = generateSpot(seed, { kind: 'calculation' })
       expect(calc.prompt.length).toBeGreaterThan(0)
       expect(calc.prompt).toMatch(/to call\./)
+    }
+  })
+})
+
+describe('generateSpot — turn/river coach spots (ticket 0078)', () => {
+  it('deals the requested street board (flop=3, turn=4, river=5); default is flop', () => {
+    for (const seed of SEEDS) {
+      // The default coach spot is still a flop — byte-identical pre-0078 behaviour.
+      expect((generateSpot(seed) as CoachSpot).context.board).toHaveLength(3)
+      expect(
+        (generateSpot(seed, { kind: 'coach', street: 'flop' }) as CoachSpot).context.board,
+      ).toHaveLength(3)
+      expect(
+        (generateSpot(seed, { kind: 'coach', street: 'turn' }) as CoachSpot).context.board,
+      ).toHaveLength(4)
+      expect(
+        (generateSpot(seed, { kind: 'coach', street: 'river' }) as CoachSpot).context.board,
+      ).toHaveLength(5)
+    }
+  })
+
+  it('omitting the street matches an explicit flop street (byte-identical default)', () => {
+    for (const seed of SEEDS) {
+      expect(generateSpot(seed, { kind: 'coach', priceMode: 'priced' })).toEqual(
+        generateSpot(seed, { kind: 'coach', priceMode: 'priced', street: 'flop' }),
+      )
+    }
+  })
+
+  it('turn/river spots: distinct legal cards, same win-pot accounting as a flop spot', () => {
+    for (const street of ['turn', 'river'] as const) {
+      for (const seed of SEEDS) {
+        const spot = generateSpot(seed, { kind: 'coach', priceMode: 'priced', street }) as CoachSpot
+        const cards = [...spot.context.holeCards, ...spot.context.board]
+        expect(cards.every(isLegalCard)).toBe(true)
+        expect(new Set(cards).size).toBe(cards.length) // no duplicates across the larger board
+        // The money model is identical on every street: pot = dead + bet, toCall <= dead money.
+        const { pot, toCall } = spot.context
+        expect(toCall).toBeGreaterThan(0)
+        expect(toCall).toBeLessThanOrEqual(pot - toCall)
+        // synthesizeContext accepts the 4-/5-card board (turn/river are legal sizes).
+        expect(() => synthesizeContext(spot.context)).not.toThrow()
+      }
+    }
+  })
+
+  it('the coach grades a turn/river continue decision (no answer key, across streets)', () => {
+    // The no-answer-key invariant holds on later streets too: grade every choice and assert exactly the
+    // coach-blessed ones come back correct, on a turn and a river board.
+    for (const street of ['turn', 'river'] as const) {
+      for (const seed of COACH_SEEDS) {
+        const spot = generateSpot(seed, { kind: 'coach', priceMode: 'priced', street }) as CoachSpot
+        const context = synthesizeContext(spot.context)
+        let anyCorrect = false
+        spot.choices.forEach((choice, i) => {
+          const result = gradeSpot(spot, i)
+          expect(result.correct).toBe(coachDecision(context, choice.action).verdict !== 'leak')
+          if (result.correct) anyCorrect = true
+        })
+        expect(anyCorrect).toBe(true)
+      }
+    }
+  })
+})
+
+describe('generateSpot — richer actions: Call/Raise/Fold (ticket 0078)', () => {
+  it('offers Call/Raise/Fold when actions=call-raise-fold; Call/Fold by default', () => {
+    for (const seed of SEEDS) {
+      const binary = generateSpot(seed, { kind: 'coach', priceMode: 'priced' }) as CoachSpot
+      expect(binary.choices.map((c) => c.label)).toEqual(['Call', 'Fold'])
+
+      const triple = generateSpot(seed, {
+        kind: 'coach',
+        priceMode: 'priced',
+        actions: 'call-raise-fold',
+      }) as CoachSpot
+      expect(triple.choices.map((c) => c.label)).toEqual(['Call', 'Raise', 'Fold'])
+      // The richer prompt names the three buttons; the binary prompt names two.
+      expect(triple.prompt).toMatch(/Call, raise, or fold\?$/)
+    }
+  })
+
+  it('same seed → identical Call/Raise/Fold spot (deterministic)', () => {
+    for (const seed of SEEDS) {
+      const cfg = { kind: 'coach', priceMode: 'priced', actions: 'call-raise-fold' } as const
+      expect(generateSpot(seed, cfg)).toEqual(generateSpot(seed, cfg))
+    }
+  })
+
+  // THE NO-ANSWER-KEY PROOF for the richer set: Raise is graded by the SAME coachDecision as Call — both
+  // are continues. Grade every choice and assert correctness is derived entirely from the coach (Raise and
+  // Call always agree; both correct when continuing is right, both leaks when folding is). Nothing authored.
+  it('every choice graded correct iff the coach does not rule it a leak — Raise grades like Call', () => {
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, {
+        kind: 'coach',
+        priceMode: 'priced',
+        actions: 'call-raise-fold',
+      }) as CoachSpot
+      const context = synthesizeContext(spot.context)
+      const callIdx = spot.choices.findIndex((c) => c.action.type === 'call')
+      const raiseIdx = spot.choices.findIndex((c) => c.action.type === 'raise')
+      let anyCorrect = false
+      spot.choices.forEach((choice, i) => {
+        const result = gradeSpot(spot, i)
+        expect(result.correct).toBe(coachDecision(context, choice.action).verdict !== 'leak')
+        if (result.correct) anyCorrect = true
+      })
+      // Raise and Call are graded identically (both non-fold continues) — so whenever one is correct, so
+      // is the other. This is what proves the third button is coach-derived, not an authored key.
+      expect(gradeSpot(spot, callIdx).correct).toBe(gradeSpot(spot, raiseIdx).correct)
+      expect(anyCorrect).toBe(true)
+    }
+  })
+})
+
+describe('generateSpot — hand-reading (board recognition, ticket 0078)', () => {
+  /** The nine engine category names — the universe of labels a hand-reading choice may carry. */
+  const CATEGORY_NAMES = new Set<string>(HAND_CATEGORY_NAMES)
+
+  it('same seed → identical hand-reading spot (deep-equal), across streets', () => {
+    for (const seed of SEEDS) {
+      for (const street of ['flop', 'turn', 'river'] as const) {
+        expect(generateSpot(seed, { kind: 'hand-reading', street })).toEqual(
+          generateSpot(seed, { kind: 'hand-reading', street }),
+        )
+      }
+    }
+  })
+
+  it('emits a well-formed hand-reading spot: 2 hole cards, a legal board, category-name choices', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      const boardLen = { flop: 3, turn: 4, river: 5 }[street]
+      for (const seed of SEEDS) {
+        const spot = generateSpot(seed, { kind: 'hand-reading', street }) as HandReadingSpot
+        expect(spot.kind).toBe('hand-reading')
+        expect(spot.concept).toBe('ranges')
+        expect(spot.holeCards).toHaveLength(2)
+        expect(spot.board).toHaveLength(boardLen)
+        const cards = [...spot.holeCards, ...spot.board]
+        expect(cards.every(isLegalCard)).toBe(true)
+        expect(new Set(cards).size).toBe(cards.length) // duplicate-free
+        // At least two choices, every label a verbatim HAND_CATEGORY_NAMES string, no duplicate labels.
+        expect(spot.choices.length).toBeGreaterThanOrEqual(2)
+        const labels = spot.choices.map((c) => c.label)
+        labels.forEach((l) => expect(CATEGORY_NAMES.has(l)).toBe(true))
+        expect(new Set(labels).size).toBe(labels.length)
+      }
+    }
+  })
+
+  it('always offers the TRUE category among its choices (the answer is reachable)', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      for (const seed of SEEDS) {
+        const spot = generateSpot(seed, { kind: 'hand-reading', street }) as HandReadingSpot
+        const trueName = HAND_CATEGORY_NAMES[evaluate7([...spot.holeCards, ...spot.board]).category]
+        expect(spot.choices.some((c) => c.label === trueName)).toBe(true)
+      }
+    }
+  })
+
+  // THE NO-ANSWER-KEY PROOF: a generated hand-reading spot stores no correct flag. Re-derive the category
+  // with the engine's evaluate7, then assert gradeSpot rules EXACTLY the matching label correct — i.e.
+  // correctness comes only from the live evaluator, never anything the generator stored.
+  it('every choice graded correct iff its label is the evaluate7-derived category', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      for (const seed of SEEDS) {
+        const spot = generateSpot(seed, { kind: 'hand-reading', street }) as HandReadingSpot
+        const trueName = HAND_CATEGORY_NAMES[evaluate7([...spot.holeCards, ...spot.board]).category]
+        const expected = spot.choices.findIndex((c) => c.label === trueName)
+        expect(expected).toBeGreaterThanOrEqual(0)
+        spot.choices.forEach((_c, i) => {
+          expect(gradeSpot(spot, i).correct).toBe(i === expected)
+          expect(gradeSpot(spot, i).correctIndex).toBe(expected)
+        })
+      }
+    }
+  })
+
+  it('every generated hand-reading spot grades through gradeSpot without throwing (well-posed)', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      for (const seed of SEEDS) {
+        const spot = generateSpot(seed, { kind: 'hand-reading', street })
+        spot.choices.forEach((_c, i) => expect(() => gradeSpot(spot, i)).not.toThrow())
+      }
+    }
+  })
+
+  it('the prompt states the situation, never the made hand', () => {
+    for (const seed of SEEDS) {
+      const spot = generateSpot(seed, { kind: 'hand-reading' }) as HandReadingSpot
+      expect(spot.prompt.length).toBeGreaterThan(0)
+      expect(spot.prompt).toMatch(/best hand you have\?$/)
+      // The prompt never names a hand category (that would leak the answer).
+      const trueName = HAND_CATEGORY_NAMES[evaluate7([...spot.holeCards, ...spot.board]).category]
+      expect(spot.prompt).not.toContain(trueName)
+    }
+  })
+})
+
+describe('buildCategoryChoices — neighbour window always includes the true category, in range', () => {
+  // The category-window contract (mirrors buildBuckets): for EVERY category 0..8 and a sweep of seeds, the
+  // offered window must (a) include the true category, (b) be contiguous neighbours in ascending rank
+  // order, and (c) only ever offer legal category names — no out-of-range rank.
+  it('includes the true category and offers only contiguous, legal neighbours, for every category', () => {
+    for (let cat = 0; cat < HAND_CATEGORY_NAMES.length; cat++) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const choices = buildCategoryChoices(makeDealer(seed), cat as never)
+        const labels = choices.map((c) => c.label)
+        // (a) the true category is present.
+        expect(labels).toContain(HAND_CATEGORY_NAMES[cat])
+        // (b)+(c) the labels are a contiguous ascending run of real category names.
+        const ranks = labels.map((l) => HAND_CATEGORY_NAMES.indexOf(l as never))
+        ranks.forEach((r) => expect(r).toBeGreaterThanOrEqual(0))
+        for (let i = 1; i < ranks.length; i++) expect(ranks[i]).toBe(ranks[i - 1]! + 1)
+      }
+    }
+  })
+})
+
+describe('pickWindowStart — the shared seeded-window boundary invariant', () => {
+  // The one place the window-placement algorithm (and its ceiling-spill clamp fix) now lives — exercised
+  // directly at the three positions that stressed the two former copies: the target at the FLOOR (0), at
+  // the CEILING (maxIndex), and in the INTERIOR. For every position, seed, and the two real configurations
+  // (CALC_CHOICES over CEILING_BUCKET, HAND_READING_CHOICES over n-1), the returned start must satisfy the
+  // contract: the window is wholly in [0, maxIndex] AND contains the target.
+  const CASES = [
+    { count: 3, maxIndex: 12 }, // CALC_CHOICES over CEILING_BUCKET (= floor(1/0.08))
+    { count: 3, maxIndex: 8 }, // HAND_READING_CHOICES over the 0..8 category ladder
+  ]
+
+  for (const { count, maxIndex } of CASES) {
+    // The floor, the ceiling, and an interior target — the three boundary cases the subtle clamp turns on.
+    const targets = [0, Math.floor(maxIndex / 2), maxIndex]
+    for (const target of targets) {
+      it(`count=${count} maxIndex=${maxIndex} target=${target}: window in-range and contains target`, () => {
+        for (let seed = 1; seed <= 20; seed++) {
+          const start = pickWindowStart(makeDealer(seed), target, count, maxIndex)
+          // (a) the window starts at a legal, non-negative index and fits within [0, maxIndex]…
+          expect(start).toBeGreaterThanOrEqual(0)
+          expect(start + count - 1).toBeLessThanOrEqual(maxIndex)
+          // (b) …and the target is inside it (start <= target <= start + count - 1) — so the correct
+          // element is ALWAYS on offer, which is the whole point of the helper.
+          expect(target).toBeGreaterThanOrEqual(start)
+          expect(target).toBeLessThanOrEqual(start + count - 1)
+        }
+      })
+    }
+  }
+
+  it('same seed/args → identical start (pure, seeded)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      expect(pickWindowStart(makeDealer(seed), 5, 3, 12)).toBe(
+        pickWindowStart(makeDealer(seed), 5, 3, 12),
+      )
+    }
+  })
+})
+
+describe('postflop generators only ever deal a real (≥3-card) board (the preflop-street defect)', () => {
+  // The correctness defect this guards: a postflop generator handed street:'preflop' would deal a 0-card
+  // board and crash evaluate7 ('expects 5..7 cards, got 2'). DrillConfig.street is now typed PostflopStreet
+  // so that's unrepresentable — and across every LEGAL postflop street, the board is always ≥ 3 cards (a
+  // real flop/turn/river), never the empty board a preflop street would have produced.
+  it('coach and hand-reading spots deal ≥3 board cards on every legal street', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      for (const seed of SEEDS) {
+        const coach = generateSpot(seed, { kind: 'coach', street }) as CoachSpot
+        expect(coach.context.board.length).toBeGreaterThanOrEqual(3)
+        const reading = generateSpot(seed, { kind: 'hand-reading', street }) as HandReadingSpot
+        expect(reading.board.length).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
+  it("generateSpot rejects a 'preflop' street for a postflop spot, never crashing in evaluate7", () => {
+    // The runtime guard (resolveConfig) catches a 'preflop' street smuggled past the PostflopStreet type
+    // (`as never`), throwing a RangeError BEFORE any 0-card board reaches evaluate7 — for both postflop
+    // kinds. Without the fix, the hand-reading path would instead throw the cryptic
+    // 'evaluate7 expects 5..7 cards, got 2'.
+    for (const kind of ['coach', 'hand-reading'] as const) {
+      expect(() => generateSpot(1, { kind, street: 'preflop' as never })).toThrow(RangeError)
     }
   })
 })

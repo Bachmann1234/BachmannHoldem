@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { parseCards, type Card } from '@holdem/engine'
+import { evaluate7, HAND_CATEGORY_NAMES, parseCards, type Card } from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
 import { coachDecision } from '@holdem/coach'
 import { pct } from '@holdem/format'
 import { gradeSpot } from './grade.js'
 import { synthesizeContext } from './spot.js'
-import type { CalculationSpot, CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
+import type {
+  CalculationSpot,
+  CoachSpot,
+  DeclarativeSpot,
+  HandReadingSpot,
+  PreflopSpot,
+} from './spot.js'
 
 function hole(text: string): readonly [Card, Card] {
   const cards = parseCards(text)
@@ -364,6 +370,75 @@ describe('gradeSpot — calculation (numeric retrieval, no answer key)', () => {
   it('throws RangeError on an out-of-range chosen index', () => {
     expect(() => gradeSpot(POT_ODDS_SPOT, 3)).toThrow(RangeError)
     expect(() => gradeSpot(POT_ODDS_SPOT, -1)).toThrow(RangeError)
+  })
+})
+
+describe('gradeSpot — hand-reading (board recognition, ticket 0078)', () => {
+  /**
+   * Build a hand-reading spot from card text + the offered category labels. The labels are authored by
+   * the *test* only to set up the choice menu; correctness is still DERIVED by gradeSpot from evaluate7.
+   */
+  function handReadingSpot(holeText: string, boardText: string, labels: string[]): HandReadingSpot {
+    return {
+      kind: 'hand-reading',
+      prompt: 'test',
+      choices: labels.map((label) => ({ label })),
+      holeCards: hole(holeText),
+      board: parseCards(boardText),
+      concept: 'ranges',
+    }
+  }
+
+  it('derives the correct category from evaluate7 — never a stored flag', () => {
+    // Trips: As Ah + Ac on the board → Three of a Kind. The correct choice is whichever offered label the
+    // evaluator's category name matches — computed at grade time, not stored.
+    const spot = handReadingSpot('As Ah', 'Ac Kd 7h', ['Pair', 'Three of a Kind', 'Two Pair'])
+    const answer = HAND_CATEGORY_NAMES[evaluate7([...spot.holeCards, ...spot.board]).category]
+    expect(answer).toBe('Three of a Kind')
+
+    const res = gradeSpot(spot, 1) // "Three of a Kind"
+    expect(res.correct).toBe(true)
+    expect(res.correctIndex).toBe(1)
+    expect(res.concept).toBe('ranges')
+    expect(res.verdict).toBeUndefined() // no coach verdict — the evaluator is the authority
+    expect(res.explanation).toContain('Three of a Kind')
+
+    // A wrong pick grades incorrect, but correctIndex still points at the derived answer.
+    const wrong = gradeSpot(spot, 0) // "Pair"
+    expect(wrong.correct).toBe(false)
+    expect(wrong.correctIndex).toBe(1)
+  })
+
+  it('reads the made hand correctly across streets (flop, turn, river)', () => {
+    // A turn (4-card) board: a flush is made once the fourth spade lands.
+    const turn = handReadingSpot('As Ks', 'Qs 7s 2d 9s', ['Flush', 'Pair', 'High Card'])
+    expect(gradeSpot(turn, 0).correct).toBe(true) // Flush
+
+    // A river (5-card) board: the made hand is read off all seven cards.
+    const river = handReadingSpot('As Ks', 'Qs 7s 2d 9s 3h', ['Flush', 'Two Pair', 'Straight'])
+    expect(gradeSpot(river, 0).correct).toBe(true) // still the Flush
+  })
+
+  it('grades every choice correct iff its label is the evaluator-derived category', () => {
+    // The no-answer-key proof at the grade seam: grade EVERY choice and assert exactly the one whose label
+    // equals HAND_CATEGORY_NAMES[evaluate7(...).category] comes back correct.
+    const spot = handReadingSpot('7c 7d', 'Ah Kd Qs', ['High Card', 'Pair', 'Two Pair'])
+    const answer = HAND_CATEGORY_NAMES[evaluate7([...spot.holeCards, ...spot.board]).category]
+    spot.choices.forEach((c, i) => {
+      expect(gradeSpot(spot, i).correct).toBe(c.label === answer)
+    })
+  })
+
+  it('throws RangeError when no offered choice matches the true category (ill-posed)', () => {
+    // Trips is the truth, but only weaker categories are offered — no choice names it.
+    const illPosed = handReadingSpot('As Ah', 'Ac Kd 7h', ['Pair', 'Two Pair', 'High Card'])
+    expect(() => gradeSpot(illPosed, 0)).toThrow(RangeError)
+  })
+
+  it('throws RangeError on an out-of-range chosen index', () => {
+    const spot = handReadingSpot('As Ah', 'Ac Kd 7h', ['Pair', 'Three of a Kind'])
+    expect(() => gradeSpot(spot, 2)).toThrow(RangeError)
+    expect(() => gradeSpot(spot, -1)).toThrow(RangeError)
   })
 })
 

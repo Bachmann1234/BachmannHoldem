@@ -130,6 +130,23 @@ export interface DrillTheme {
  *   your equity* into the right bucket, graded against the coach's own seeded read with the bucket width
  *   as the rule-of-2-and-4 tolerance. Drills `'equity'` as a retrieved number rather than a recognised
  *   line.
+ * - `hand-reading` → `{ kind: 'hand-reading' }`. *What's the best hand you have?* — tap the made-hand
+ *   category, graded against the engine's `evaluate7` (ticket 0078). Drills `'ranges'` — the
+ *   strength-tier recognition the range lens is built on, the most basic beginner skill (knowing what you
+ *   hold) the drill surface had no spot for. Reads on a flop by default; the next two read on later
+ *   streets.
+ * - `turn-river-reading` → `{ kind: 'hand-reading', street: 'river' }`. The same board-reading ask on a
+ *   *full river board* (5 cards), where straights/flushes/full houses come in — board reading is hardest,
+ *   and most worth drilling, once every card is out. Drills `'ranges'` on the river.
+ * - `turn-decisions` → `{ kind: 'coach', priceMode: 'priced', street: 'turn' }`. A priced continue
+ *   decision on the *turn* (4-card board), graded by `coachDecision` exactly like a flop continue — so
+ *   pot-odds calls are drilled past the flop too (ticket 0078's turn/river extension). Drills `'pot-odds'`
+ *   on the turn.
+ * - `raise-or-fold` → `{ kind: 'coach', priceMode: 'priced', actions: 'call-raise-fold' }`. A priced
+ *   continue decision offering **Call / Raise / Fold** (ticket 0078), graded by `coachDecision` — Raise
+ *   and Call are both coach-graded *continues* (both correct when continuing is EV-correct), so the third
+ *   button is still entirely coach-ruled, never an authored key. Drills `'pot-odds'` (the continue
+ *   decision), now with a non-binary action set.
  *
  * Each theme's {@link DrillTheme.concept} is the idea its {@link DrillTheme.config} is built to
  * exercise; the per-spot grade-time concept the coach derives will agree with it on the spots that
@@ -168,6 +185,30 @@ export const DRILL_THEMES = [
     title: 'Equity estimate',
     concept: 'equity',
     config: { kind: 'calculation', quantity: 'equity' },
+  },
+  {
+    id: 'hand-reading',
+    title: 'Read your hand',
+    concept: 'ranges',
+    config: { kind: 'hand-reading' },
+  },
+  {
+    id: 'turn-river-reading',
+    title: 'Read the river',
+    concept: 'ranges',
+    config: { kind: 'hand-reading', street: 'river' },
+  },
+  {
+    id: 'turn-decisions',
+    title: 'Turn decisions',
+    concept: 'pot-odds',
+    config: { kind: 'coach', priceMode: 'priced', street: 'turn' },
+  },
+  {
+    id: 'raise-or-fold',
+    title: 'Call, raise, or fold',
+    concept: 'pot-odds',
+    config: { kind: 'coach', priceMode: 'priced', actions: 'call-raise-fold' },
   },
 ] as const satisfies readonly DrillTheme[]
 

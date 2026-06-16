@@ -34,6 +34,23 @@ import type { DecisionContext } from '@holdem/bots'
 import type { Concept } from '@holdem/coach'
 
 /**
+ * One answer on a {@link HandReadingSpot} (ticket 0078): a single hand-category `label` — one of the
+ * engine's {@link HAND_CATEGORY_NAMES} strings, e.g. `"Two Pair"`, `"Flush"`. The player taps the
+ * category they believe their cards make on the board.
+ *
+ * **No `correct` flag — the category is derived, not authored.** Exactly like a {@link NumericChoice}
+ * stores a bucket but never *which* bucket is right, this stores a category *label* but never *which*
+ * label is right. {@link gradeSpot} evaluates `evaluate7([...holeCards, ...board])` at grade time and
+ * the correct choice is the one whose `label` equals `HAND_CATEGORY_NAMES[category]` — the no-answer-key
+ * invariant applied to the engine's *evaluator* instead of the coach. The label is the *only* thing the
+ * grade matches on, so it must be a verbatim `HAND_CATEGORY_NAMES` string (the generator guarantees this).
+ */
+export interface HandReadingChoice {
+  /** A hand-category name shown as the button — a verbatim `HAND_CATEGORY_NAMES` string the grade matches. */
+  readonly label: string
+}
+
+/**
  * The minimal authoring shape for a coach-graded spot — the *only* table inputs the coach actually
  * reads, so the *only* ones a content author must supply.
  *
@@ -239,6 +256,54 @@ export interface CalculationSpot {
 }
 
 /**
+ * A **hand-reading** spot — the board-reading recognition check that asks *"what's the best hand you
+ * have here?"* (ticket 0078). The thinnest gap on the practice side was that the most basic beginner
+ * skill — recognising *what hand you actually hold* on a board, the prerequisite for every strength
+ * read — had no drill at all. This kind closes it: it shows the hero's two cards on a board and a small
+ * set of {@link HandReadingChoice} category buttons (`"Pair"`, `"Two Pair"`, `"Flush"`, …) and asks the
+ * player to name the made hand.
+ *
+ * **It is graded against the engine's evaluator — never an authored answer key.** The spot carries the
+ * `holeCards` + `board` and a set of category *labels*; at grade time {@link gradeSpot} runs
+ * `evaluate7([...holeCards, ...board])` (the same 5..7-card evaluator the showdown uses) and the correct
+ * choice is whichever offered label equals `HAND_CATEGORY_NAMES[category]`. So exactly like a
+ * {@link CoachSpot} can never disagree with the live coach and a {@link CalculationSpot} can never
+ * disagree with the math, a hand-reading spot can never disagree with the live *evaluator* — the
+ * correct answer is *derived* from the same engine that rules every real hand, not stored. This is the
+ * cardinal rule extended from "which action / which number" to "which hand".
+ *
+ * **Works across streets (ticket 0078's turn/river extension).** The board may be a flop (3), turn (4),
+ * or river (5); `evaluate7` accepts 5..7 cards, so the made hand is read correctly at every street, and
+ * the same spot drills board reading on a draw-heavy turn or a four-flush river, not just the flop.
+ *
+ * **No pot/money fields — this is not a continue decision.** Unlike the priced kinds, a hand-reading
+ * spot weighs no pot odds and offers no Call/Fold, so it carries *only* the cards it reads; there is no
+ * {@link SpotContext} to synthesise.
+ */
+export interface HandReadingSpot {
+  readonly kind: 'hand-reading'
+  /** The question shown to the player, e.g. "You hold A♠ K♠ on K♦ 7♠ 2♠ — what's the best hand you have?". */
+  readonly prompt: string
+  /**
+   * The ordered category buttons — the true category (so the answer is always on offer) plus plausible
+   * distractor categories. At least two; the correct one is *derived* by {@link gradeSpot} from
+   * `evaluate7`, never stored. {@link gradeSpot} throws if no offered label matches the true category
+   * (an ill-posed spot, mirroring the calculation kind's "no bucket contains the value" guard).
+   */
+  readonly choices: readonly HandReadingChoice[]
+  /** The hero's two hole cards — half of the seven the evaluator reads. */
+  readonly holeCards: readonly [Card, Card]
+  /** The community board (3, 4, or 5 cards) the hand is read on — flop, turn, or river. */
+  readonly board: readonly Card[]
+  /**
+   * The `concept` this spot exercises — `'ranges'` (see the {@link gradeSpot} hand-reading branch for
+   * why: reading the made hand is the *strength-tier* recognition the `'ranges'` lens is built on, and
+   * no other {@link Concept} fits board reading; the coach has no verdict for it).
+   */
+  readonly concept: Concept
+}
+
+/**
  * A **declarative** spot — the flagged last-resort carve-out.
  *
  * Some concepts the content ticket needs (position, board texture) do not map onto a single coach
@@ -264,9 +329,12 @@ export interface DeclarativeSpot {
  * kinds}. M5 drills extend the curriculum by adding spots of these kinds (or, if ever needed, a new
  * `kind` + a new {@link gradeSpot} branch), never by adding bespoke engine code. The
  * {@link CalculationSpot} (ticket 0077) is exactly such an addition: a numeric-retrieval ask whose
- * correct bucket is *derived* from the same `potOdds`/coach math at grade time, still no answer key.
+ * correct bucket is *derived* from the same `potOdds`/coach math at grade time, still no answer key. The
+ * {@link HandReadingSpot} (ticket 0078) is another: a board-reading recognition ask whose correct
+ * category is *derived* from `evaluate7` at grade time — the no-answer-key invariant applied to the
+ * engine's evaluator.
  */
-export type Spot = CoachSpot | PreflopSpot | CalculationSpot | DeclarativeSpot
+export type Spot = CoachSpot | PreflopSpot | CalculationSpot | HandReadingSpot | DeclarativeSpot
 
 /**
  * The inert seat the synthesised {@link DecisionContext} is built for. The coach's postflop read

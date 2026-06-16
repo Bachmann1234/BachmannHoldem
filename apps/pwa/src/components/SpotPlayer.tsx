@@ -88,6 +88,31 @@ export function SpotView({ spot }: { readonly spot: Spot }): React.JSX.Element {
       </div>
     )
   }
+  if (spot.kind === 'hand-reading') {
+    // The board-reading recognition spot (ticket 0078): the made-hand felt — board + hero hand — with NO
+    // pot/price chip (it weighs no pot odds, it asks "what do you have?"). Reuses the same felt/board/hand
+    // pixels as the coach/calc spot so a board-reading drill looks of-a-piece, minus the money row.
+    return (
+      <div className="spot">
+        <div className="spot-felt">
+          <div className="spot-board">
+            {spot.board.map((card, i) => (
+              <Card key={i} card={card} size="md" />
+            ))}
+          </div>
+          <div className="spot-hand">
+            <div className="sh-k">Your hand</div>
+            <div className="sh-cards">
+              {spot.holeCards.map((card, i) => (
+                <Card key={i} card={card} size="lg" />
+              ))}
+            </div>
+          </div>
+        </div>
+        <p className="spot-prompt">{spot.prompt}</p>
+      </div>
+    )
+  }
   if (spot.kind === 'coach' || spot.kind === 'calculation') {
     const { pot, toCall, board, holeCards } = spot.context
     const free = toCall === 0
@@ -206,6 +231,8 @@ export interface ResultSheetProps {
  *   no metric row (the coach drawer's preflop mode).
  * - **Calculation** (no `verdict`, a `'calculation'` spot — ticket 0077) → the correct number bucket as
  *   the headline answer + the derivation `explanation` (the show-the-math feedback). No coach verdict.
+ * - **Hand-reading** (no `verdict`, a `'hand-reading'` spot — ticket 0078) → the made-hand category as
+ *   the headline answer + the `explanation` naming the hand the evaluator derived. No coach verdict.
  * - **Declarative** (no `verdict`, the carve-out) → the authored `explanation` alone.
  */
 export function ResultSheet({
@@ -328,12 +355,15 @@ export function ResultSheet({
           <div className="coach-note" data-testid="result-rationale">
             <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
           </div>
-        ) : spot.kind === 'calculation' ? (
-          // Calculation spot (ticket 0077): no coach verdict — the EXACT number and how it's derived IS
-          // the teaching. Surface the correct bucket as the headline answer, then the derivation
-          // (`result.explanation`, built by gradeSpot from the spot's own pot/toCall via @holdem/format),
-          // pairing the retrieval with the show-the-math feedback (ticket 0079).
-          <div data-testid="result-calculation">
+        ) : spot.kind === 'calculation' || spot.kind === 'hand-reading' ? (
+          // Calculation (ticket 0077) / hand-reading (ticket 0078): identical layouts — no coach verdict, the
+          // retrieved value IS the teaching. Surface the correct bucket / made-hand category as the headline
+          // answer, then the derivation (`result.explanation`, built by gradeSpot from the spot's own
+          // pot/toCall via @holdem/format, or from evaluate7) — pairing the retrieval with show-the-math
+          // feedback so a wrong pick still teaches. The only per-kind difference is the wrapper testid, so
+          // the two surfaces share one branch and keep their own `result-calculation` / `result-hand-reading`
+          // testids via the template below.
+          <div data-testid={`result-${spot.kind}`}>
             <div className="metric-row">
               <div className="metric-inline">
                 <div className="k">The answer</div>

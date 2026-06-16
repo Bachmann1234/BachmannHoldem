@@ -2,7 +2,7 @@
 id: 0078
 title: Board-reading drills + turn/river spots + bet/raise actions
 type: feature
-status: todo
+status: done
 milestone: M5.5
 priority: medium
 created: 2026-06-16
@@ -18,15 +18,15 @@ at all (even though `describeHandClass` / `handClassLabel` already exist to seed
 
 ## Acceptance criteria
 
-- [ ] **Hand-ranking recognition theme** — "what do you have / what's the best hand here?" — seeded
+- [x] **Hand-ranking recognition theme** — "what do you have / what's the best hand here?" — seeded
       from the existing hand-class helpers, graded deterministically.
-- [ ] **Turn and river spots** — extend `generateCoachSpot` beyond flop-only (the dealer already
+- [x] **Turn and river spots** — extend `generateCoachSpot` beyond flop-only (the dealer already
       supports later streets via `BOARD_SIZE` / `dealBoard`), so board reading and continue
       decisions appear on every street.
-- [ ] **Richer actions** — break the hard-wired `COACH_CHOICES` binary so some spots offer
+- [x] **Richer actions** — break the hard-wired `COACH_CHOICES` binary so some spots offer
       bet/raise/size choices where the coach can grade them; align the bet/size framing with the
       M4.6 bet-sizing lesson ([[0072-lesson-bet-sizing]]).
-- [ ] New themes registered in `@holdem/drills` themes ([[0066-drills-themed-sets]]) and selectable
+- [x] New themes registered in `@holdem/drills` themes ([[0066-drills-themed-sets]]) and selectable
       in the drills nav ([[0068-pwa-drills-nav-summary]]); deterministic + seeded; tests + purity
       per package convention.
 
