@@ -111,7 +111,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
     if (hiPip >= 12) {
       // QQ, KK, AA
       return [
-        `Pocket ${pluralRank(hiWord)} — one of the very best hands you can be dealt. You are usually ahead before any cards come, and you can improve to a near-unbeatable `,
+        `Pocket ${pluralRank(hiWord)}, one of the very best hands you can be dealt. You are usually ahead before any cards come, and you can improve to a near-unbeatable `,
         term('set', 'set'),
         `.`,
       ]
@@ -119,14 +119,14 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
     if (hiPip >= 9) {
       // 99, TT, JJ
       return [
-        `Pocket ${pluralRank(hiWord)} — a strong made pair. The catch is overcards: one bigger card on the board can put a better pair within reach. Its top end is flopping a `,
+        `Pocket ${pluralRank(hiWord)}, a strong made pair. The catch is overcards: one bigger card on the board can put a better pair within reach. Its top end is flopping a `,
         term('set', 'set'),
         `.`,
       ]
     }
     // 22–88
     return [
-      `Pocket ${pluralRank(hiWord)} — a small pair. On its own it is easily overtaken by bigger pairs, so its real value is flopping a `,
+      `Pocket ${pluralRank(hiWord)}, a small pair. On its own it is easily overtaken by bigger pairs, so its real value is flopping a `,
       term('set', 'set'),
       `: a big hand when it lands, easy to let go when it doesn't.`,
     ]
@@ -141,16 +141,16 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
       if (loPip >= BROADWAY) {
         // AKs, AQs, AJs, ATs
         return [
-          `About as good as a non-pair gets. The ace makes any flush you hit the best one possible — `,
+          `About as good as a non-pair gets. The ace makes any flush you hit the best one possible: `,
           term('the nuts', 'nuts'),
-          ` — and the big second card means you also flop strong top pairs and straights.`,
+          `. The big second card also means you flop strong top pairs and straights.`,
         ]
       }
       // A9s–A2s — the motivating "why is this playable" case.
       return [
         `The ace pulls its weight two ways: any flush you make is `,
         term('the nuts', 'nuts'),
-        ` — the best one out there, so nobody can out-flush you — and the ace is a strong card by itself. That nut-flush upside is exactly why the weak second card is forgiven and the hand is worth playing.`,
+        `, the best one out there, so nobody can out-flush you. The ace is also a strong card by itself. That nut-flush upside is exactly why the weak second card is forgiven and the hand is worth playing.`,
       ]
     }
     if (loPip >= BROADWAY) {
@@ -163,7 +163,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
     }
     // A9o–A2o
     return [
-      `A strong ace, but different suits mean no flush behind it — so you are mostly hoping to pair the ace, and a weak `,
+      `A strong ace, but different suits mean no flush behind it, so you are mostly hoping to pair the ace, and a weak `,
       term('kicker', 'kicker'),
       ` means a bigger ace has you `,
       term('out-kicked', 'dominated'),
@@ -176,7 +176,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
     if (loPip >= BROADWAY) {
       // KQs, KJs, KTs, QJs, QTs, JTs
       return [
-        `Two big cards of the same suit — they make strong top pairs, the high straights, and a flush. One of the best holdings that isn't a pair or an ace.`,
+        `Two big cards of the same suit: they make strong top pairs, the high straights, and a flush. One of the best holdings that isn't a pair or an ace.`,
       ]
     }
     if (gap <= 1) {
@@ -184,22 +184,22 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
       return [
         gap === 1 ? `A one-gapper ` : `A `,
         term('suited connector', 'suited-connector'),
-        ` — two close cards sharing a suit. It rarely makes a big pair, but it makes straights and flushes: disguised hands that can win a large pot from a strong position.`,
+        `, two close cards sharing a suit. It rarely makes a big pair, but it makes straights and flushes: disguised hands that can win a large pot from a strong position.`,
       ]
     }
     if (hiPip >= 11) {
       // K9s, Q9s, J7s, K2s … big card + weak, gappy kicker — the "looks like a suited ace" trap.
       return [
-        `Same shape as a suited ace, but a clear step down. Your best flush is only ${hiWord}-high, so it loses to an ace-high one — being `,
+        `Same shape as a suited ace, but a clear step down. Your best flush is only ${hiWord}-high, so it loses to an ace-high one, leaving you `,
         term('dominated', 'dominated'),
-        ` right when you think you're ahead — and pairing the ${hiWord} leaves a weak `,
+        ` right when you think you're ahead. Pairing the ${hiWord} leaves a weak `,
         term('kicker', 'kicker'),
         ` that better hands out-kick. It looks playable but tends to lose chips, not make them.`,
       ]
     }
     // Small, gappy suited junk (T7s, 96s, …).
     return [
-      `Sharing a suit gives a slim flush chance, but the cards are small and gappy — little straight potential, and any flush you do make is easily beaten, or `,
+      `Sharing a suit gives a slim flush chance, but the cards are small and gappy, with little straight potential, and any flush you do make is easily beaten, or `,
       term('dominated', 'dominated'),
       `. The bottom of the deck.`,
     ]
@@ -209,17 +209,17 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
   if (loPip >= BROADWAY) {
     // KQo, KJo, KTo, QJo, QTo, JTo
     return [
-      `Two big cards, but different suits — they still make strong top pairs, yet with no flush to fall back on they are a notch thinner than the suited version.`,
+      `Two big cards, but different suits: they still make strong top pairs, yet with no flush to fall back on they are a notch thinner than the suited version.`,
     ]
   }
   if (gap <= 1) {
     // Offsuit connectors / one-gappers.
     return [
-      `Connected but offsuit — there is some straight potential, but no flush, and the board misses you often. Thin.`,
+      `Connected but offsuit: there is some straight potential, but no flush, and the board misses you often. Thin.`,
     ]
   }
   // Offsuit, gapped, unremarkable high card — the junk tail.
   return [
-    `Different suits, a gap between the cards, and nothing especially high — the unconnected, no-flush bottom of the deck.`,
+    `Different suits, a gap between the cards, and nothing especially high: the unconnected, no-flush bottom of the deck.`,
   ]
 }

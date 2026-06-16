@@ -37,6 +37,7 @@ import {
 import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
 import { lessonHead, lessonMeta, positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
+import { ChartOverlay } from './ChartOverlay.js'
 import { BackIcon, SparkIcon } from './Icons.js'
 import { SeatRing } from './SeatRing.js'
 
@@ -204,6 +205,11 @@ function ReadView({
   // The package title is "Equity: your share of the pot"; show just the head, with the subtitle below.
   const head = lessonHead(lesson)
   const startLabel = lesson.spots.length > 1 ? 'Start the checks →' : 'Start the check →'
+  // The ranges lesson teaches the *tiers*; the chart's tap-to-explain teaches the *why* behind them
+  // (ticket 0064). Bridge the two so a learner can jump straight from "sort into tiers" to "why does
+  // this hand sit here?" — the gap that motivated the grade explainer.
+  const showChartBridge = lesson.id === 'foundations-ranges'
+  const [chartOpen, setChartOpen] = useState(false)
   return (
     <>
       <div className="lesson-body" data-testid="lesson-read">
@@ -221,7 +227,18 @@ function ReadView({
             {rule}
           </div>
         ) : null}
+        {showChartBridge ? (
+          <button
+            type="button"
+            className="chart-link"
+            onClick={() => setChartOpen(true)}
+            data-testid="lesson-open-chart"
+          >
+            ♠ Open the chart — tap a hand to see why
+          </button>
+        ) : null}
       </div>
+      {chartOpen ? <ChartOverlay onClose={() => setChartOpen(false)} /> : null}
       <div className="lesson-cta">
         <button type="button" className="cta-primary" onClick={onStart} data-testid="lesson-start">
           {startLabel}

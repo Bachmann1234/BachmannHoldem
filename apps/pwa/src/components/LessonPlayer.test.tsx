@@ -23,6 +23,7 @@ const EQUITY = FOUNDATIONS.find((l) => l.id === 'foundations-equity')!
 const POT_ODDS = FOUNDATIONS.find((l) => l.id === 'foundations-pot-odds')!
 const CONTINUE = FOUNDATIONS.find((l) => l.id === 'foundations-equity-vs-price')!
 const POSITION = FOUNDATIONS.find((l) => l.id === 'foundations-position')!
+const RANGES = FOUNDATIONS.find((l) => l.id === 'foundations-ranges')!
 
 /** Render a lesson player with no-op callbacks unless overridden. */
 function renderPlayer(
@@ -50,6 +51,18 @@ describe('LessonPlayer — read state', () => {
     cleanup()
     renderPlayer(EQUITY)
     expect(screen.queryByTestId('teach-rule')).toBeNull()
+  })
+
+  it('bridges only the ranges lesson to the chart, opening it on tap (ticket 0064)', () => {
+    // Other lessons have no chart bridge.
+    renderPlayer(EQUITY)
+    expect(screen.queryByTestId('lesson-open-chart')).toBeNull()
+    cleanup()
+    // The ranges lesson does — and tapping it opens the starting-hand chart where each grade is explained.
+    renderPlayer(RANGES)
+    expect(screen.queryByTestId('chart-modal')).toBeNull()
+    fireEvent.click(screen.getByTestId('lesson-open-chart'))
+    expect(screen.getByTestId('chart-modal')).toBeTruthy()
   })
 })
 

@@ -71,7 +71,7 @@ const OPEN = { label: 'Open (raise)', action: { type: 'raise', amount: 6 } } as 
 const EQUITY_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold A♥K♥ on Q♥7♥2♣ — a flush draw plus two overcards. It checks to you and continuing ' +
+    'You hold A♥K♥ on Q♥7♥2♣, a flush draw plus two overcards. It checks to you and continuing ' +
     'is FREE (nothing to call). Check or fold?',
   choices: [CHECK, FOLD],
   context: {
@@ -88,9 +88,9 @@ const EQUITY_LESSON: Lesson = {
   title: 'Equity: your share of the pot',
   concept: 'equity',
   explanation:
-    'Equity is your share of the pot right now — the fraction of the time your hand wins if every ' +
+    'Equity is your share of the pot right now: the fraction of the time your hand wins if every ' +
     'card came out with no more betting. A coin-flip is 50% equity; a monster is 90%+; total air is ' +
-    'near 0%. It says nothing about price yet — just how good your hand is. When continuing is free, ' +
+    'near 0%. It says nothing about price yet, just how good your hand is. When continuing is free, ' +
     'equity is the whole story: any equity beats folding, so you always take the free card.',
   spots: [EQUITY_SPOT],
 }
@@ -111,7 +111,7 @@ const EQUITY_LESSON: Lesson = {
 const POT_ODDS_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75 — ' +
+    'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75, ' +
     'a price of 75 / (100 + 75) ≈ 43% to break even. Against that big a bet your hand is only worth ' +
     '~17%. Call or fold?',
   choices: [CALL, FOLD],
@@ -130,9 +130,9 @@ const POT_ODDS_LESSON: Lesson = {
   concept: 'pot-odds',
   explanation:
     'Pot odds turn the bet into a price: the equity a call needs just to break even. The rule is ' +
-    'simple — divide what you must call by the total pot after you call. Call 75 into a pot that ' +
+    'simple. Divide what you must call by the total pot after you call. Call 75 into a pot that ' +
     'becomes 250 and your price is 75 / 250 ≈ 30%; call 75 when it becomes 175 and the price is ' +
-    '75 / 175 ≈ 43%. The bigger the bet relative to the pot, the higher the price — and the more ' +
+    '75 / 175 ≈ 43%. The bigger the bet relative to the pot, the higher the price, and the more ' +
     'equity you need to continue.',
   spots: [POT_ODDS_SPOT],
 }
@@ -150,8 +150,8 @@ const POT_ODDS_LESSON: Lesson = {
 const CONTINUE_RULE_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold A♠A♥ on A♣K♦7♥ — top set. Your opponent bets, bringing the pot to 100, and you must ' +
-    'call just 10 — a price of only ~9%. Your hand is worth ~96%. Call or fold?',
+    'You hold A♠A♥ on A♣K♦7♥, top set. Your opponent bets, bringing the pot to 100, and you must ' +
+    'call just 10, a price of only ~9%. Your hand is worth ~96%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
     holeCards: hole('As Ah'),
@@ -169,7 +169,7 @@ const CONTINUE_RULE_LESSON: Lesson = {
   explanation:
     'Here is the one rule that drives every call-or-fold decision: continue when your equity beats ' +
     'the price, fold when it does not. Equity is how good your hand is; the price is the pot odds the ' +
-    'bet sets. Worth 40% and the price is 30%? Continue — you have more than you are paying for. ' +
+    'bet sets. Worth 40% and the price is 30%? Continue. You have more than you are paying for. ' +
     'Worth 20% and the price is 33%? Fold. Everything else postflop is detail on top of this single ' +
     'comparison.',
   spots: [CONTINUE_RULE_SPOT],
@@ -192,7 +192,7 @@ const CONTINUE_RULE_LESSON: Lesson = {
 const EV_GOOD_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold A♠A♥ on A♣K♦7♥ — top set. Your opponent bets, bringing the pot to 100, and you must ' +
+    'You hold A♠A♥ on A♣K♦7♥, top set. Your opponent bets, bringing the pot to 100, and you must ' +
     'call 50. Calling risks 50 to win a pot where you are a huge favourite. Over the long run, does ' +
     'calling MAKE or LOSE chips? Call or fold?',
   choices: [CALL, FOLD],
@@ -209,7 +209,7 @@ const EV_GOOD_SPOT: CoachSpot = {
 const EV_BAD_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold 2♣3♦ on A♠K♦Q♥ — total air. There is 50 in the pot and your opponent overbets to ' +
+    'You hold 2♣3♦ on A♠K♦Q♥, total air. There is 50 in the pot and your opponent overbets to ' +
     '150 total, so you must call 100 to chase a hand you almost never win. Over the long run, does ' +
     'calling MAKE or LOSE chips? Call or fold?',
   choices: [CALL, FOLD],
@@ -230,8 +230,8 @@ const EV_LESSON: Lesson = {
   explanation:
     'Expected value (EV) is the continue rule measured in chips instead of yes/no: the average ' +
     'chips a decision makes or loses if you faced it again and again. A call with more equity than ' +
-    'the price has positive EV — it makes chips long-term, even on the hands it loses. A call with ' +
-    'less equity than the price has negative EV — it bleeds chips, even on the hands it wins. You ' +
+    'the price has positive EV: it makes chips long-term, even on the hands it loses. A call with ' +
+    'less equity than the price has negative EV: it bleeds chips, even on the hands it wins. You ' +
     'are not playing this one hand; you are playing the decision a thousand times. Take the +EV side.',
   spots: [EV_GOOD_SPOT, EV_BAD_SPOT],
 }
@@ -284,7 +284,7 @@ const POSITION_LESSON: Lesson = {
   explanation:
     'Position is your seat relative to the action. Acting LAST after the flop is a real edge: you ' +
     'see what everyone does before you decide, so you bluff more, value-bet more, and control the ' +
-    'pot size. The button acts last every street — the best seat at the table. The practical upshot: ' +
+    'pot size. The button acts last every street, the best seat at the table. The practical upshot: ' +
     'you can profitably play MORE hands in late position than in early position. The same borderline ' +
     'hand that is an open on the button is a fold under the gun.',
   spots: [POSITION_BUTTON_SPOT, POSITION_UTG_SPOT],
@@ -303,7 +303,7 @@ const POSITION_LESSON: Lesson = {
 /** ranges spot A: AA, a premium hand — opening is correct, folding is the leak. */
 const RANGES_PREMIUM_SPOT: PreflopSpot = {
   kind: 'preflop',
-  prompt: 'You are dealt A♠A♥ — the best starting hand (the premium tier). Open or fold?',
+  prompt: 'You are dealt A♠A♥, the best starting hand (the premium tier). Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('As Ah'),
   seat: 1,
@@ -314,7 +314,7 @@ const RANGES_PREMIUM_SPOT: PreflopSpot = {
 /** ranges spot B: 72o, the bottom tier — folding is correct, opening is the leak. */
 const RANGES_TRASH_SPOT: PreflopSpot = {
   kind: 'preflop',
-  prompt: 'You are dealt 7♣2♦ — the worst starting hand (the trash tier). Open or fold?',
+  prompt: 'You are dealt 7♣2♦, the worst starting hand (the trash tier). Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('7c 2d'),
   seat: 0,
@@ -327,12 +327,13 @@ const RANGES_LESSON: Lesson = {
   title: 'Ranges: think in strength tiers',
   concept: 'ranges',
   explanation:
-    "You never know an opponent's exact two cards — you reason about their RANGE, the whole set of " +
-    'hands they could have. (Poker players call you the "hero" and that opponent the "villain" — ' +
+    "You never know an opponent's exact two cards, so you reason about their RANGE, the whole set of " +
+    'hands they could have. (Poker players call you the "hero" and that opponent the "villain", ' +
     'neutral names for whose decision is being studied.) The same lens applies to your own starting hands: sort them into ' +
     'strength tiers. Premium hands (AA, KK, AK) you always play; strong and playable hands you open ' +
     'in most spots; trash (like 7-2 offsuit) you fold every time. A starting-hand chart is just ' +
-    'those tiers written down. Play tiers, not feelings.',
+    'those tiers written down. Open it and tap any hand to see why it sits where it does: why A9s ' +
+    'is playable but K9s is trash. Play tiers, not feelings.',
   spots: [RANGES_PREMIUM_SPOT, RANGES_TRASH_SPOT],
 }
 
