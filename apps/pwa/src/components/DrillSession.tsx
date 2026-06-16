@@ -22,7 +22,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { composeSession, type DrillTheme } from '@holdem/drills'
 import { gradeSpot, type GradeResult } from '@holdem/curriculum'
-import { BackIcon, SparkIcon } from './Icons.js'
+import { SessionHeader } from './SessionHeader.js'
 import { ResultSheet, SpotAnswers, SpotView } from './SpotPlayer.js'
 
 /**
@@ -107,45 +107,17 @@ export function DrillSession({
 
   return (
     <div className="screen lesson" data-testid="drill-session">
-      <div className="appbar">
-        <button
-          type="button"
-          className="back"
-          onClick={onExit}
-          aria-label="Back"
-          data-testid="drill-back"
-        >
-          <BackIcon />
-        </button>
-        <div className="appbar-titles">
-          <div className="appbar-eyebrow" data-testid="drill-progress">{`SPOT ${Math.min(
-            spotIndex + 1,
-            total,
-          )} OF ${total}`}</div>
-          <div className="appbar-title">Drill</div>
-        </div>
-        <div className="appbar-spacer" />
-      </div>
-
-      <div className="lesson-head">
-        <div className="lesson-steps">
-          {session.map((_s, i) => (
-            <div className="ls-seg" key={i}>
-              <span
-                className="fill"
-                style={{
-                  width: i < spotIndex ? '100%' : i === spotIndex ? '50%' : '0%',
-                }}
-              />
-            </div>
-          ))}
-        </div>
-        {item !== undefined ? (
-          <span className="concept-tag" data-testid="drill-theme">
-            <SparkIcon style={{ width: 12, height: 12 }} /> {item.theme.title}
-          </span>
-        ) : null}
-      </div>
+      <SessionHeader
+        onBack={onExit}
+        backTestId="drill-back"
+        eyebrow={`SPOT ${Math.min(spotIndex + 1, total)} OF ${total}`}
+        eyebrowTestId="drill-progress"
+        title="Drill"
+        stepCount={total}
+        currentStep={spotIndex}
+        concept={item !== undefined ? item.theme.title : undefined}
+        conceptTestId="drill-theme"
+      />
 
       {spot !== undefined ? (
         <>

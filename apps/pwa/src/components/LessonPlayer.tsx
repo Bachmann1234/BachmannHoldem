@@ -33,7 +33,7 @@ import { useCallback, useState } from 'react'
 import { gradeSpot, type GradeResult, type Lesson, type Spot } from '@holdem/curriculum'
 import { lessonHead, lessonMeta } from '../learn/lessonMeta.js'
 import { ChartOverlay } from './ChartOverlay.js'
-import { BackIcon, SparkIcon } from './Icons.js'
+import { SessionHeader } from './SessionHeader.js'
 import { ResultSheet, SpotAnswers, SpotView } from './SpotPlayer.js'
 
 /** Props for {@link LessonPlayer}. */
@@ -100,47 +100,16 @@ export function LessonPlayer({
 
   return (
     <div className="screen lesson" data-testid="lesson-player">
-      <div className="appbar">
-        <button
-          type="button"
-          className="back"
-          onClick={onBack}
-          aria-label="Back"
-          data-testid="lesson-back"
-        >
-          <BackIcon />
-        </button>
-        <div className="appbar-titles">
-          <div className="appbar-eyebrow">{`LESSON ${n} OF ${total}`}</div>
-          <div className="appbar-title">{lesson.title}</div>
-        </div>
-        <div className="appbar-spacer" />
-      </div>
-
-      <div className="lesson-head">
-        <div className="lesson-steps">
-          {lesson.spots.map((_s, i) => (
-            <div className="ls-seg" key={i}>
-              <span
-                className="fill"
-                style={{
-                  width:
-                    phase === 'read'
-                      ? '0%'
-                      : i < spotIndex
-                        ? '100%'
-                        : i === spotIndex
-                          ? '50%'
-                          : '0%',
-                }}
-              />
-            </div>
-          ))}
-        </div>
-        <span className="concept-tag">
-          <SparkIcon style={{ width: 12, height: 12 }} /> {lesson.concept.replace(/-/g, ' ')}
-        </span>
-      </div>
+      <SessionHeader
+        onBack={onBack}
+        backTestId="lesson-back"
+        eyebrow={`LESSON ${n} OF ${total}`}
+        title={lesson.title}
+        stepCount={spotCount}
+        currentStep={spotIndex}
+        readPhase={phase === 'read'}
+        concept={lesson.concept.replace(/-/g, ' ')}
+      />
 
       {phase === 'read' || spot === undefined ? (
         <ReadView lesson={lesson} rule={meta.rule} onStart={onStart} />

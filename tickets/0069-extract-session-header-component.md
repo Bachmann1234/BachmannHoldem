@@ -2,7 +2,7 @@
 id: 0069
 title: Extract a shared immersive SessionHeader (LessonPlayer / DrillSession)
 type: chore
-status: todo
+status: done
 milestone: M5
 priority: low
 created: 2026-06-16
