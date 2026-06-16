@@ -125,9 +125,9 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
         </div>
 
         <p className="chart-note">
-          Every starting hand, sorted into strength tiers — the same chart the coach grades preflop
-          against. <b>Suited</b> hands are above the diagonal, <b>offsuit</b> below, pairs down the
-          middle.
+          Every starting hand, sorted into strength tiers. This is the same chart the coach grades
+          preflop against. <b>Suited</b> hands are above the diagonal, <b>offsuit</b> below, pairs
+          down the middle.
           {highlight ? (
             <>
               {' '}
