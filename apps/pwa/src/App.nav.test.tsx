@@ -78,7 +78,7 @@ describe('App — top-level navigation', () => {
     const player = screen.getByTestId('lesson-player')
     expect(player).toBeTruthy()
     expect(within(player).getByText(FOUNDATIONS[0]!.title)).toBeTruthy()
-    expect(within(player).getByText(/LESSON 1 OF 6/)).toBeTruthy()
+    expect(within(player).getByText(new RegExp(`LESSON 1 OF ${FOUNDATIONS.length}`))).toBeTruthy()
     // The path is hidden while the player is open.
     expect(screen.queryByTestId('learn')).toBeNull()
 

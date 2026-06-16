@@ -1,10 +1,10 @@
 /**
  * The end-of-primer hand-off (tickets 0047/0048) — recreated from the design bundle's `EndOfPrimer`. After
- * the learner finishes the sixth and last lesson, the path is complete and this warm, restrained
- * celebration takes over: a medal, "You've got the fundamentals.", a recap of all six ideas (each
- * checked, with its concept tag), then the hand-off — a primary **Play a hand →** CTA that switches to
- * the Play tab, plus a **live** hand-off into the M5 drills (the M4.5 forward reference now has a real
- * destination, ticket 0068).
+ * the learner finishes the last lesson, the path is complete and this warm, restrained celebration
+ * takes over: a medal, "You've got the fundamentals.", a recap of every lesson (each checked, with its
+ * concept tag), then the hand-off — a primary **Play a hand →** CTA that switches to the Play tab, plus
+ * a **live** hand-off into the M5 drills (the M4.5 forward reference now has a real destination,
+ * ticket 0068).
  *
  * Presentational: it takes the zipped {@link LearnLesson}s for the recap and three callbacks (play /
  * drills / back). The §5.5 design is deliberately not loud — no confetti storm; encouraging, not loud.
@@ -15,7 +15,7 @@ import { BackIcon, CheckIcon } from './Icons.js'
 
 /** Props for {@link EndOfPrimer}. */
 export interface EndOfPrimerProps {
-  /** The six lessons, zipped with their display copy — the recap rows. */
+  /** The primer lessons, zipped with their display copy — the recap rows. */
   readonly lessons: readonly LearnLesson[]
   /** Hand off to free play (switch to the Play tab). */
   readonly onPlay: () => void
@@ -25,7 +25,7 @@ export interface EndOfPrimerProps {
   readonly onBack: () => void
 }
 
-/** Render the completion screen: medal, lede, the six-idea recap, the Play hand-off + Drills CTAs. */
+/** Render the completion screen: medal, lede, the lesson recap, the Play hand-off + Drills CTAs. */
 export function EndOfPrimer({
   lessons,
   onPlay,
@@ -58,8 +58,8 @@ export function EndOfPrimer({
           </div>
           <h1>You&apos;ve got the fundamentals.</h1>
           <p className="ep-lede">
-            All six ideas the coach speaks in. Now the numbers at the table will mean something. Go
-            put them to work.
+            Every idea the coach speaks in, taught. Now the numbers at the table will mean
+            something. Go put them to work.
           </p>
           <div className="recap">
             {lessons.map(({ lesson }) => (

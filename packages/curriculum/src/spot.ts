@@ -115,6 +115,16 @@ export interface CoachSpot {
  * The chart's marginal-tier guidance is position-aware, so this kind carries the seat geometry the
  * chart needs (`seat`, `buttonIndex`, `numPlayers`) on top of the holding. The board is empty
  * preflop and the pot-odds fields are unused by the chart, so they are defaulted in synthesis.
+ *
+ * **Facing a raise (optional — {@link facingRaiseBb}).** By default a `PreflopSpot` is an *unraised*
+ * pot: the hero is first in and `gradePreflop` consults the *opening* chart. Set {@link facingRaiseBb}
+ * to grade a *facing-a-raise* spot instead — a single villain has raised to that many big blinds, so
+ * `gradePreflop` switches to its raise-aware *defend* standard (`facingRaiseAdvice`: the continue
+ * range tightens with the price faced, the big blind defends wider). {@link synthesizeContext}
+ * threads the size into the synthesised `DecisionContext`'s `currentBet` so the coach's
+ * `raiseBb = round(currentBet / bigBlind)` rounds back to exactly this value. **Absent/undefined ⇒
+ * unraised pot ⇒ byte-for-byte the pre-existing behaviour** — the field is the *only* difference
+ * between an open spot and a defend spot.
  */
 export interface PreflopSpot {
   readonly kind: 'preflop'
@@ -130,6 +140,15 @@ export interface PreflopSpot {
   readonly buttonIndex: number
   /** Total seats at the table — the modulus for the cutoff/button geometry. */
   readonly numPlayers: number
+  /**
+   * The size, in big blinds, of the single raise the hero faces — `undefined`/absent for an unraised
+   * pot (the default: the hero is first to act and the *opening* chart grades the spot). When set,
+   * {@link synthesizeContext} builds a raised context (`currentBet = facingRaiseBb × bigBlind`) so
+   * `gradePreflop` takes its raise-aware *defend* path and the coach's rounded raise size matches this
+   * value. Must be `> 1` to actually exceed the big blind (a value of `1` is the unraised standing
+   * bet); the bands `facingRaiseAdvice` keys off are `< 5` (small), `≥ 5` (large), `≥ 9` (3-bet).
+   */
+  readonly facingRaiseBb?: number
 }
 
 /**
@@ -192,9 +211,19 @@ const DEFAULT_NUM_PLAYERS = 2
  * **Pot accounting.** `pot` and `toCall` are copied through *untouched* — the coach maps them
  * directly into the pot-odds math, so folding `toCall` into `pot` here would double-count.
  *
+ * **Facing a raise (the preflop defend path).** When `seatGeometry.facingRaiseBb` is set the spot is
+ * a *facing-a-raise* preflop decision, not an unraised open: a single villain has raised to that many
+ * big blinds. The synthesised context's `currentBet` becomes `facingRaiseBb × bigBlind` (so
+ * `gradePreflop`'s `raiseBb = round(currentBet / bigBlind)` rounds back to exactly `facingRaiseBb`
+ * and its `facingRaise = currentBet > bigBlind` is `true`); `toCall` is the chips the as-yet-uncommitted
+ * hero must add to call (the whole raise), and `pot` is the coherent blinds + raise. **When it is
+ * absent the function is byte-for-byte its previous self** — `currentBet = toCall`, `pot = ctx.pot`,
+ * the seat-geometry-only path every existing `PreflopSpot` already takes.
+ *
  * @param ctx The five coach-read inputs.
- * @param seatGeometry Optional `{ seat, buttonIndex, numPlayers }` the chart path supplies; the
- *   postflop path omits it and the inert defaults apply.
+ * @param seatGeometry Optional `{ seat, buttonIndex, numPlayers, facingRaiseBb? }` the chart path
+ *   supplies; the postflop path omits it and the inert defaults apply. `facingRaiseBb` (preflop only)
+ *   selects the raise-aware defend path described above.
  */
 export function synthesizeContext(
   ctx: SpotContext,
@@ -202,6 +231,7 @@ export function synthesizeContext(
     readonly seat: number
     readonly buttonIndex: number
     readonly numPlayers: number
+    readonly facingRaiseBb?: number
   },
 ): DecisionContext {
   // --- Validate in the odds/bots RangeError idiom, before anything reaches a grader. ----
@@ -225,6 +255,25 @@ export function synthesizeContext(
   const buttonIndex = seatGeometry?.buttonIndex ?? DEFAULT_BUTTON_INDEX
   const numPlayers = seatGeometry?.numPlayers ?? DEFAULT_NUM_PLAYERS
 
+  // The faced-raise size selects the preflop defend path; absent ⇒ unraised pot ⇒ the unchanged money.
+  const facingRaiseBb = seatGeometry?.facingRaiseBb
+  if (facingRaiseBb !== undefined && facingRaiseBb <= 1) {
+    // A raise must exceed the standing big blind; ≤ 1 BB is not a raise (the BB itself is 1 BB).
+    throw new RangeError(`spot facingRaiseBb must be > 1 big blind, got ${facingRaiseBb}`)
+  }
+
+  // Money fields. Default (no faced raise): the pre-existing behaviour — `currentBet === toCall`,
+  // `pot === ctx.pot`. Faced raise: build a coherent raised pot so `gradePreflop` sees
+  // `currentBet > bigBlind` and `round(currentBet / bigBlind) === facingRaiseBb`. The hero is
+  // uncommitted, so `toCall` is the whole raise, and the pot already holds the blinds + the raise.
+  // `toCall`/`pot` are grading-inert for the chart, but kept self-consistent so the context never lies.
+  const raised = facingRaiseBb !== undefined
+  const currentBet = raised ? facingRaiseBb * INERT_BIG_BLIND : ctx.toCall
+  // The uncommitted hero must call the whole standing bet, so `toCall === currentBet` in both branches
+  // (in the unraised branch `currentBet` is just `ctx.toCall`).
+  const toCall = currentBet
+  const pot = raised ? INERT_SMALL_BLIND + INERT_BIG_BLIND + currentBet : ctx.pot
+
   // Derive the street from the board size — the only street the coach/chart could care about, and it
   // keeps the synthesised context self-consistent (empty board ⇒ preflop, three ⇒ flop, …).
   const street: Street =
@@ -239,10 +288,10 @@ export function synthesizeContext(
     // consistent value from the spot's money: checking is free exactly when `toCall === 0`, and a
     // call costs `toCall`. The deep-stacked hero can always bet/raise. Kept well-formed (not faked)
     // so the context never lies if a future grader ever consults it.
-    legalActions: synthesizeLegalActions(ctx.toCall),
-    pot: ctx.pot,
-    currentBet: ctx.toCall,
-    toCall: ctx.toCall,
+    legalActions: synthesizeLegalActions(toCall),
+    pot,
+    currentBet,
+    toCall,
     stack: INERT_STACK,
     committed: 0,
     smallBlind: INERT_SMALL_BLIND,

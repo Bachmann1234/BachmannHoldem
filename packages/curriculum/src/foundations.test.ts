@@ -33,26 +33,22 @@ function firstSpot(id: string) {
   return l.spots[0]!
 }
 
+/** The Concepts the coach can stamp — the only valid `Lesson.concept` values (ticket 0070 locks the
+ * v2 lessons to reuse these six rather than extend the union). */
+const VALID_CONCEPTS: ReadonlySet<Concept> = new Set<Concept>([
+  'equity',
+  'pot-odds',
+  'equity-vs-price',
+  'ev',
+  'position',
+  'ranges',
+])
+
 describe('FOUNDATIONS — shape & scope discipline', () => {
-  it('is exactly the six concept lessons the coach uses, in teaching order', () => {
-    const concepts = FOUNDATIONS.map((l) => l.concept)
-    expect(concepts).toEqual([
-      'equity',
-      'pot-odds',
-      'equity-vs-price',
-      'ev',
-      'position',
-      'ranges',
-    ] satisfies Concept[])
-  })
-
-  it('covers each of the six Concepts exactly once (a primer, not a course)', () => {
-    const concepts = new Set(FOUNDATIONS.map((l) => l.concept))
-    expect(concepts.size).toBe(6)
-    expect(FOUNDATIONS).toHaveLength(6)
-  })
-
-  it('every lesson is well-formed: unique id, title, ~30s explanation, ≥1 spot', () => {
+  // The v2 primer (ticket 0070) appends lessons and reuses concept tags, so the old "exactly six, in
+  // this order" / "each concept exactly once" pins are gone (ticket 0075 sets the final canonical
+  // order). These relax to the durable invariants: well-formed, unique ids, a valid declared concept.
+  it('every lesson is well-formed: unique id, title, ~30s explanation, ≥1 spot, valid concept', () => {
     const ids = new Set<string>()
     for (const l of FOUNDATIONS) {
       expect(l.id.length).toBeGreaterThan(0)
@@ -63,6 +59,8 @@ describe('FOUNDATIONS — shape & scope discipline', () => {
       expect(l.explanation.length).toBeGreaterThan(80)
       expect(l.explanation.length).toBeLessThan(900)
       expect(l.spots.length).toBeGreaterThanOrEqual(1)
+      // The declared concept must be one the coach actually emits (the locked-decision invariant).
+      expect(VALID_CONCEPTS.has(l.concept)).toBe(true)
     }
   })
 
@@ -80,6 +78,16 @@ describe('FOUNDATIONS — shape & scope discipline', () => {
       for (const s of l.spots) {
         expect(s.kind === 'coach' || s.kind === 'preflop').toBe(true)
       }
+    }
+  })
+
+  it('teaches every coach Concept — each of the six is covered by ≥1 lesson', () => {
+    // The cross-link the v2 relaxation must not lose: the coach speaks six concepts and the primer's
+    // job is to teach all of them. A mistaken retag (e.g. the position lesson re-tagged 'ranges')
+    // would drop a concept's coverage to zero and trip this — without pinning lesson count or order.
+    const taught = new Set<Concept>(FOUNDATIONS.map((l) => l.concept))
+    for (const concept of VALID_CONCEPTS) {
+      expect(taught.has(concept)).toBe(true)
     }
   })
 })
@@ -232,5 +240,53 @@ describe('ranges lesson — premium vs trash tiers (coach-true via the chart)', 
     const open = gradeSpot(trash, 0)
     expect(open.correct).toBe(false)
     expect(open.verdict!.verdict).toBe('leak')
+  })
+})
+
+describe('facing-a-raise lesson — call / fold / 3-bet (coach-true via the raise-aware chart)', () => {
+  const l = lesson('foundations-facing-a-raise')
+
+  it('teaches the ranges concept with two bracketing facing-raise spots', () => {
+    expect(l.concept).toBe('ranges')
+    expect(l.spots).toHaveLength(2)
+  })
+
+  it('spot A — 76s in early position vs a large raise: folding correct, calling the leak, on the defend path', () => {
+    // Choice 0 = Call (the leak: a large raise collapses the range to value only), choice 1 = Fold.
+    const foldSpot = l.spots[0]!
+    const fold = gradeSpot(foldSpot, 1)
+    expect(fold.correct).toBe(true)
+    expect(fold.correctIndex).toBe(1)
+    expect(fold.concept).toBe('ranges') // gradePreflop always tags 'ranges'
+    const call = gradeSpot(foldSpot, 0)
+    expect(call.correct).toBe(false)
+    expect(call.verdict!.verdict).toBe('leak')
+    // This really graded through the raise-aware DEFEND path, not the unraised open chart.
+    // `advice` is a PreflopVerdict-only field, so it narrows the union to the preflop trace.
+    const v = call.verdict!
+    expect('advice' in v && v.trace.facingRaise).toBe(true)
+    if ('advice' in v) expect(v.trace.raiseBb).toBe(6)
+  })
+
+  it('spot B — KJo big-blind defend vs a small raise: continuing correct, folding the leak', () => {
+    // Choice 0 = Call (correct: the BB defends wide vs a small raise), choice 1 = Fold (the leak),
+    // choice 2 = 3-bet (also a non-fold continue, graded identically to Call).
+    const defendSpot = l.spots[1]!
+    const call = gradeSpot(defendSpot, 0)
+    expect(call.correct).toBe(true)
+    expect(call.correctIndex).toBe(0)
+    const v = call.verdict!
+    expect('advice' in v && v.trace.facingRaise).toBe(true)
+    if ('advice' in v) {
+      expect(v.trace.raiseBb).toBe(3)
+      expect(v.trace.mode).toBe('bb-defend')
+    }
+    // Folding the defend is the leak.
+    const fold = gradeSpot(defendSpot, 1)
+    expect(fold.correct).toBe(false)
+    expect(fold.verdict!.verdict).toBe('leak')
+    // The coach cannot distinguish a 3-bet from a call: both are non-fold continues, so the 3-bet
+    // also grades correct (the graded point is continue-vs-fold, per the lesson note).
+    expect(gradeSpot(defendSpot, 2).correct).toBe(true)
   })
 })

@@ -59,7 +59,7 @@ describe('App — durable lesson progress', () => {
     fireEvent.click(screen.getByTestId('tab-learn'))
     fireEvent.click(screen.getByTestId('lesson-0'))
     finishOpenLesson(FOUNDATIONS[0]!.spots.length)
-    expect(screen.getByTestId('learn').textContent).toContain('1 / 6')
+    expect(screen.getByTestId('learn').textContent).toContain(`1 / ${FOUNDATIONS.length}`)
     // The store recorded the completed id (not a bare count).
     expect(store.load()).toEqual([FOUNDATIONS[0]!.id])
     first.unmount()
@@ -68,7 +68,7 @@ describe('App — durable lesson progress', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={store} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
     const learn = screen.getByTestId('learn')
-    expect(learn.textContent).toContain('1 / 6')
+    expect(learn.textContent).toContain(`1 / ${FOUNDATIONS.length}`)
     expect((screen.getByTestId('lesson-1') as HTMLButtonElement).disabled).toBe(false)
     // Lesson 3 is still locked (sequential unlock).
     expect((screen.getByTestId('lesson-2') as HTMLButtonElement).disabled).toBe(true)
@@ -81,11 +81,11 @@ describe('App — durable lesson progress', () => {
     // Mount does not crash even though load() throws...
     render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={throwingStore()} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
-    expect(screen.getByTestId('learn').textContent).toContain('0 / 6')
+    expect(screen.getByTestId('learn').textContent).toContain(`0 / ${FOUNDATIONS.length}`)
     // ...and completing a lesson (whose save() throws) still advances in-memory progress.
     fireEvent.click(screen.getByTestId('lesson-0'))
     finishOpenLesson(FOUNDATIONS[0]!.spots.length)
-    expect(screen.getByTestId('learn').textContent).toContain('1 / 6')
+    expect(screen.getByTestId('learn').textContent).toContain(`1 / ${FOUNDATIONS.length}`)
   })
 
   it('ignores an unknown stored id on load', () => {
@@ -93,7 +93,7 @@ describe('App — durable lesson progress', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={store} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
     // Only the one known completed lesson counts; the unknown id is dropped, no crash.
-    expect(screen.getByTestId('learn').textContent).toContain('1 / 6')
+    expect(screen.getByTestId('learn').textContent).toContain(`1 / ${FOUNDATIONS.length}`)
   })
 
   it('reopens a fully-completed primer to the path for review, not the forced hand-off', () => {
@@ -103,7 +103,7 @@ describe('App — durable lesson progress', () => {
     // The end-of-primer celebration is a one-time, in-session hand-off — never re-shown on reopen.
     expect(screen.queryByTestId('end-of-primer')).toBeNull()
     const learn = screen.getByTestId('learn')
-    expect(learn.textContent).toContain('6 / 6')
+    expect(learn.textContent).toContain(`${FOUNDATIONS.length} / ${FOUNDATIONS.length}`)
     // The resume CTA offers review-from-the-start, not a jump back to the last lesson.
     expect(screen.getByTestId('resume-cta').textContent).toContain('Review from the start')
   })

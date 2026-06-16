@@ -2,7 +2,7 @@
 id: 0071
 title: 'Lesson: facing a preflop raise — call / fold / 3-bet'
 type: feature
-status: todo
+status: done
 milestone: M4.6
 priority: high
 created: 2026-06-16
@@ -18,16 +18,21 @@ blind defense. This is the single most common decision in real play and it is ab
 
 ## Acceptance criteria
 
-- [ ] A new `FOUNDATIONS` lesson teaching the call / fold / 3-bet decision when facing a single
-      raiser preflop, tagged with its `Concept` ([[0043-coach-concept-tag]]).
-- [ ] ~30-second beginner-pitched explanation (no jargon dump): why a raise narrows what you should
+- [x] A new `FOUNDATIONS` lesson teaching the call / fold / 3-bet decision when facing a single
+      raiser preflop, tagged with its `Concept` ([[0043-coach-concept-tag]]). _(`foundations-facing-a-raise`,
+      concept `ranges` — the locked-decision reuse; `gradePreflop` always tags `ranges`.)_
+- [x] ~30-second beginner-pitched explanation (no jargon dump): why a raise narrows what you should
       continue with, why position and the raiser's likely range matter, and when to fold vs. flat
-      vs. 3-bet.
-- [ ] At least one retrieval-check spot built on a real `DecisionContext` and graded by the
+      vs. 3-bet. _(3-bet glossed on first use.)_
+- [x] At least one retrieval-check spot built on a real `DecisionContext` and graded by the
       **raise-aware** coach ([[0053-coach-preflop-raise-aware]], [[0052-coach-narrow-range-on-action]])
-      through the engine — not an answer key.
-- [ ] Test: the spot grades to the verdict the coach actually returns (so a coach retune can't
-      silently desync the lesson); copy/choices well-formed; purity preserved.
+      through the engine — not an answer key. _(Two coach-graded `PreflopSpot`s: 76s UTG+1 vs a 6 BB
+      large raise → fold; KJo big-blind defend vs a 3 BB raise → continue. Needed a `PreflopSpot` +
+      `synthesizeContext` extension — `facingRaiseBb` — to represent a faced raise; the grading reuses
+      the existing raise-aware `gradePreflop`.)_
+- [x] Test: the spot grades to the verdict the coach actually returns (so a coach retune can't
+      silently desync the lesson); copy/choices well-formed; purity preserved. _(Plus a new "every
+      coach Concept is taught by ≥1 lesson" invariant replacing the relaxed exact-six pins.)_
 
 ## Notes
 

@@ -194,7 +194,14 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       ? synthesizeContext(spot.context)
       : synthesizeContext(
           { holeCards: spot.holeCards, board: [], pot: 0, toCall: 0, numActive: spot.numPlayers },
-          { seat: spot.seat, buttonIndex: spot.buttonIndex, numPlayers: spot.numPlayers },
+          {
+            seat: spot.seat,
+            buttonIndex: spot.buttonIndex,
+            numPlayers: spot.numPlayers,
+            // Threaded through only when the spot faces a raise; absent ⇒ the unchanged unraised-open
+            // synthesis, so every existing PreflopSpot grades byte-for-byte as before.
+            facingRaiseBb: spot.facingRaiseBb,
+          },
         )
 
   // The correct choice is whatever the coach blesses — the FIRST offered choice whose action does

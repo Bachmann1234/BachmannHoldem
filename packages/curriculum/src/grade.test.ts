@@ -192,6 +192,38 @@ describe('gradeSpot — preflop chart-graded', () => {
     expect(gradeSpot(trash, 1).correct).toBe(true) // Fold
     expect(gradeSpot(trash, 0).correct).toBe(false) // Open
   })
+
+  it('grades an UNRAISED PreflopSpot through the open path (trace.facingRaise === false)', () => {
+    // No facingRaiseBb ⇒ the unchanged unraised-open synthesis: gradePreflop reads no raise.
+    // `advice` is a PreflopVerdict-only field, so it narrows the union to the preflop trace.
+    const res = gradeSpot(BUTTON_PREMIUM, 0)
+    const v = res.verdict!
+    expect('advice' in v && v.trace.facingRaise).toBe(false)
+  })
+
+  it('grades a FACING-RAISE PreflopSpot through the defend path (trace.facingRaise === true)', () => {
+    // 76s out of position facing a large 6 BB raise: the defend standard collapses to value only,
+    // so folding is correct and calling is the leak — graded through the raise-aware path.
+    const facingRaise: PreflopSpot = {
+      kind: 'preflop',
+      prompt: 'UTG with 76s facing a 6 BB raise — call or fold?',
+      choices: [
+        { label: 'Call', action: { type: 'call' } },
+        { label: 'Fold', action: { type: 'fold' } },
+      ],
+      holeCards: hole('7h 6h'),
+      seat: 0,
+      buttonIndex: 3,
+      numPlayers: 6,
+      facingRaiseBb: 6,
+    }
+    const call = gradeSpot(facingRaise, 0)
+    const v = call.verdict!
+    expect('advice' in v && v.trace.facingRaise).toBe(true)
+    if ('advice' in v) expect(v.trace.raiseBb).toBe(6)
+    expect(call.correct).toBe(false) // calling 76s vs a large raise is the leak
+    expect(gradeSpot(facingRaise, 1).correct).toBe(true) // folding is correct
+  })
 })
 
 describe('gradeSpot — declarative carve-out', () => {

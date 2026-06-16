@@ -1,5 +1,6 @@
 /**
- * The **Foundations primer** — the six concept lessons the coach assumes (tickets 0042 / 0045).
+ * The **Foundations primer** — the lessons that teach the six concepts the coach assumes (tickets
+ * 0042 / 0045 / 0071).
  *
  * This module is *content*, not engine: it is the declarative layer of the learning approach
  * ([../../../docs/LEARNING-APPROACH.md]). The coach narrates a live spot in terms of six mental
@@ -9,9 +10,12 @@
  * is a ~30-second plain-language teach followed by a {@link Spot} the player must *answer* — the
  * retrieval check is the lesson; the prose is just the setup.
  *
- * **Scope discipline (the epic's rule): a primer, not a course.** Exactly six lessons, each earning
- * its ~30 seconds. Depth lives in the feedback loop — the live coach, the M5 drills, M6 — not in more
- * reading here. We resisted padding this into a textbook.
+ * **Scope discipline (the epic's rule): a primer, not a course.** Still **six concepts** — but seven
+ * lessons, because the v2 facing-a-raise lesson (ticket 0071) reuses the `ranges` concept rather than
+ * extending the union. Each lesson earns its ~30 seconds; we add a lesson only when a concept has a
+ * second, distinct must-teach angle (open-or-fold vs. facing-a-raise), never to pad. Depth lives in
+ * the feedback loop — the live coach, the M5 drills, M6 — not in more reading here. We resisted
+ * padding this into a textbook.
  *
  * **Coach-true by construction (the cardinal rule).** Wherever the deterministic coach *can* rule, a
  * lesson's spot is graded by the coach, never by a hand-authored answer key — so a future coach
@@ -56,6 +60,17 @@ const CALL = { label: 'Call', action: { type: 'call' } } as const
 const CHECK = { label: 'Check', action: { type: 'check' } } as const
 const FOLD = { label: 'Fold', action: { type: 'fold' } } as const
 const OPEN = { label: 'Open (raise)', action: { type: 'raise', amount: 6 } } as const
+/**
+ * A 3-bet (re-raise) answer button for the facing-a-raise lesson. NB to the grader a 3-bet and a Call
+ * are *both* non-fold "continue" actions, so `gradePreflop` rules them identically — the coach cannot
+ * distinguish call from 3-bet (see the facing-a-raise lesson note). It is offered as a teaching choice
+ * (and explained in the copy), but the *graded* point stays continue-vs-fold.
+ *
+ * The `amount` is grading-inert: `gradePreflop` reads only `action.type` (`'raise'` here = a non-fold
+ * continue), never the size, so the figure is not anchored to any number in the copy and any raise
+ * amount would grade identically. It is kept as a plausible 3-bet sizing purely for shape.
+ */
+const THREE_BET = { label: '3-bet (re-raise)', action: { type: 'raise', amount: 24 } } as const
 
 // ---------------------------------------------------------------------------------------------------
 // 1. equity — your share of the pot.
@@ -346,12 +361,93 @@ const RANGES_LESSON: Lesson = {
   spots: [RANGES_PREMIUM_SPOT, RANGES_TRASH_SPOT],
 }
 
+// ---------------------------------------------------------------------------------------------------
+// 7. facing a preflop raise — call / fold / 3-bet against a single raiser (concept: ranges).
+// ---------------------------------------------------------------------------------------------------
+//
+// The most common real decision, and the inverse of the open-or-fold the position/ranges lessons
+// teach: someone has already raised — do I call, fold, or re-raise? Graded by the *raise-aware*
+// `gradePreflop` (ticket 0053), NOT an answer key: a faced raise narrows the continue range, and the
+// chart's defend standard (`facingRaiseAdvice`) tightens it by price and seat. This is the first
+// PreflopSpot to set `facingRaiseBb`, which threads the raise into the synthesised context so
+// `gradePreflop` sees `currentBet > bigBlind` and takes its defend path (`trace.facingRaise === true`).
+//
+// Two coach-true spots bracket the decision:
+//   - A speculative hand (76s, the `playable` tier) in early position — out of position — facing a LARGE 6 BB raise.
+//     At ≥ LARGE_RAISE_MIN_BB the price collapses the range to value only (strong+), so the chart
+//     folds 76s: fold is correct, calling is the leak. (concept 'ranges'.)
+//   - A marginal hand (KJo, the `marginal` tier) in the BIG BLIND facing a SMALL 3 BB raise. Below
+//     LARGE_RAISE_MIN_BB the big blind *defends* wide (BUG-0007) — the posted-blind discount + closing
+//     the action justify continuing down to `marginal` — so the chart says continue: calling is
+//     correct, folding is the leak. Since the coach grades any non-fold as "continue", a Call and a
+//     3-bet grade identically here; the graded teaching point is continue-vs-fold.
+// Both grade through the facing-raise path; `foundations.test.ts` proves the coach's actual ruling.
+
+/** facing-a-raise spot A: 76s in early position vs a large 6 BB raise — the chart folds it; fold correct, call leak. */
+const FACING_RAISE_FOLD_SPOT: PreflopSpot = {
+  kind: 'preflop',
+  prompt:
+    'You are in EARLY POSITION (out of position, most of the table still to act behind you) with ' +
+    '7♥6♥, a suited connector. The player under the gun raises big, to 6 big blinds, before it gets ' +
+    'to you. A raise this large usually means a strong, narrow range — and your speculative hand ' +
+    'plays badly out of position for a steep price. Call or fold?',
+  choices: [CALL, FOLD],
+  holeCards: hole('7h 6h'),
+  // Early position at a 6-max table: button at seat 3 ⇒ sb=4, bb=5, UTG=0, hero in seat 1 (UTG+1).
+  // The under-the-gun player (seat 0) opens before the hero; the cutoff (seat 2) and button (seat 3)
+  // are still to act behind. classifyPosition buckets seat 1 'early', so the hero is out of position
+  // facing the raise — and the grade is position-independent on the large-raise band anyway
+  // (facingRaiseAdvice collapses to value-only regardless of seat ≥ LARGE_RAISE_MIN_BB).
+  seat: 1,
+  buttonIndex: 3,
+  numPlayers: 6,
+  // A large raise (≥ LARGE_RAISE_MIN_BB = 5, below the 3-bet band): value-only continues, so 76s folds.
+  facingRaiseBb: 6,
+}
+
+/** facing-a-raise spot B: KJo defending the big blind vs a small 3 BB raise — continue correct, fold leak. */
+const FACING_RAISE_DEFEND_SPOT: PreflopSpot = {
+  kind: 'preflop',
+  prompt:
+    'You are in the BIG BLIND with K♣J♦. It folds to a late player who makes a small raise, to 3 ' +
+    'big blinds. You already posted the big blind, so you get a discount to call and you close the ' +
+    'action. Folding, calling, and 3-betting (re-raising) are all on the table. Call, fold, or 3-bet?',
+  choices: [CALL, FOLD, THREE_BET],
+  holeCards: hole('Kc Jd'),
+  // The big blind at a 6-max table: button at seat 3 ⇒ bb = (3+2) mod 6 = 5. classifyPosition buckets
+  // seat 5 'big-blind', so the wide BB-defend standard applies.
+  seat: 5,
+  buttonIndex: 3,
+  numPlayers: 6,
+  // A small raise (below LARGE_RAISE_MIN_BB = 5): the big blind defends down to the marginal tier.
+  facingRaiseBb: 3,
+}
+
+const FACING_RAISE_LESSON: Lesson = {
+  id: 'foundations-facing-a-raise',
+  title: 'Facing a raise: call, fold, or 3-bet',
+  concept: 'ranges',
+  explanation:
+    'Often you are not first to act — someone has already raised, and your choice is call, fold, or ' +
+    '3-bet (a 3-bet is simply a re-raise: you raise their raise). A raise is a strength signal: it ' +
+    'narrows what you should continue with far below the hands you would open yourself, because now ' +
+    'you must beat a hand that already wanted chips in. Two things steer the call: the raise size and ' +
+    'your position. A small raise is a cheap price, so continue wider; a big raise is expensive and ' +
+    'means a stronger range, so fold all but your best hands. Acting last (in position) lets you ' +
+    'continue a bit wider. Rules of thumb: fold speculative junk to a big raise out of position; ' +
+    'flat your good-but-not-great hands at the right price; and 3-bet your premiums (big pairs, A-K) ' +
+    'to build the pot and take the lead. One special seat: in the big blind you already posted a ' +
+    'blind, so you defend wider against a small raise.',
+  spots: [FACING_RAISE_FOLD_SPOT, FACING_RAISE_DEFEND_SPOT],
+}
+
 /**
- * The Foundations primer — the six concept lessons, in teaching order: equity → pot odds → the
- * continue rule that combines them → EV (the same rule in chips) → position → ranges. The lesson
- * player walks this front-to-back; M5 drills and both shells reuse it. Every spot is coach- or
- * chart-graded (no declarative carve-out), so the primer can never silently disagree with the live
- * coach — `foundations.test.ts` proves each spot's verdict.
+ * The Foundations primer — the original six concept lessons (equity → pot odds → the continue rule
+ * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 facing-a-raise
+ * lesson appended here (ticket 0071). The final canonical ordering is ticket 0075's job; for now we
+ * append. The lesson player walks this front-to-back; M5 drills and both shells reuse it. Every spot
+ * is coach- or chart-graded (no declarative carve-out), so the primer can never silently disagree
+ * with the live coach — `foundations.test.ts` proves each spot's verdict.
  */
 export const FOUNDATIONS: readonly Lesson[] = [
   EQUITY_LESSON,
@@ -360,4 +456,5 @@ export const FOUNDATIONS: readonly Lesson[] = [
   EV_LESSON,
   POSITION_LESSON,
   RANGES_LESSON,
+  FACING_RAISE_LESSON,
 ]

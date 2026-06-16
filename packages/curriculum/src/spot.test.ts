@@ -68,6 +68,46 @@ describe('synthesizeContext', () => {
     expect(priced.raise).not.toBeNull()
   })
 
+  it('builds an unraised pot by default (currentBet === bigBlind on the preflop path)', () => {
+    // No facingRaiseBb ⇒ the pre-existing behaviour: a preflop open synthesises currentBet from the
+    // (zero) toCall, so it never exceeds the big blind — gradePreflop reads this as an unraised pot.
+    const out = synthesizeContext(ctx({ board: [], pot: 0, toCall: 0 }), {
+      seat: 0,
+      buttonIndex: 3,
+      numPlayers: 6,
+    })
+    expect(out.currentBet).toBeLessThanOrEqual(out.bigBlind)
+    expect(out.currentBet).toBe(0) // byte-for-byte the old synthesis (currentBet = toCall = 0)
+    expect(out.pot).toBe(0)
+  })
+
+  it('threads facingRaiseBb into a raised context (currentBet > bigBlind, rounds back to the size)', () => {
+    const out = synthesizeContext(ctx({ board: [], pot: 0, toCall: 0 }), {
+      seat: 5,
+      buttonIndex: 3,
+      numPlayers: 6,
+      facingRaiseBb: 6,
+    })
+    // currentBet must exceed the big blind so gradePreflop's facingRaise test fires…
+    expect(out.currentBet).toBeGreaterThan(out.bigBlind)
+    // …and round(currentBet / bigBlind) must recover exactly the authored size.
+    expect(Math.round(out.currentBet / out.bigBlind)).toBe(6)
+    // toCall is the whole raise (the hero is uncommitted) and the pot is the coherent blinds + raise.
+    expect(out.toCall).toBe(out.currentBet)
+    expect(out.pot).toBe(out.smallBlind + out.bigBlind + out.currentBet)
+  })
+
+  it('rejects a facingRaiseBb that is not actually a raise', () => {
+    expect(() =>
+      synthesizeContext(ctx({ board: [] }), {
+        seat: 0,
+        buttonIndex: 3,
+        numPlayers: 6,
+        facingRaiseBb: 1,
+      }),
+    ).toThrow(/facingRaiseBb/)
+  })
+
   it('rejects malformed spots in the RangeError idiom', () => {
     expect(() => synthesizeContext(ctx({ holeCards: [parseCards('As')[0]!] as never }))).toThrow(
       RangeError,

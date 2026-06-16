@@ -79,7 +79,9 @@ export function LearnView({
         <div className="learn">
           <div className="learn-head">
             <h1>Learn the fundamentals</h1>
-            <div className="lh-sub">Six ideas the coach assumes you know. ~30 seconds each.</div>
+            <div className="lh-sub">
+              The fundamentals the coach assumes you know. ~30 seconds each.
+            </div>
             <div className="progress-meter">
               <div className="pm-track">
                 <div className="pm-fill" style={{ width: `${(progress / count) * 100}%` }} />

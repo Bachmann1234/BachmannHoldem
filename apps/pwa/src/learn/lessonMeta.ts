@@ -69,6 +69,10 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
     subtitle: 'acting later is an edge',
     teaser: 'Acting later lets you play more hands.',
   },
+  'foundations-facing-a-raise': {
+    subtitle: 'call, fold, or 3-bet',
+    teaser: 'Someone raised — call, fold, or 3-bet?',
+  },
   'foundations-ranges': {
     subtitle: 'think in strength tiers',
     teaser: 'Sort hands into strength tiers.',

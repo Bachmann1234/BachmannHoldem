@@ -52,14 +52,14 @@ describe('App — Foundations primer flow', () => {
     fireEvent.click(screen.getByTestId('lesson-0'))
     finishOpenLesson(FOUNDATIONS[0]!.spots.length)
 
-    // Back on the path, the progress meter advanced to 1 / 6 and lesson 2 is now unlocked.
+    // Back on the path, the progress meter advanced to 1 / N and lesson 2 is now unlocked.
     const learn = screen.getByTestId('learn')
     expect(learn).toBeTruthy()
-    expect(learn.textContent).toContain('1 / 6')
+    expect(learn.textContent).toContain(`1 / ${FOUNDATIONS.length}`)
     expect((screen.getByTestId('lesson-1') as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('completing all six lessons shows the end-of-primer hand-off; its Play CTA switches tabs', () => {
+  it('completing all lessons shows the end-of-primer hand-off; its Play CTA switches tabs', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={memoryStore()} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
 
@@ -71,7 +71,7 @@ describe('App — Foundations primer flow', () => {
     // The path hands off to the end-of-primer celebration.
     const end = screen.getByTestId('end-of-primer')
     expect(end).toBeTruthy()
-    // The recap lists all six lessons by title.
+    // The recap lists all lessons by title.
     for (const lesson of FOUNDATIONS) {
       expect(end.textContent).toContain(lesson.title)
     }
