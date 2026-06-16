@@ -3,7 +3,7 @@ id: 0080
 title: Spaced repetition of missed drill spots — persist and re-queue
 type: feature
 status: todo
-milestone: M6
+milestone: M5.5
 priority: medium
 created: 2026-06-16
 ---
@@ -29,7 +29,12 @@ can persist it" — this is that M6 follow-through.
 
 ## Notes
 
-**Cross-milestone:** tagged **M6** because it depends on durable storage
+**Pulled into M5.5 (2026-06-16).** Retagged `M6 → M5.5`: the IndexedDB store pattern this reuses
+(`IndexedDbHandHistoryStore`, `progressStore`) already exists, so this was never technically gated on
+unbuilt M6 infra — the M6 tag was a coordination note. Built as the **shared** durable store M6 stats
+will consume, not a drills-only silo (see the scope note in [[0076-drills-v2]]).
+
+**Cross-milestone:** originally tagged **M6** because it depends on durable storage
 ([[0010-stats-and-leak-detection]]), but it is the retention payoff of the M5.5 Drills v2 epic
 ([[0076-drills-v2]]) — coordinate the two. Sequence after the M6 stats persistence layer exists so
 both share one storage approach rather than inventing a second. Feeds naturally into per-concept

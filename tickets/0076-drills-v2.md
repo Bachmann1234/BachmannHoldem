@@ -2,7 +2,7 @@
 id: 0076
 title: 'Epic: Drills v2 — calculation reps, board reading, deeper feedback'
 type: epic
-status: todo
+status: in-progress
 milestone: M5.5
 priority: medium
 created: 2026-06-16
@@ -59,3 +59,22 @@ lift, so coordinate with the M6 stats work before building durable mistake stora
 Don't position drills as a substitute for playing volume (the [[0009-drills-and-quizzes]] /
 LEARNING-APPROACH discipline still holds). Update `docs/ROADMAP.md` to name M4.6 and M5.5 when this
 is pulled.
+
+## Decomposition / scope (M5.5 run, started 2026-06-16)
+
+Pulled as a single milestone branch `feat/m5.5-drills-v2`. The five tickets below are worked in
+dependency order; each is committed individually after a `/code-review` pass.
+
+1. [[0077-drills-calculation-spots]] — new coach-derived **calculation** spot kind (highest leverage).
+2. [[0078-drills-board-reading-and-actions]] — hand-ranking theme, turn/river spots, richer actions.
+3. [[0079-drills-feedback-depth-and-crosslinks]] — show-the-math feedback + chart/glossary cross-links.
+4. [[0080-drills-spaced-repetition]] — durable missed-spot store + re-queue.
+5. [[0081-drills-mastery-difficulty-glossary]] — per-concept mastery, adaptive difficulty, cheat-sheet.
+
+**Scope decision (owner-confirmed):** do **all five**, including [[0080-drills-spaced-repetition]]
+(originally tagged M6) and the persistence-bound parts of [[0081-drills-mastery-difficulty-glossary]].
+The "straddles M6" tag was a _coordination_ note (don't invent a second storage approach), not a
+missing technical dependency: the IndexedDB store pattern already exists
+(`apps/pwa/src/history/store.ts` `IndexedDbHandHistoryStore`, `apps/pwa/src/learn/progressStore.ts`).
+So the durable mistake/mastery store is built **reusing that pattern as the shared layer M6 stats
+will consume** — not a drills-only silo. 0080 is retagged `M5.5` to reflect being pulled forward.
