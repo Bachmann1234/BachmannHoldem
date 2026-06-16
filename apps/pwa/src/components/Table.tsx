@@ -16,6 +16,7 @@
  */
 
 import { handWinners, isComplete, type HandState } from '@holdem/engine'
+import type { LevelStatus } from '@holdem/session'
 import { Center } from './Center.js'
 import { Seat } from './Seat.js'
 import { CENTER, lerp, SEAT_LAYOUTS } from './layout.js'
@@ -34,6 +35,12 @@ export interface TableProps {
   /** The session hand number, for the top bar. */
   readonly handNumber: number
   /**
+   * The tournament level in force, when the session is in tournament mode — drives the top-bar level
+   * chip (current level, blinds, and a hint of when the next step-up lands). Omitted in cash mode, so
+   * the top bar renders exactly as before.
+   */
+  readonly tournament?: LevelStatus
+  /**
    * Optional overlay rendered inside the felt, on top of the seats — the coach FAB (ticket 0036)
    * lives here so its `position:absolute` anchors to the felt, exactly like the design's `.coach-fab`.
    */
@@ -46,6 +53,7 @@ export function Table({
   heroSeat,
   seatLabel,
   handNumber,
+  tournament,
   overlay,
 }: TableProps): React.JSX.Element {
   const complete = isComplete(hand)
@@ -69,6 +77,21 @@ export function Table({
           </div>
         </div>
         <div className="topbar-right">
+          {tournament ? (
+            <div
+              className="chip-counter level-chip"
+              data-testid="level"
+              aria-label={
+                `Level ${tournament.level}, blinds ${tournament.blinds.sb}/${tournament.blinds.bb}, ` +
+                (tournament.atTop
+                  ? 'top level — blinds no longer rise'
+                  : `next level in ${tournament.handsUntilNext} hand${tournament.handsUntilNext === 1 ? '' : 's'}`)
+              }
+            >
+              LVL {tournament.level} · {tournament.blinds.sb}/{tournament.blinds.bb}
+              {tournament.atTop ? ' · TOP' : ` · ↑${tournament.handsUntilNext}`}
+            </div>
+          ) : null}
           <div className="chip-counter" data-testid="bank">
             BANK {heroStack}
           </div>

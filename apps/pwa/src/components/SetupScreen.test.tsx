@@ -113,4 +113,21 @@ describe('SetupScreen', () => {
     screen.getByRole('button', { name: /Deal in/ }).click()
     expect(onStart).toHaveBeenCalledOnce()
   })
+
+  it('defaults to cash mode and toggles to tournament, surfacing the escalation hint', () => {
+    render(<Harness seats={2} />)
+    const cash = screen.getByTestId('mode-cash')
+    const tourney = screen.getByTestId('mode-tournament')
+    expect(cash.className).toContain('active')
+    expect(tourney.getAttribute('aria-pressed')).toBe('false')
+    // Cash: the blinds card reads "Blinds … fixed for the session".
+    expect(screen.getByText(/fixed for the session/)).toBeTruthy()
+
+    act(() => tourney.click())
+    expect(tourney.className).toContain('active')
+    expect(cash.getAttribute('aria-pressed')).toBe('false')
+    // Tournament: the format hint mentions the escalation cadence and the blinds become the start.
+    expect(screen.getByText(/blinds rise every \d+ hands/)).toBeTruthy()
+    expect(screen.getByText(/climbs from here/)).toBeTruthy()
+  })
 })

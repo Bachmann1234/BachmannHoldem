@@ -31,12 +31,15 @@ import { isComplete, legalActions, type Action, type Card, type LegalActions } f
 import { decisionContext, type Opponent } from '@holdem/bots'
 import {
   createInitialModel,
+  DEFAULT_BLIND_LEVEL,
+  DEFAULT_MODE,
   opponentReads,
   reducer,
   shuffledDeck,
   shuffledOpponentNames,
   actionIsLegal,
   makeBot,
+  tournamentLevel,
   type InitialModelOptions,
   type Model,
   type SessionPlayer,
@@ -548,6 +551,12 @@ function Session({
   // footer inside the same shell, so they share one flex column via the `.app-stack` wrapper (which
   // makes the nested `.app` flow inline rather than claim its own 100dvh).
   const legal: LegalActions | null = isHeroTurn && hand !== null ? legalActions(hand) : null
+  // In tournament mode, the top bar shows the current level; cash mode passes `undefined` and the bar
+  // renders exactly as before. Derived from the hand number (not stored), matching the reducer.
+  const tournament =
+    (model.setup.mode ?? DEFAULT_MODE) === 'tournament'
+      ? tournamentLevel(model.setup.blinds ?? DEFAULT_BLIND_LEVEL, model.handNumber)
+      : undefined
   return (
     <div className="app-stack">
       {hand !== null ? (
@@ -555,6 +564,7 @@ function Session({
           hand={hand}
           heroSeat={heroSeat}
           handNumber={model.handNumber}
+          tournament={tournament}
           seatLabel={(seat) => seatLabelFor(model, seat)}
           overlay={
             <>

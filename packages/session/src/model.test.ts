@@ -7,7 +7,15 @@
 
 import { describe, it, expect } from 'vitest'
 import { makeDeck, formatCard } from '@holdem/engine'
-import { shuffledDeck } from './model.js'
+import {
+  BLIND_LADDER,
+  BLIND_PRESETS,
+  DEFAULT_BLIND_LEVEL,
+  sessionBlinds,
+  shuffledDeck,
+  tournamentLevel,
+  TOURNAMENT_LEVEL_LENGTH,
+} from './model.js'
 
 describe('shuffledDeck', () => {
   it('returns a full 52-card permutation of a fresh deck (no missing or duplicate cards)', () => {
@@ -18,5 +26,69 @@ describe('shuffledDeck', () => {
     // It is exactly the set of cards a fresh deck has — a permutation, nothing added or dropped.
     const expected = new Set(makeDeck().map(formatCard))
     expect(seen).toEqual(expected)
+  })
+})
+
+describe('tournamentLevel', () => {
+  it('keeps the cash presets as the bottom rungs of the ladder', () => {
+    // BLIND_PRESETS must be a genuine prefix of the ladder so a chosen preset is a rung to climb from.
+    expect(BLIND_LADDER.slice(0, BLIND_PRESETS.length)).toEqual(BLIND_PRESETS)
+  })
+
+  it('steps up exactly one rung every level-length hands, starting from the chosen rung', () => {
+    const start = DEFAULT_BLIND_LEVEL // 1/2 — the ladder's first rung
+    // Hands 1..4 are level 1; hand 5 is level 2 — the schedule boundary at level-length = 4.
+    expect(tournamentLevel(start, 1).level).toBe(1)
+    expect(tournamentLevel(start, 1).blinds).toEqual({ sb: 1, bb: 2 })
+    expect(tournamentLevel(start, TOURNAMENT_LEVEL_LENGTH).level).toBe(1) // hand 4: still level 1
+    expect(tournamentLevel(start, TOURNAMENT_LEVEL_LENGTH + 1).level).toBe(2) // hand 5: stepped up
+    expect(tournamentLevel(start, TOURNAMENT_LEVEL_LENGTH + 1).blinds).toEqual({ sb: 2, bb: 5 })
+    // Two boundaries later: hand 9 is level 3.
+    expect(tournamentLevel(start, 2 * TOURNAMENT_LEVEL_LENGTH + 1).blinds).toEqual({
+      sb: 5,
+      bb: 10,
+    })
+  })
+
+  it('counts down the hands remaining until the next step-up across a level', () => {
+    const start = DEFAULT_BLIND_LEVEL
+    expect(tournamentLevel(start, 1).handsUntilNext).toBe(4) // full level ahead
+    expect(tournamentLevel(start, 4).handsUntilNext).toBe(1) // last hand of the level
+    expect(tournamentLevel(start, 5).handsUntilNext).toBe(4) // fresh level, counter resets
+  })
+
+  it('starts the climb from a non-default chosen rung (5/10) and tops out at the ladder ceiling', () => {
+    const start = { sb: 5, bb: 10 } // the third rung
+    expect(tournamentLevel(start, 1).blinds).toEqual({ sb: 5, bb: 10 })
+    expect(tournamentLevel(start, 5).blinds).toEqual({ sb: 10, bb: 20 }) // one rung up
+    // Climb far past the end: the level pins to the ladder's top rung and stops escalating.
+    const top = BLIND_LADDER[BLIND_LADDER.length - 1]!
+    const wayPast = tournamentLevel(start, 1000)
+    expect(wayPast.blinds).toEqual(top)
+    expect(wayPast.atTop).toBe(true)
+    expect(wayPast.handsUntilNext).toBe(0)
+  })
+
+  it('floors a degenerate hand number at level 1 rather than going negative', () => {
+    expect(tournamentLevel(DEFAULT_BLIND_LEVEL, 0).level).toBe(1)
+    expect(tournamentLevel(DEFAULT_BLIND_LEVEL, 0).blinds).toEqual({ sb: 1, bb: 2 })
+  })
+})
+
+describe('sessionBlinds', () => {
+  const base = { seats: 2, opponents: ['tag'] as const, startingStack: 200 }
+
+  it('returns the fixed chosen level every hand in cash mode (and as the default)', () => {
+    const setup = { ...base, blinds: { sb: 2, bb: 5 }, mode: 'cash' as const }
+    expect(sessionBlinds(setup, 1)).toEqual({ sb: 2, bb: 5 })
+    expect(sessionBlinds(setup, 50)).toEqual({ sb: 2, bb: 5 }) // never escalates
+    // Mode absent → cash by default, still fixed.
+    expect(sessionBlinds({ ...base, blinds: { sb: 2, bb: 5 } }, 50)).toEqual({ sb: 2, bb: 5 })
+  })
+
+  it('escalates each hand in tournament mode, tracking the level schedule', () => {
+    const setup = { ...base, blinds: DEFAULT_BLIND_LEVEL, mode: 'tournament' as const }
+    expect(sessionBlinds(setup, 1)).toEqual({ sb: 1, bb: 2 })
+    expect(sessionBlinds(setup, TOURNAMENT_LEVEL_LENGTH + 1)).toEqual({ sb: 2, bb: 5 })
   })
 })

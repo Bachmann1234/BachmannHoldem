@@ -202,6 +202,12 @@ body {
   padding: 5px 9px;
   border-radius: var(--radius-pill);
 }
+/* The tournament level chip — accented so the escalating-blinds status reads apart from the bank. */
+.level-chip {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
 
 /* ============ table / felt ============ */
 .table {

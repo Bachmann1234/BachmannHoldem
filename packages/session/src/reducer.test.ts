@@ -37,6 +37,7 @@ import {
   shuffledOpponentNames,
   stackForDepthBb,
   STARTING_STACK,
+  TOURNAMENT_LEVEL_LENGTH,
   type SessionPlayer,
 } from './model.js'
 import { reducer } from './reducer.js'
@@ -197,6 +198,24 @@ describe('reducer — setup phase', () => {
     expect(stackForDepthBb(25, 10)).toBe(250)
   })
 
+  it('defaults to cash mode, and set-mode chooses tournament (leaving the chosen blinds as the start)', () => {
+    let model = createInitialModel({ seats: 2, blinds: { sb: 2, bb: 5 }, startingStack: 100 })
+    expect(model.setup.mode).toBe('cash')
+    model = reducer(model, { type: 'set-mode', mode: 'tournament' })
+    expect(model.setup.mode).toBe('tournament')
+    // The starting blinds and the chips are untouched — only the escalation rule changed.
+    expect(model.setup.blinds).toEqual({ sb: 2, bb: 5 })
+    expect(model.setup.startingStack).toBe(100)
+  })
+
+  it('set-mode is a no-op outside setup', () => {
+    const playing = reducer(createInitialModel({ seats: 2 }), {
+      type: 'start-hand',
+      deck: makeDeck(),
+    })
+    expect(reducer(playing, { type: 'set-mode', mode: 'tournament' })).toBe(playing)
+  })
+
   it('ignores session messages while in setup, except start-hand', () => {
     const model = createInitialModel({ seats: 2 })
     expect(reducer(model, { type: 'apply-action', action: { type: 'call' } })).toBe(model)
@@ -243,6 +262,27 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
     const deck2 = buildDeck(2, 1, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
     model = reducer(model, { type: 'start-hand', deck: deck2 })
     expect(model.hand!.smallBlind).toBe(2)
+    expect(model.hand!.bigBlind).toBe(5)
+  })
+
+  it('escalates the blinds across play-again hands in tournament mode', () => {
+    // Tournament from the 1/2 starting rung. Hand 1 deals the starting level…
+    let model = reducer(
+      createInitialModel({ seats: 2, blinds: DEFAULT_BLIND_LEVEL, mode: 'tournament' }),
+      { type: 'start-hand', deck: makeDeck() },
+    )
+    expect(model.handNumber).toBe(1)
+    expect(model.hand!.bigBlind).toBe(2) // level 1: 1/2
+    // …then end each heads-up hand in a single fold (whoever is first to act) and deal again. With
+    // level-length 4, hand 5 is the first at the next rung — the reducer must re-derive the blinds
+    // from the new hand number, not freeze the starting level.
+    for (let n = 2; n <= TOURNAMENT_LEVEL_LENGTH + 1; n++) {
+      model = reducer(model, { type: 'apply-action', action: { type: 'fold' } })
+      expect(model.phase).toBe('hand-over') // a folded blind never busts anyone here
+      model = reducer(model, { type: 'start-hand', deck: makeDeck() })
+      expect(model.handNumber).toBe(n)
+    }
+    expect(model.hand!.smallBlind).toBe(2) // level 2: 2/5 — escalated at the boundary
     expect(model.hand!.bigBlind).toBe(5)
   })
 

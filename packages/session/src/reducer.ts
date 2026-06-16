@@ -30,6 +30,7 @@ import {
   defaultOpponents,
   depthBbForStack,
   rotateButton,
+  sessionBlinds,
   sessionOver,
   stackForDepthBb,
   BOT_KINDS,
@@ -39,6 +40,7 @@ import {
   type BotKind,
   type CoachResult,
   type Model,
+  type SessionMode,
 } from './model.js'
 
 /**
@@ -57,7 +59,9 @@ import {
  * - `'set-blinds'` — choose the blind level (a {@link BlindLevel} pair from {@link BLIND_PRESETS});
  *   stored on the setup selection and frozen into the hand at deal. Because stack depth is
  *   denominated in big blinds, this also re-chips `startingStack` so the selected bb-depth stays
- *   honest at the new level.
+ *   honest at the new level. In tournament mode this is the *starting* rung the schedule climbs from.
+ * - `'set-mode'` — choose Cash (fixed blinds) vs Tournament (escalating); stored on the setup
+ *   selection and read each hand by {@link sessionBlinds} to decide whether the blinds advance.
  * - `'cycle-opponent'` — cycle one opponent seat through the four presets (the TUI's per-seat
  *   setup editor still drives the mix this way; the PWA uses count-based `adjust-mix` instead).
  *
@@ -79,6 +83,7 @@ export type Msg =
   | { readonly type: 'set-opponents'; readonly opponents: readonly BotKind[] }
   | { readonly type: 'set-stack'; readonly startingStack: number }
   | { readonly type: 'set-blinds'; readonly blinds: BlindLevel }
+  | { readonly type: 'set-mode'; readonly mode: SessionMode }
   | { readonly type: 'cycle-opponent'; readonly opponentIndex: number; readonly direction?: 1 | -1 }
   | {
       readonly type: 'start-hand'
@@ -113,6 +118,9 @@ export function reducer(model: Model, msg: Msg): Model {
 
     case 'set-blinds':
       return setBlinds(model, msg.blinds)
+
+    case 'set-mode':
+      return setMode(model, msg.mode)
 
     case 'cycle-opponent':
       return cycleOpponent(model, msg.opponentIndex, msg.direction ?? 1)
@@ -232,6 +240,17 @@ function setBlinds(model: Model, blinds: BlindLevel): Model {
 }
 
 /**
+ * Setup edit: choose the session mode — Cash (fixed blinds) vs Tournament (escalating). Stored on the
+ * setup selection; {@link sessionBlinds} reads it each hand to decide whether the blinds advance. The
+ * chosen {@link BlindLevel} is unchanged (in tournament mode it becomes the starting rung), so the
+ * stack depth needs no re-chipping here. No-op outside `'setup'`.
+ */
+function setMode(model: Model, mode: SessionMode): Model {
+  if (model.phase !== 'setup') return model
+  return { ...model, setup: { ...model.setup, mode } }
+}
+
+/**
  * Deal a hand from a shell-supplied (already-shuffled) `deck` and enter `'playing'`. Two entries:
  *
  * - From `'setup'`: freeze the selection into the stable {@link SessionPlayer} list (hero id 0 plus
@@ -251,9 +270,9 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
     // The hero (id 0) takes the first button — a deterministic, documented start; it rotates from
     // here every subsequent hand.
     const buttonId = 0
-    // Freeze the chosen blind level into the hand (the only place blinds enter a hand). The level is
-    // fixed for the session, so it lives on `setup.blinds` and every later hand reads the same value.
-    const blinds = model.setup.blinds ?? DEFAULT_BLIND_LEVEL
+    // Freeze the blinds for this hand (the only place blinds enter a hand). Cash mode reads the fixed
+    // chosen level; tournament mode derives the escalated level from the hand number — hand 1 here.
+    const blinds = sessionBlinds(model.setup, 1)
     const { hand, seatToId, heroSeat } = dealHand(players, buttonId, deck, blinds)
     return {
       ...model,
@@ -270,8 +289,10 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
 
   if (model.phase === 'hand-over') {
     const buttonId = rotateButton(model.players, model.buttonId)
-    // Same fixed blind level as the first hand — chosen once at setup, never escalates this session.
-    const blinds = model.setup.blinds ?? DEFAULT_BLIND_LEVEL
+    // Freeze this hand's blinds. Cash mode keeps the fixed level; tournament mode re-derives from the
+    // *next* hand number, so the blinds step up as the count crosses each level boundary.
+    const nextHandNumber = model.handNumber + 1
+    const blinds = sessionBlinds(model.setup, nextHandNumber)
     const { hand, seatToId, heroSeat } = dealHand(model.players, buttonId, deck, blinds)
     return {
       ...model,

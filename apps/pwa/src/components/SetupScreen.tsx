@@ -17,6 +17,7 @@ import {
   BOT_LABELS,
   countsByKind,
   DEFAULT_BLIND_LEVEL,
+  DEFAULT_MODE,
   depthBbForStack,
   MAX_SEATS,
   MIN_SEATS,
@@ -24,7 +25,9 @@ import {
   STACK_DEPTH_PRESETS_BB,
   STARTING_STACK,
   stackForDepthBb,
+  TOURNAMENT_LEVEL_LENGTH,
   type Msg,
+  type SessionMode,
   type SetupState,
 } from '@holdem/session'
 import { TabBar } from './TabBar.js'
@@ -65,6 +68,10 @@ export function SetupScreen({
   // The chosen blind level — same optional-with-default shape as `startingStack`. Stack depth is
   // denominated in big blinds, so every depth read below uses `blinds.bb`, not a fixed constant.
   const blinds = setup.blinds ?? DEFAULT_BLIND_LEVEL
+  // Cash (fixed blinds) vs Tournament (escalating) — same optional-with-default shape. In tournament
+  // mode the chosen blinds are the *starting* level the schedule climbs from.
+  const mode = setup.mode ?? DEFAULT_MODE
+  const isTournament = mode === 'tournament'
 
   return (
     <div className="app" data-testid="setup">
@@ -150,9 +157,45 @@ export function SetupScreen({
         <div className="setup-card">
           <div className="setup-row">
             <div className="setup-label">
-              Blinds
+              Format
               <span className="hint">
-                {blinds.sb}/{blinds.bb} · fixed for the session · bigger = higher stakes
+                {isTournament
+                  ? `tournament · blinds rise every ${TOURNAMENT_LEVEL_LENGTH} hands`
+                  : 'cash · blinds stay fixed all session'}
+              </span>
+            </div>
+            <div className="sizes" role="group" aria-label="Session format">
+              {(['cash', 'tournament'] as const).map((m: SessionMode) => {
+                const selected = m === mode
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    className={'size-btn' + (selected ? ' active' : '')}
+                    data-testid={`mode-${m}`}
+                    aria-pressed={selected}
+                    aria-label={
+                      m === 'cash' ? 'Cash game — fixed blinds' : 'Tournament — escalating blinds'
+                    }
+                    onClick={() => dispatch({ type: 'set-mode', mode: m })}
+                  >
+                    {m === 'cash' ? 'Cash' : 'Tournament'}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="setup-card">
+          <div className="setup-row">
+            <div className="setup-label">
+              {isTournament ? 'Starting blinds' : 'Blinds'}
+              <span className="hint">
+                {blinds.sb}/{blinds.bb} ·{' '}
+                {isTournament
+                  ? 'climbs from here'
+                  : 'fixed for the session · bigger = higher stakes'}
               </span>
             </div>
             <div className="sizes" role="group" aria-label="Blind level">

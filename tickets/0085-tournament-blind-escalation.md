@@ -2,7 +2,7 @@
 id: 0085
 title: Tournament mode — escalate blinds over time
 type: feature
-status: todo
+status: done
 milestone: stretch
 priority: low
 created: 2026-06-16
@@ -18,13 +18,14 @@ and a schedule — more than the "smallish" picker.
 
 ## Acceptance criteria
 
-- [ ] A setup option to choose Cash (fixed, today's behaviour) vs Tournament (escalating).
-- [ ] In tournament mode, blinds advance through a level schedule (e.g. every N hands) — the
-      reducer owns the current level and advances it deterministically (pure, testable).
-- [ ] The table surfaces the current level / blinds and a hint about when the next level hits.
-- [ ] Cash mode is completely unaffected; the fixed-blinds picker (0084) still works.
-- [ ] Pure-package tests cover level advancement and the schedule boundaries.
-- [ ] `pnpm verify` green.
+- [x] A setup option to choose Cash (fixed, today's behaviour) vs Tournament (escalating).
+- [x] In tournament mode, blinds advance through a level schedule (every N hands) — the
+      reducer derives the current level deterministically from the hand number it already bumps
+      (pure, testable) and freezes the result into each hand.
+- [x] The table surfaces the current level / blinds and a hint about when the next level hits.
+- [x] Cash mode is completely unaffected; the fixed-blinds picker (0084) still works.
+- [x] Pure-package tests cover level advancement and the schedule boundaries.
+- [x] `pnpm verify` green.
 
 ## Notes
 
@@ -32,3 +33,23 @@ Builds directly on 0084's `set-blinds` plumbing — instead of one frozen `{ sb,
 carries a level index that the reducer bumps as hands complete, re-deriving the blinds passed to
 `dealHand` each hand. Design the schedule (level durations, how steep) and the table indicator when
 this is pulled. Not part of the current batch — filed for later.
+
+## Implementation
+
+Built on 0084's `set-blinds` plumbing. The cash picker's `BLIND_PRESETS` became the bottom three
+rungs of a longer `BLIND_LADDER`; tournament mode starts on the hero's chosen rung and climbs one
+rung every `TOURNAMENT_LEVEL_LENGTH` (4) hands, topping out at the ladder's ceiling.
+
+One divergence from the note's framing: rather than carry a mutable level **index** the reducer
+"bumps", the level is **derived** from `handNumber` (which the reducer already increments each hand)
+via the pure `tournamentLevel(start, handNumber)` / `sessionBlinds(setup, handNumber)`. Deriving
+avoids a second piece of state that could desync from the hand count, and is just as deterministic
+and testable. `startHand` calls `sessionBlinds` for both the first hand and play-again hands, so
+`dealHand` freezes the escalated level into each hand exactly as cash mode freezes the fixed one.
+
+Touch points: `packages/session/src/model.ts` (`BLIND_LADDER`, `SessionMode`/`DEFAULT_MODE`,
+`TOURNAMENT_LEVEL_LENGTH`, `LevelStatus`, `tournamentLevel`, `sessionBlinds`, `SetupState.mode`),
+`reducer.ts` (`set-mode` message + handler; `startHand` derives blinds via `sessionBlinds`),
+`apps/pwa/src/components/SetupScreen.tsx` (Cash/Tournament format toggle + tournament-aware blinds
+hint), `Table.tsx` + `App.tsx` (top-bar level chip, shown only in tournament mode), `styles.css`
+(`.level-chip` accent). PWA-only, mirroring 0084 (the TUI setup screen has no blinds controls).

@@ -38,26 +38,110 @@ export const SMALL_BLIND = 1
 export const BIG_BLIND = 2
 export const STARTING_STACK = 200
 
-/** A chosen blind level for a session — a small/big-blind pair, fixed for the whole session. */
+/** A chosen blind level for a session — a small/big-blind pair. */
 export interface BlindLevel {
   readonly sb: number
   readonly bb: number
 }
 
 /**
- * The blind levels the setup screen offers as one-tap presets, in display order. `1/2` is the
- * default (today's hardcoded behaviour); `2/5` and `5/10` are stiffer stakes. The level is chosen
- * once on the setup screen and {@link dealHand} freezes it into the hand — there is no in-session
- * escalation (that's the follow-up tournament ticket).
+ * The full blind **ladder** a session can move through, low to high. Cash mode sits on one rung for
+ * the whole session (the hero's pick); tournament mode ({@link SessionMode}) starts on the hero's
+ * rung and climbs one rung every {@link TOURNAMENT_LEVEL_LENGTH} hands, topping out at the last rung.
+ * The cash picker's {@link BLIND_PRESETS} are this ladder's first rungs, so a chosen preset is always
+ * a real rung the escalation can step up from (see {@link tournamentLevel}).
  */
-export const BLIND_PRESETS: readonly BlindLevel[] = [
+export const BLIND_LADDER: readonly BlindLevel[] = [
   { sb: SMALL_BLIND, bb: BIG_BLIND },
   { sb: 2, bb: 5 },
   { sb: 5, bb: 10 },
+  { sb: 10, bb: 20 },
+  { sb: 25, bb: 50 },
+  { sb: 50, bb: 100 },
+  { sb: 100, bb: 200 },
 ]
+
+/**
+ * The blind levels the setup screen offers as one-tap presets, in display order — the first three
+ * rungs of {@link BLIND_LADDER}. `1/2` is the default (today's hardcoded behaviour); `2/5` and `5/10`
+ * are stiffer stakes. In cash mode the level is fixed for the session; in tournament mode it is the
+ * *starting* rung the blinds escalate up from.
+ */
+export const BLIND_PRESETS: readonly BlindLevel[] = BLIND_LADDER.slice(0, 3)
 
 /** The default blind level — `1/2`, preserving the behaviour from before the picker existed. */
 export const DEFAULT_BLIND_LEVEL: BlindLevel = BLIND_PRESETS[0]!
+
+/**
+ * How a session's blinds behave over time:
+ * - `'cash'` — fixed at the chosen {@link BlindLevel} for the whole session (today's behaviour).
+ * - `'tournament'` — they **escalate**: starting on the chosen rung, the session climbs one
+ *   {@link BLIND_LADDER} rung every {@link TOURNAMENT_LEVEL_LENGTH} hands so the game naturally
+ *   accelerates toward an end, the way a real tournament does.
+ */
+export type SessionMode = 'cash' | 'tournament'
+
+/** The default session mode — `'cash'` (fixed blinds), preserving pre-tournament behaviour. */
+export const DEFAULT_MODE: SessionMode = 'cash'
+
+/** Hands played at each tournament level before the blinds step up one {@link BLIND_LADDER} rung. */
+export const TOURNAMENT_LEVEL_LENGTH = 4
+
+/** A tournament's current level — what the table indicator shows and {@link tournamentLevel} derives. */
+export interface LevelStatus {
+  /** 1-based level number within this session (level `1` is the starting blinds). */
+  readonly level: number
+  /** The blinds in force at this level (the ladder rung the session has climbed to). */
+  readonly blinds: BlindLevel
+  /** Hands remaining at this level before the next step-up; `0` once the top rung is reached. */
+  readonly handsUntilNext: number
+  /** `true` once the ladder's top rung is reached — blinds no longer escalate. */
+  readonly atTop: boolean
+}
+
+/** The {@link BLIND_LADDER} rung matching a level (by sb/bb), or `0` if it is not a ladder rung. */
+function ladderRungOf(level: BlindLevel): number {
+  const rung = BLIND_LADDER.findIndex((l) => l.sb === level.sb && l.bb === level.bb)
+  return rung < 0 ? 0 : rung
+}
+
+/**
+ * The tournament {@link LevelStatus} in force for a given (1-based) `handNumber`, climbing from the
+ * `start` rung. The session steps up one {@link BLIND_LADDER} rung every `levelLength` hands and
+ * stops at the ladder's top. **Pure and total**: the reducer derives the level from `handNumber`
+ * (which it already bumps each hand) rather than carrying a mutable level index, so escalation can
+ * never desync from the hand count. The schedule boundary is the hand at which a step-up lands:
+ * with `levelLength = 4`, hands 1–4 are level 1, hand 5 is level 2, and so on.
+ */
+export function tournamentLevel(
+  start: BlindLevel,
+  handNumber: number,
+  levelLength: number = TOURNAMENT_LEVEL_LENGTH,
+): LevelStatus {
+  const startRung = ladderRungOf(start)
+  const handsIn = Math.max(0, handNumber - 1) // hands completed before this one, floored at 0
+  const stepsTaken = Math.floor(handsIn / levelLength)
+  const rung = Math.min(startRung + stepsTaken, BLIND_LADDER.length - 1)
+  const atTop = rung === BLIND_LADDER.length - 1
+  return {
+    level: rung - startRung + 1,
+    blinds: BLIND_LADDER[rung]!,
+    handsUntilNext: atTop ? 0 : levelLength - (handsIn % levelLength),
+    atTop,
+  }
+}
+
+/**
+ * The blinds in force for a given (1-based) `handNumber` of a session — the single place the
+ * {@link SessionMode} escalation rule is applied. Cash mode returns the fixed chosen level every
+ * hand; tournament mode climbs the ladder via {@link tournamentLevel}. Pure; the reducer calls it at
+ * each `start-hand` and {@link dealHand} freezes the result into that hand.
+ */
+export function sessionBlinds(setup: SetupState, handNumber: number): BlindLevel {
+  const start = setup.blinds ?? DEFAULT_BLIND_LEVEL
+  if ((setup.mode ?? DEFAULT_MODE) === 'cash') return start
+  return tournamentLevel(start, handNumber).blinds
+}
 
 /**
  * The starting-stack depths the setup screen offers as one-tap presets, expressed in **big blinds**
@@ -278,6 +362,14 @@ export interface SetupState {
    * {@link startingStack} when this changes so the selected bb-depth stays honest.
    */
   readonly blinds?: BlindLevel
+  /**
+   * Whether the session's blinds are fixed (`'cash'`) or escalate over time (`'tournament'`) — see
+   * {@link SessionMode}. Optional with the same fallback shape as {@link blinds}: older
+   * {@link SetupState} literals (and the inert curriculum) still type-check and fall back to
+   * {@link DEFAULT_MODE} (cash, today's behaviour). {@link createInitialModel} always sets it. In
+   * tournament mode {@link blinds} is the *starting* rung the schedule climbs from.
+   */
+  readonly mode?: SessionMode
 }
 
 /**
@@ -363,6 +455,8 @@ export interface InitialModelOptions {
   startingStack?: number
   /** Initial blind level. Defaults to {@link DEFAULT_BLIND_LEVEL} (1/2, today's behaviour). */
   blinds?: BlindLevel
+  /** Initial session mode. Defaults to {@link DEFAULT_MODE} (cash — fixed blinds). */
+  mode?: SessionMode
 }
 
 /**
@@ -421,9 +515,10 @@ export function createInitialModel(options: InitialModelOptions = {}): Model {
   const opponents = (options.opponents ?? defaultOpponents(seats)).slice(0, seats - 1)
   const startingStack = options.startingStack ?? STARTING_STACK
   const blinds = options.blinds ?? DEFAULT_BLIND_LEVEL
+  const mode = options.mode ?? DEFAULT_MODE
   return {
     phase: 'setup',
-    setup: { seats, opponents, startingStack, blinds },
+    setup: { seats, opponents, startingStack, blinds, mode },
     players: [],
     hand: null,
     seatToId: [],

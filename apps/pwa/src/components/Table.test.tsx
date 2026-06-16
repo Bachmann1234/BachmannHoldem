@@ -175,6 +175,56 @@ describe('Table position tags', () => {
   })
 })
 
+describe('Table tournament level chip', () => {
+  function heroHand(): HandState {
+    return createHand({
+      stacks: [200, 200],
+      buttonIndex: 0,
+      smallBlind: 2,
+      bigBlind: 5,
+      deck: freshDeck(),
+    })
+  }
+
+  it('shows no level chip in cash mode (the prop is omitted)', () => {
+    const { queryByTestId } = renderTable(heroHand())
+    expect(queryByTestId('level')).toBeNull()
+  })
+
+  it('surfaces the current level, blinds, and a countdown to the next step-up', () => {
+    const { getByTestId } = render(
+      <Table
+        hand={heroHand()}
+        heroSeat={0}
+        handNumber={3}
+        tournament={{ level: 2, blinds: { sb: 2, bb: 5 }, handsUntilNext: 3, atTop: false }}
+        seatLabel={(seat) => (seat === 0 ? 'You' : `Seat ${seat}`)}
+      />,
+    )
+    const chip = getByTestId('level')
+    expect(chip.textContent).toContain('LVL 2')
+    expect(chip.textContent).toContain('2/5')
+    expect(chip.textContent).toContain('↑3') // three hands until the next level
+    expect(chip.getAttribute('aria-label')).toMatch(/next level in 3 hands/)
+  })
+
+  it('marks the top level (no further escalation) instead of a countdown', () => {
+    const { getByTestId } = render(
+      <Table
+        hand={heroHand()}
+        heroSeat={0}
+        handNumber={40}
+        tournament={{ level: 6, blinds: { sb: 100, bb: 200 }, handsUntilNext: 0, atTop: true }}
+        seatLabel={(seat) => (seat === 0 ? 'You' : `Seat ${seat}`)}
+      />,
+    )
+    const chip = getByTestId('level')
+    expect(chip.textContent).toContain('TOP')
+    expect(chip.textContent).not.toContain('↑')
+    expect(chip.getAttribute('aria-label')).toMatch(/top level/)
+  })
+})
+
 describe('Table winner highlight (BUG-0002)', () => {
   it('rings only the actual winner when the loser had an uncalled overbet returned', () => {
     // Hero (seat 0) shoves 100 over a 30-chip short stack; the short stack calls all-in and
