@@ -16,7 +16,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { describeHandClass, startingHandChart, type PreflopTier } from '@holdem/coach'
+import {
+  describeHandClass,
+  explainGrade,
+  startingHandChart,
+  type GradeTermId,
+  type PreflopTier,
+} from '@holdem/coach'
+import { GlossaryText } from './GlossaryText.js'
+import { GlossaryOverlay } from './GlossaryOverlay.js'
 
 /** The tiers in strength order — the legend order, strongest first. */
 const TIER_ORDER: readonly PreflopTier[] = ['premium', 'strong', 'playable', 'marginal', 'trash']
@@ -56,6 +64,18 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
     () => grid.flat().find((cell) => cell.label === selected)?.tier,
     [grid, selected],
   )
+  // The plain-English "why this grade" for the selected hand — the A9s-vs-K9s explanation (0064).
+  const explanation = useMemo(() => (selected ? explainGrade(selected) : []), [selected])
+  // When a learner taps a term inside the explanation, open the glossary scrolled to that entry. The
+  // glossary is rendered nested here (it portals to <body>) so this works from both chart entry
+  // points — the Learn reference and the coach drawer — without threading callbacks through parents.
+  const [glossaryTerm, setGlossaryTerm] = useState<GradeTermId | undefined>(undefined)
+  const glossaryOpen = glossaryTerm !== undefined
+  // Both this chart and the nested glossary register a window-level Escape handler. When the glossary
+  // is open on top, its handler closes it — so the chart must ignore Escape, or one keypress would
+  // collapse both layers at once. A ref (not a dep) lets the long-lived listener read the live value.
+  const glossaryOpenRef = useRef(glossaryOpen)
+  glossaryOpenRef.current = glossaryOpen
 
   // Focus management (mirrors CoachDrawer): focus the close button on open, Escape closes, restore
   // focus to the opener on unmount. The overlay mounts only while open, so this runs once per open.
@@ -63,7 +83,7 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
     const opener = document.activeElement as HTMLElement | null
     closeRef.current?.focus()
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !glossaryOpenRef.current) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -85,6 +105,10 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
         aria-modal="true"
         aria-label="Starting-hand chart"
         data-testid="chart-modal"
+        // While the glossary is stacked on top, this chart is the background layer: hide it from
+        // assistive tech and block interaction so only one modal is live at a time.
+        aria-hidden={glossaryOpen || undefined}
+        inert={glossaryOpen}
       >
         <div className="drawer-head">
           <div className="drawer-title">Starting-hand chart</div>
@@ -140,18 +164,26 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
           )}
         </div>
 
-        {/* Decode caption: spells the tapped cell's shorthand out in words. aria-live so a screen
-            reader announces the decode when selection changes; a hint prompts the first tap. */}
-        <p className="chart-caption" data-testid="chart-caption" aria-live="polite">
+        {/* Decode caption: spells the tapped cell's shorthand out in words, then explains why it
+            earns its grade (0064). aria-live so a screen reader announces both when selection
+            changes; a hint prompts the first tap. */}
+        <div className="chart-caption" data-testid="chart-caption" aria-live="polite">
           {selected && selectedTier ? (
             <>
-              <b className="chart-your-hand">{selected}</b> — {describeHandClass(selected)} —{' '}
-              {TIER_LABEL[selectedTier]}
+              <p className="chart-caption-name">
+                <b className="chart-your-hand">{selected}</b> — {describeHandClass(selected)} —{' '}
+                {TIER_LABEL[selectedTier]}
+              </p>
+              {explanation.length > 0 ? (
+                <p className="chart-caption-why" data-testid="chart-caption-why">
+                  <GlossaryText segments={explanation} onTermClick={setGlossaryTerm} />
+                </p>
+              ) : null}
             </>
           ) : (
             <span className="chart-caption-hint">Tap any hand to read its full name.</span>
           )}
-        </p>
+        </div>
 
         <div className="chart-legend" data-testid="chart-legend">
           {TIER_ORDER.map((tier) => (
@@ -162,6 +194,12 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
           ))}
         </div>
       </div>
+
+      {/* Tapping a term in the explanation opens the glossary at that entry (it portals to <body>,
+          so it stacks above this chart). */}
+      {glossaryTerm ? (
+        <GlossaryOverlay focusTerm={glossaryTerm} onClose={() => setGlossaryTerm(undefined)} />
+      ) : null}
     </>,
     document.body,
   )

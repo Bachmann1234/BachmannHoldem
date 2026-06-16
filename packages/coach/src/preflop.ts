@@ -842,7 +842,7 @@ export function handClassLabel(holeCards: readonly [Card, Card]): string {
  * Plain-English rank words keyed by the single-character notation the chart and {@link handClassLabel}
  * use (`A`…`2`, `T` = Ten). The spoken form of a rank, for decoding shorthand into human copy.
  */
-const RANK_WORD: Readonly<Record<string, string>> = {
+export const RANK_WORD: Readonly<Record<string, string>> = {
   A: 'Ace',
   K: 'King',
   Q: 'Queen',
@@ -859,7 +859,7 @@ const RANK_WORD: Readonly<Record<string, string>> = {
 }
 
 /** Pluralised rank word for a pocket pair, e.g. `"Kings"`, `"Sixes"` (the one irregular plural). */
-function pluralRank(word: string): string {
+export function pluralRank(word: string): string {
   return word === 'Six' ? 'Sixes' : `${word}s`
 }
 

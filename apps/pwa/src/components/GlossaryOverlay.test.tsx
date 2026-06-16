@@ -47,4 +47,25 @@ describe('GlossaryOverlay', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(3)
   })
+
+  it('renders the hand-strength concepts section (ticket 0064)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByText('Hand strength')).toBeTruthy()
+    const body = screen.getByTestId('glossary-body')
+    for (const term of ['Nuts', 'Kicker', 'Dominated', 'Set', 'Suited connector']) {
+      expect(body.textContent).toContain(term)
+    }
+  })
+
+  it('no longer asserts trash "makes no money" (no false universal, ticket 0056)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByTestId('glossary-body').textContent).not.toMatch(/makes no money/i)
+  })
+
+  it('highlights the row when opened on a focusTerm (deep-link from a chart explanation)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} focusTerm="dominated" />)
+    const row = screen.getByTestId('glossary-body').querySelector('[data-term-id="dominated"]')
+    expect(row?.className).toContain('is-focused')
+    expect(row?.getAttribute('aria-current')).toBe('true')
+  })
 })

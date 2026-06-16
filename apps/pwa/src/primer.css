@@ -1253,7 +1253,9 @@
 /* decode caption: the tapped cell's shorthand read aloud in words ("JTo — Jack-Ten offsuit — Marginal") */
 .chart-caption {
   margin: 12px 0 0;
-  min-height: 1.2em;
+  /* Reserve room for the tallest explanation (the King-x "dominated" copy) so the centred modal
+     keeps a constant height as you tap from hand to hand instead of jumping (ticket 0064). */
+  min-height: 138px;
   font-size: 13px;
   line-height: 1.4;
   color: var(--text);
@@ -1265,6 +1267,34 @@
 .chart-caption-hint {
   color: var(--text-3);
   font-style: italic;
+}
+/* the name line, then the "why this grade" explanation below it (ticket 0064) */
+.chart-caption-name {
+  margin: 0;
+}
+.chart-caption-why {
+  margin: 6px auto 0;
+  max-width: 48ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+/* an inline poker term inside an explanation — a dotted "tap me" link into the glossary. Styled as
+   text (no button chrome) so it reads as part of the sentence. */
+.glossary-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.glossary-link:hover {
+  text-decoration-style: solid;
 }
 
 /* tier scale: a green heat ramp by lightness (premium brightest → playable dim, all at the accent's
@@ -1390,6 +1420,16 @@
   font-size: 13px;
   line-height: 1.4;
   color: var(--text-2);
+}
+/* the row a deep-link from a chart explanation lands on — a brief accent wash so the eye finds it
+   (ticket 0064). Padding + matching negative margin so the highlight has room without shifting the
+   grid. */
+.glossary-row.is-focused {
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
 }
 
 /* "your hand" highlight in the chart (BUG-0006 / ticket 0050): a bright ring that reads on any tier

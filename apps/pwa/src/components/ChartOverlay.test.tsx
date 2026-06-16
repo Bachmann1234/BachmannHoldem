@@ -67,4 +67,39 @@ describe('ChartOverlay', () => {
     expect(caption.textContent).toContain('AKs')
     expect(caption.textContent).toContain('Ace-King suited')
   })
+
+  it('explains why a tapped hand earns its grade (ticket 0064)', () => {
+    render(<ChartOverlay onClose={vi.fn()} />)
+    fireEvent.click(screen.getByTitle(/^K9s —/))
+    const why = screen.getByTestId('chart-caption-why')
+    // The K9s lesson: a king-high flush is dominated, and the kicker is the term to learn.
+    expect(why.textContent).toMatch(/King-high/)
+    expect(screen.getByTestId('glossary-link-dominated')).toBeTruthy()
+  })
+
+  it('tapping a term in the explanation opens the glossary at that entry', () => {
+    render(<ChartOverlay onClose={vi.fn()} />)
+    fireEvent.click(screen.getByTitle(/^K9s —/))
+    // No glossary yet; tapping the "dominated" link opens it focused on that term.
+    expect(screen.queryByTestId('glossary-modal')).toBeNull()
+    fireEvent.click(screen.getByTestId('glossary-link-dominated'))
+    const row = screen.getByTestId('glossary-body').querySelector('[data-term-id="dominated"]')
+    expect(row?.className).toContain('is-focused')
+  })
+
+  it('Escape closes only the nested glossary, leaving the chart open', () => {
+    const onClose = vi.fn()
+    render(<ChartOverlay onClose={onClose} />)
+    fireEvent.click(screen.getByTitle(/^K9s —/))
+    fireEvent.click(screen.getByTestId('glossary-link-dominated'))
+    expect(screen.getByTestId('glossary-modal')).toBeTruthy()
+
+    // One Escape dismisses the glossary but must NOT close the chart underneath it.
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('glossary-modal')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    // With the glossary gone, Escape now closes the chart.
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })
