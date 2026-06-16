@@ -28,10 +28,14 @@ import {
   countsByKind,
   dealHand,
   defaultOpponents,
+  depthBbForStack,
   rotateButton,
   sessionOver,
-  BIG_BLIND,
+  stackForDepthBb,
   BOT_KINDS,
+  DEFAULT_BLIND_LEVEL,
+  STARTING_STACK,
+  type BlindLevel,
   type BotKind,
   type CoachResult,
   type Model,
@@ -50,6 +54,10 @@ import {
  * - `'set-stack'` — choose the starting stack depth (chips); the setup screen offers it as
  *   {@link STACK_DEPTH_PRESETS_BB} presets. Stored on the setup selection, frozen into every
  *   player's stack at deal.
+ * - `'set-blinds'` — choose the blind level (a {@link BlindLevel} pair from {@link BLIND_PRESETS});
+ *   stored on the setup selection and frozen into the hand at deal. Because stack depth is
+ *   denominated in big blinds, this also re-chips `startingStack` so the selected bb-depth stays
+ *   honest at the new level.
  * - `'cycle-opponent'` — cycle one opponent seat through the four presets (the TUI's per-seat
  *   setup editor still drives the mix this way; the PWA uses count-based `adjust-mix` instead).
  *
@@ -70,6 +78,7 @@ export type Msg =
   | { readonly type: 'adjust-mix'; readonly kind: BotKind; readonly delta: 1 | -1 }
   | { readonly type: 'set-opponents'; readonly opponents: readonly BotKind[] }
   | { readonly type: 'set-stack'; readonly startingStack: number }
+  | { readonly type: 'set-blinds'; readonly blinds: BlindLevel }
   | { readonly type: 'cycle-opponent'; readonly opponentIndex: number; readonly direction?: 1 | -1 }
   | {
       readonly type: 'start-hand'
@@ -101,6 +110,9 @@ export function reducer(model: Model, msg: Msg): Model {
 
     case 'set-stack':
       return setStack(model, msg.startingStack)
+
+    case 'set-blinds':
+      return setBlinds(model, msg.blinds)
 
     case 'cycle-opponent':
       return cycleOpponent(model, msg.opponentIndex, msg.direction ?? 1)
@@ -196,8 +208,27 @@ function setOpponents(model: Model, opponents: readonly BotKind[]): Model {
  */
 function setStack(model: Model, startingStack: number): Model {
   if (model.phase !== 'setup') return model
-  const next = Math.max(BIG_BLIND, Math.round(startingStack))
+  // Floor at one big blind of the *chosen* level (not the constant) so a degenerate sub-bb table
+  // can never be dealt even at stiffer blinds — the engine only asserts stack > 0, not stack >= bb.
+  const minStack = (model.setup.blinds ?? DEFAULT_BLIND_LEVEL).bb
+  const next = Math.max(minStack, Math.round(startingStack))
   return { ...model, setup: { ...model.setup, startingStack: next } }
+}
+
+/**
+ * Setup edit: choose the blind level. The subtle part: stack depth is denominated in big blinds, so
+ * changing the level must keep the hero's *chosen depth* honest. We read the current depth back at
+ * the OLD big blind (`depthBbForStack`), then re-chip it at the NEW big blind (`stackForDepthBb`),
+ * so "100bb deep" stays 100 × the new bb rather than silently becoming a different depth. The blind
+ * level itself is frozen into each hand by {@link dealHand} at `start-hand`. No-op outside `'setup'`.
+ */
+function setBlinds(model: Model, blinds: BlindLevel): Model {
+  if (model.phase !== 'setup') return model
+  const oldBb = (model.setup.blinds ?? DEFAULT_BLIND_LEVEL).bb
+  const stack = model.setup.startingStack ?? STARTING_STACK
+  const depthBb = depthBbForStack(stack, oldBb)
+  const startingStack = stackForDepthBb(depthBb, blinds.bb)
+  return { ...model, setup: { ...model.setup, blinds, startingStack } }
 }
 
 /**
@@ -220,7 +251,10 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
     // The hero (id 0) takes the first button — a deterministic, documented start; it rotates from
     // here every subsequent hand.
     const buttonId = 0
-    const { hand, seatToId, heroSeat } = dealHand(players, buttonId, deck)
+    // Freeze the chosen blind level into the hand (the only place blinds enter a hand). The level is
+    // fixed for the session, so it lives on `setup.blinds` and every later hand reads the same value.
+    const blinds = model.setup.blinds ?? DEFAULT_BLIND_LEVEL
+    const { hand, seatToId, heroSeat } = dealHand(players, buttonId, deck, blinds)
     return {
       ...model,
       phase: 'playing',
@@ -236,7 +270,9 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
 
   if (model.phase === 'hand-over') {
     const buttonId = rotateButton(model.players, model.buttonId)
-    const { hand, seatToId, heroSeat } = dealHand(model.players, buttonId, deck)
+    // Same fixed blind level as the first hand — chosen once at setup, never escalates this session.
+    const blinds = model.setup.blinds ?? DEFAULT_BLIND_LEVEL
+    const { hand, seatToId, heroSeat } = dealHand(model.players, buttonId, deck, blinds)
     return {
       ...model,
       phase: 'playing',

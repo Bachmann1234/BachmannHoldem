@@ -38,23 +38,53 @@ export const SMALL_BLIND = 1
 export const BIG_BLIND = 2
 export const STARTING_STACK = 200
 
+/** A chosen blind level for a session — a small/big-blind pair, fixed for the whole session. */
+export interface BlindLevel {
+  readonly sb: number
+  readonly bb: number
+}
+
+/**
+ * The blind levels the setup screen offers as one-tap presets, in display order. `1/2` is the
+ * default (today's hardcoded behaviour); `2/5` and `5/10` are stiffer stakes. The level is chosen
+ * once on the setup screen and {@link dealHand} freezes it into the hand — there is no in-session
+ * escalation (that's the follow-up tournament ticket).
+ */
+export const BLIND_PRESETS: readonly BlindLevel[] = [
+  { sb: SMALL_BLIND, bb: BIG_BLIND },
+  { sb: 2, bb: 5 },
+  { sb: 5, bb: 10 },
+]
+
+/** The default blind level — `1/2`, preserving the behaviour from before the picker existed. */
+export const DEFAULT_BLIND_LEVEL: BlindLevel = BLIND_PRESETS[0]!
+
 /**
  * The starting-stack depths the setup screen offers as one-tap presets, expressed in **big blinds**
- * — the unit the coaching speaks in and the lever that actually changes how long a session runs
- * (blinds stay fixed at {@link SMALL_BLIND}/{@link BIG_BLIND}). A shallow 25bb is shove-or-fold and
- * fast; 50bb is a brisk middle; 100bb is the deep cash-game default ({@link STARTING_STACK} chips at
- * {@link BIG_BLIND}). The hero picks a depth; {@link stackForDepthBb} turns it into chips.
+ * — the unit the coaching speaks in and the lever that actually changes how long a session runs. A
+ * shallow 25bb is shove-or-fold and fast; 50bb is a brisk middle; 100bb is the deep cash-game
+ * default. Depth is denominated in *the chosen* big blind: "100bb deep" is 100 × the picked bb, so
+ * {@link stackForDepthBb} takes the chosen big blind and {@link setBlinds} re-chips the stack when
+ * the hero changes level so the selected depth stays honest. The hero picks a depth;
+ * {@link stackForDepthBb} turns it into chips.
  */
 export const STACK_DEPTH_PRESETS_BB: readonly number[] = [25, 50, 100]
 
-/** Chips for a starting depth given in big blinds (blinds are fixed, so depth × {@link BIG_BLIND}). */
-export function stackForDepthBb(bigBlinds: number): number {
-  return Math.max(BIG_BLIND, Math.round(bigBlinds) * BIG_BLIND)
+/**
+ * Chips for a starting depth given in big blinds, at the chosen big blind (depth × bigBlind). Depth
+ * is denominated in big blinds, so the chips depend on which blind level the hero picked; pass the
+ * session's big blind ({@link BIG_BLIND} preserves the old default for callers without a choice).
+ */
+export function stackForDepthBb(bigBlinds: number, bigBlind: number = BIG_BLIND): number {
+  return Math.max(bigBlind, Math.round(bigBlinds) * bigBlind)
 }
 
-/** A starting stack (chips) expressed back in big blinds — the depth label the setup screen shows. */
-export function depthBbForStack(stack: number): number {
-  return Math.round(stack / BIG_BLIND)
+/**
+ * A starting stack (chips) expressed back in big blinds — the depth label the setup screen shows.
+ * Inverse of {@link stackForDepthBb}, so it needs the same chosen big blind to read the depth back.
+ */
+export function depthBbForStack(stack: number, bigBlind: number = BIG_BLIND): number {
+  return Math.round(stack / bigBlind)
 }
 
 /**
@@ -239,6 +269,15 @@ export interface SetupState {
    * {@link STARTING_STACK} when it is absent. {@link createInitialModel} always sets it.
    */
   readonly startingStack?: number
+  /**
+   * The chosen blind level (a small/big-blind pair from {@link BLIND_PRESETS}), fixed for the whole
+   * session and frozen into every hand by {@link dealHand}. Optional with the same fallback shape as
+   * {@link startingStack}: older {@link SetupState} literals (and the inert curriculum) still
+   * type-check and fall back to {@link DEFAULT_BLIND_LEVEL} (1/2). {@link createInitialModel} always
+   * sets it. Because stack depth is denominated in big blinds, {@link setBlinds} re-chips
+   * {@link startingStack} when this changes so the selected bb-depth stays honest.
+   */
+  readonly blinds?: BlindLevel
 }
 
 /**
@@ -322,6 +361,8 @@ export interface InitialModelOptions {
   opponents?: readonly BotKind[]
   /** Initial starting stack (chips). Defaults to {@link STARTING_STACK} (the deep 100bb default). */
   startingStack?: number
+  /** Initial blind level. Defaults to {@link DEFAULT_BLIND_LEVEL} (1/2, today's behaviour). */
+  blinds?: BlindLevel
 }
 
 /**
@@ -379,9 +420,10 @@ export function createInitialModel(options: InitialModelOptions = {}): Model {
   const seats = clampSeats(options.seats ?? DEFAULT_SEATS)
   const opponents = (options.opponents ?? defaultOpponents(seats)).slice(0, seats - 1)
   const startingStack = options.startingStack ?? STARTING_STACK
+  const blinds = options.blinds ?? DEFAULT_BLIND_LEVEL
   return {
     phase: 'setup',
-    setup: { seats, opponents, startingStack },
+    setup: { seats, opponents, startingStack, blinds },
     players: [],
     hand: null,
     seatToId: [],
@@ -523,20 +565,23 @@ export function sessionOver(players: readonly SessionPlayer[]): boolean {
  * Deal a hand from the stable players + a (shell-supplied, already-shuffled) deck, with the button
  * on `buttonId`: compact the survivors into seats and call the real {@link createHand}. Pure given
  * the deck — the reducer calls this; the RNG stays in the shell. The caller decides `buttonId`
- * (the first hand uses the seeded button as-is; later hands {@link rotateButton} first). Returns
- * the new hand plus the seating it was dealt over (so the model can store the map).
+ * (the first hand uses the seeded button as-is; later hands {@link rotateButton} first). The chosen
+ * `blinds` (the hero's setup pick, frozen at `start-hand`) are the ONLY place blinds enter a hand;
+ * they default to {@link DEFAULT_BLIND_LEVEL} (1/2) for callers without a choice. Returns the new
+ * hand plus the seating it was dealt over (so the model can store the map).
  */
 export function dealHand(
   players: readonly SessionPlayer[],
   buttonId: number,
   deck: readonly Card[],
+  blinds: BlindLevel = DEFAULT_BLIND_LEVEL,
 ): { hand: HandState; seatToId: number[]; heroSeat: number } {
   const { stacks, buttonIndex, seatToId, heroSeat } = compactSeating(players, buttonId)
   const hand = createHand({
     stacks,
     buttonIndex,
-    smallBlind: SMALL_BLIND,
-    bigBlind: BIG_BLIND,
+    smallBlind: blinds.sb,
+    bigBlind: blinds.bb,
     deck,
   })
   return { hand, seatToId, heroSeat }

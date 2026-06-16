@@ -85,6 +85,28 @@ describe('SetupScreen', () => {
     expect(mixTotal()).toBe(4)
   })
 
+  it('defaults to the 1/2 blind level with it shown active', () => {
+    render(<Harness seats={2} />)
+    const oneTwo = screen.getByTestId('blinds-1-2')
+    expect(oneTwo.className).toContain('active')
+    expect(oneTwo.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('blinds-5-10').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('selects a stiffer blind preset, moving the active state and keeping the bb-depth honest', () => {
+    render(<Harness seats={2} />)
+    // Default is 100bb deep at 1/2 → 200 chips, shown active on the 100bb stack chip.
+    expect(screen.getByTestId('stack-100').getAttribute('aria-pressed')).toBe('true')
+    act(() => screen.getByTestId('blinds-5-10').click())
+    // The 5/10 preset is now active and 1/2 is not.
+    expect(screen.getByTestId('blinds-5-10').className).toContain('active')
+    expect(screen.getByTestId('blinds-1-2').getAttribute('aria-pressed')).toBe('false')
+    // Depth stays 100bb: the 100bb stack chip is still the selected one (now 1000 chips at 5/10),
+    // and the hint reflects the chosen level rather than the old constant.
+    expect(screen.getByTestId('stack-100').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/100bb deep · blinds 5\/10/)).toBeTruthy()
+  })
+
   it('fires onStart when the Deal CTA is tapped', () => {
     const onStart = vi.fn()
     render(<Harness seats={2} onStart={onStart} />)

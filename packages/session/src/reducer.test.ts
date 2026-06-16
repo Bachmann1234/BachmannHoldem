@@ -19,11 +19,13 @@ import {
 } from '@holdem/engine'
 import {
   BIG_BLIND,
+  BLIND_PRESETS,
   BOT_TIPS,
   buildSessionPlayers,
   compactSeating,
   countsByKind,
   createInitialModel,
+  DEFAULT_BLIND_LEVEL,
   defaultOpponents,
   depthBbForStack,
   MAX_SEATS,
@@ -161,6 +163,40 @@ describe('reducer — setup phase', () => {
     expect(reducer(playing, { type: 'set-stack', startingStack: 50 })).toBe(playing)
   })
 
+  it('defaults the blind level to 1/2, and set-blinds chooses a stiffer level', () => {
+    let model = createInitialModel({ seats: 2 })
+    expect(model.setup.blinds).toEqual(DEFAULT_BLIND_LEVEL)
+    expect(model.setup.blinds).toEqual({ sb: 1, bb: 2 })
+    expect(BLIND_PRESETS[0]).toEqual(DEFAULT_BLIND_LEVEL) // the default is the first preset
+    model = reducer(model, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })
+    expect(model.setup.blinds).toEqual({ sb: 5, bb: 10 })
+  })
+
+  it('set-blinds re-chips the starting stack so the chosen bb-depth stays honest (5/10)', () => {
+    // Pick 50bb deep at the default 1/2 → 100 chips, then move to 5/10. The depth (50bb) must hold,
+    // so the chips must become 50 × 10 = 500, not stay at 100 (which would be only 10bb at 5/10).
+    let model = createInitialModel({ seats: 2 })
+    model = reducer(model, { type: 'set-stack', startingStack: stackForDepthBb(50) })
+    expect(model.setup.startingStack).toBe(100) // 50bb × 2
+    model = reducer(model, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })
+    expect(model.setup.startingStack).toBe(500) // 50bb × 10 — depth preserved across the level change
+    expect(depthBbForStack(model.setup.startingStack!, 10)).toBe(50)
+  })
+
+  it('set-blinds is a no-op outside setup', () => {
+    const playing = reducer(createInitialModel({ seats: 2 }), {
+      type: 'start-hand',
+      deck: makeDeck(),
+    })
+    expect(reducer(playing, { type: 'set-blinds', blinds: { sb: 5, bb: 10 } })).toBe(playing)
+  })
+
+  it('depth↔chips conversions honour a non-default blind level (5/10)', () => {
+    expect(stackForDepthBb(100, 10)).toBe(1000) // 100bb deep at a 10 big blind
+    expect(depthBbForStack(1000, 10)).toBe(100) // …and reads back to 100bb
+    expect(stackForDepthBb(25, 10)).toBe(250)
+  })
+
   it('ignores session messages while in setup, except start-hand', () => {
     const model = createInitialModel({ seats: 2 })
     expect(reducer(model, { type: 'apply-action', action: { type: 'call' } })).toBe(model)
@@ -178,6 +214,36 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
     expect(model.buttonId).toBe(0) // hero takes the first button
     expect(model.hand!.toAct).not.toBeNull()
     expect(model.coach).toEqual({ kind: 'none' })
+  })
+
+  it('freezes the chosen blind level into the dealt hand (reaches createHand)', () => {
+    let model = createInitialModel({ seats: 2, blinds: { sb: 5, bb: 10 } })
+    model = reducer(model, { type: 'start-hand', deck: FIXED_DECK })
+    expect(model.hand!.smallBlind).toBe(5)
+    expect(model.hand!.bigBlind).toBe(10)
+    // Default level (no override) still deals 1/2, preserving today's behaviour.
+    const dflt = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck: FIXED_DECK })
+    expect(dflt.hand!.smallBlind).toBe(1)
+    expect(dflt.hand!.bigBlind).toBe(2)
+  })
+
+  it('keeps the same blind level across play-again hands (no escalation)', () => {
+    const deck1 = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 2, blinds: { sb: 2, bb: 5 } }), {
+      type: 'start-hand',
+      deck: deck1,
+    })
+    // Hero (SB heads-up) calls, then everyone checks the hand down to a showdown → hand-over.
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    for (let i = 0; i < 8 && model.phase === 'playing'; i++) {
+      model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    }
+    expect(model.phase).toBe('hand-over')
+    // Deal the next hand — the blinds must stay 2/5 (chosen once at setup, no escalation).
+    const deck2 = buildDeck(2, 1, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    model = reducer(model, { type: 'start-hand', deck: deck2 })
+    expect(model.hand!.smallBlind).toBe(2)
+    expect(model.hand!.bigBlind).toBe(5)
   })
 
   it('seats a 6-max table from the selection with the hero at seat 0', () => {
