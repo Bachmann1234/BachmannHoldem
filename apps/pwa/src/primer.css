@@ -1432,6 +1432,123 @@
   outline: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
 }
 
+/* poker-rules reference (reuses .chart-modal / .chart-scrim for the shell) */
+.rules-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 10px;
+  background: var(--surface);
+}
+.rules-tab {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.rules-tab:hover,
+.rules-tab:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* offset for the sticky tab strip so a jumped-to heading is not hidden under it */
+  scroll-margin-top: 48px;
+}
+.rules-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.rules-intro {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.rules-p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.rules-steps {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rules-step {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.rules-step .rs-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rules-step .rs-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.rules-ranks {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rules-rank {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.rules-rank .rr-n {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+  text-align: right;
+}
+.rules-rank .rr-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rules-rank .rr-blurb {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.rules-rank .rr-cards {
+  display: flex;
+  gap: 2px;
+}
+
 /* "your hand" highlight in the chart (BUG-0006 / ticket 0050): a bright ring that reads on any tier
    colour, lifted above its neighbours. */
 .chart-cell.is-current {

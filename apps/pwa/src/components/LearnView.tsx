@@ -18,6 +18,7 @@ import { useState } from 'react'
 import { learnLessons, lessonHead } from '../learn/lessonMeta.js'
 import { ChartOverlay } from './ChartOverlay.js'
 import { GlossaryOverlay } from './GlossaryOverlay.js'
+import { RulesOverlay } from './RulesOverlay.js'
 import { CheckIcon, ChevIcon, LockIcon } from './Icons.js'
 import { TabBar } from './TabBar.js'
 import type { Tab } from './TabBar.js'
@@ -49,6 +50,8 @@ export function LearnView({
   const [chartOpen, setChartOpen] = useState(false)
   // The poker-shorthand glossary is a sibling reference overlay — same local-UI open state.
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+  // The poker-rules reference (the prerequisites the path assumes) — another sibling overlay.
+  const [rulesOpen, setRulesOpen] = useState(false)
   // The current node is the first unfinished lesson (clamped); once all are done the path is "all done".
   const allDone = progress >= count
   const currentIdx = Math.min(progress, count - 1)
@@ -90,7 +93,7 @@ export function LearnView({
                 data-testid="open-chart"
                 onClick={() => setChartOpen(true)}
               >
-                ♠ View the starting-hand chart
+                ♠ Starting-hand chart
               </button>
               <button
                 type="button"
@@ -98,7 +101,15 @@ export function LearnView({
                 data-testid="open-glossary"
                 onClick={() => setGlossaryOpen(true)}
               >
-                🔤 Decode poker shorthand
+                🔤 Glossary
+              </button>
+              <button
+                type="button"
+                className="chart-link"
+                data-testid="open-rules"
+                onClick={() => setRulesOpen(true)}
+              >
+                📖 Rulebook
               </button>
             </div>
           </div>
@@ -200,6 +211,7 @@ export function LearnView({
 
       {chartOpen ? <ChartOverlay onClose={() => setChartOpen(false)} /> : null}
       {glossaryOpen ? <GlossaryOverlay onClose={() => setGlossaryOpen(false)} /> : null}
+      {rulesOpen ? <RulesOverlay onClose={() => setRulesOpen(false)} /> : null}
     </div>
   )
 }
