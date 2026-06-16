@@ -2,7 +2,7 @@
 id: 0076
 title: 'Epic: Drills v2 — calculation reps, board reading, deeper feedback'
 type: epic
-status: in-progress
+status: done
 milestone: M5.5
 priority: medium
 created: 2026-06-16
@@ -24,20 +24,20 @@ follows M5 and the M4.6 framework it drills against ([[0070-foundations-primer-v
 
 ## Acceptance criteria
 
-- [ ] **Calculation / estimation drill type** — "what price are you getting?", "estimate your
+- [x] **Calculation / estimation drill type** — "what price are you getting?", "estimate your
       equity", "what equity do you need to call?" — graded against the deterministic coach numbers
       the app already computes, not multiple-choice ([[0077-drills-calculation-spots]]). Highest
       leverage: closes the teach-the-math-but-never-retrieve-it gap.
-- [ ] **Board-reading + richer actions** — hand-ranking recognition theme, turn/river spots (not
+- [x] **Board-reading + richer actions** — hand-ranking recognition theme, turn/river spots (not
       flop-only), and breaking the hard-wired Call/Fold binary to offer bet/raise/size choices
       where the coach can grade them ([[0078-drills-board-reading-and-actions]]).
-- [ ] **Deeper, more instructive feedback** — move from one-shot reveal toward show-the-math
+- [x] **Deeper, more instructive feedback** — move from one-shot reveal toward show-the-math
       ("needed 33%, had ~28% — that's the fold"), and cross-link the drill result into the existing
       `ChartOverlay` and `GlossaryOverlay` ([[0079-drills-feedback-depth-and-crosslinks]]).
-- [ ] **Spaced repetition of missed spots** — persist missed spots and re-queue weak concepts in
+- [x] **Spaced repetition of missed spots** — persist missed spots and re-queue weak concepts in
       later sessions ([[0080-drills-spaced-repetition]]). **Straddles M6** (needs durable storage);
       see that ticket.
-- [ ] **Per-concept mastery + adaptive difficulty, and a real cheat-sheet** — track per-concept
+- [x] **Per-concept mastery + adaptive difficulty, and a real cheat-sheet** — track per-concept
       correctness to weight spot selection toward weak concepts, and grow the 6-term glossary toward
       a beginner cheat-sheet incl. a pot-odds → equity quick-reference ([[0081-drills-mastery-difficulty-glossary]]).
 

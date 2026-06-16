@@ -58,7 +58,9 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   boards, and — the biggest gap — the app teaches the math but never makes the player _retrieve it
   as a number_. M5.5 is a depth pass: calculation/estimation drills, board-reading and turn/river
   spots, richer feedback that shows the math, and the retention lever M5 deferred — spaced
-  repetition of missed spots (that piece leans on M6 persistence and is tracked there). Its epic is
+  repetition of missed spots, plus per-concept mastery and adaptive difficulty. The spaced-repetition
+  piece was originally going to lean on M6 persistence, but the IndexedDB store pattern already
+  existed, so it was built here as the shared durable store M6 stats will consume. Its epic is
   [`0076`](../tickets/0076-drills-v2.md).
 - **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
   feedback built on stored hand history.
