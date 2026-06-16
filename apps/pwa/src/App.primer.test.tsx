@@ -12,8 +12,26 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FOUNDATIONS } from '@holdem/curriculum'
 import { App } from './App.js'
+import type { LessonProgressStore } from './learn/progressStore.js'
 
 afterEach(cleanup)
+
+/**
+ * A fresh in-memory {@link LessonProgressStore} per render — never the real `LocalStorageLessonProgressStore`.
+ * Without it the default store persists to the jsdom localStorage that is SHARED across this file's tests
+ * (and, under some worker scheduling, across files): the all-six-lessons test would leave the primer marked
+ * complete, so the next test boots straight to the end-of-primer hand-off and never shows `lesson-0`. Injecting
+ * a fresh store keeps every test independent of any prior persisted progress, matching App.progress.test.
+ */
+function memoryStore(initial: readonly string[] = []): LessonProgressStore {
+  let completed: string[] = [...initial]
+  return {
+    load: () => [...completed],
+    save: (ids) => {
+      completed = [...ids]
+    },
+  }
+}
 
 /** Play one open lesson to the end: start the checks, then answer + advance through every spot. */
 function finishOpenLesson(spotCount: number): void {
@@ -27,7 +45,7 @@ function finishOpenLesson(spotCount: number): void {
 
 describe('App — Foundations primer flow', () => {
   it('completing the current lesson advances progress and returns to the path', () => {
-    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={memoryStore()} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
 
     // Open and finish lesson 1 (the equity lesson — a single spot).
@@ -42,7 +60,7 @@ describe('App — Foundations primer flow', () => {
   })
 
   it('completing all six lessons shows the end-of-primer hand-off; its Play CTA switches tabs', () => {
-    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={memoryStore()} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
 
     for (let i = 0; i < FOUNDATIONS.length; i++) {
@@ -65,7 +83,7 @@ describe('App — Foundations primer flow', () => {
   })
 
   it('the end-of-primer Drills CTA hands off into the Drills tab (ticket 0068)', () => {
-    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={memoryStore()} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
 
     for (let i = 0; i < FOUNDATIONS.length; i++) {
