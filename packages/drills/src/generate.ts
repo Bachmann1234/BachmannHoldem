@@ -65,6 +65,7 @@ import {
   resolveConfig,
   type ActionSet,
   type CalculationQuantity,
+  type Difficulty,
   type DrillConfig,
   type PostflopStreet,
 } from './config.js'
@@ -90,14 +91,19 @@ import {
 export function generateSpot(seed: number, config?: DrillConfig): Spot {
   const resolved = resolveConfig(config)
   const dealer = makeDealer(seed)
+  // Preflop spots draw no pot/price buckets (they read the chart on holding + seat), so the difficulty
+  // levers — all of which weight the *money* draws — have nothing to act on there; preflop is unaffected.
   if (resolved.kind === 'preflop') return generatePreflopSpot(dealer)
-  if (resolved.kind === 'calculation') return generateCalculationSpot(dealer, resolved.quantity)
+  if (resolved.kind === 'calculation') {
+    return generateCalculationSpot(dealer, resolved.quantity, resolved.difficulty)
+  }
   if (resolved.kind === 'hand-reading') return generateHandReadingSpot(dealer, resolved.street)
   return generateCoachSpot(
     dealer,
     resolved.priceMode === 'priced',
     resolved.street,
     resolved.actions,
+    resolved.difficulty,
   )
 }
 
@@ -156,6 +162,79 @@ const PRICED_FRACTIONS: readonly number[] = PRICE_FRACTIONS.filter((f) => f > 0)
 function pick<T>(dealer: Dealer, items: readonly T[]): T {
   if (items.length === 0) throw new RangeError('cannot pick from an empty list')
   return items[dealer.nextInt(items.length)]!
+}
+
+/**
+ * How "round" a chip number is — the count of trailing zeros, capped at 2 — used to order the pot/price
+ * buckets from *easiest* (a clean `100`, two trailing zeros) to *hardest* (a gnarly `60`/`150`, fewer).
+ * A higher roundness ⇒ easier mental math (the pot-odds arithmetic is "half of 100", not "half of 150");
+ * `'hard'` difficulty weights the draw toward the *less*-round values. Pure integer arithmetic, no I/O.
+ */
+function roundness(n: number): number {
+  if (n === 0) return 2
+  let zeros = 0
+  let v = n
+  while (v % 10 === 0 && zeros < 2) {
+    zeros += 1
+    v = Math.floor(v / 10)
+  }
+  return zeros
+}
+
+/**
+ * How "round" a price *fraction* (in `0..1`) is — the cleaner the bet size, the easier the pot-odds math.
+ * A pot-sized (`1`) or half-pot (`0.5`) bet is the cleanest mental arithmetic; a quarter (`0.25`) or
+ * three-quarter (`0.75`) bet forces a real division. We rank by the roundness of the fraction expressed in
+ * hundredths ({@link roundness} of `round(f · 100)`: `1 → 100` two zeros, `0.5 → 50` one zero, `0.25 → 25`
+ * none), so `'hard'` weights toward the awkward quarter-pot sizings. Pure arithmetic, no I/O.
+ */
+function fractionRoundness(fraction: number): number {
+  return roundness(Math.round(fraction * 100))
+}
+
+/**
+ * The per-item **draw weight** for a difficulty-aware pick. On `'standard'` every item weighs exactly `1`
+ * — so the weighted pick reduces to the prior uniform `dealer.nextInt(n)` draw, byte-for-byte. On `'hard'`
+ * an item's weight is `1 + (maxRoundness − roundness)`: the *least*-round values (the ones that force real
+ * mental math) get the most weight, the cleanest values the least — but every value keeps weight `≥ 1`, so
+ * a `'hard'` draw still *can* deal an easy pot (it is biased, not deterministic). `harder` maps an item to
+ * a "lower is harder" rank (its roundness); pass it `roundness` for the money buckets.
+ */
+function difficultyWeight(rank: number, maxRank: number, difficulty: Difficulty): number {
+  return difficulty === 'hard' ? 1 + (maxRank - rank) : 1
+}
+
+/**
+ * Pick an element of `items` with the {@link Difficulty} lever applied, consuming **exactly one** dealer
+ * draw — the same single `dealer.nextInt(bound)` call (one `next()` float) a uniform {@link pick} consumes,
+ * in the same order. **On `'standard'` it is byte-for-byte the prior uniform pick** (`bound === items.length`,
+ * every weight `1`), so every existing generated spot replays unchanged. On `'hard'` the weights lean the
+ * draw toward the *harder* (less-round) values via a cumulative-weight scan over `dealer.nextInt(totalWeight)`
+ * — still one draw, just a wider bound, so the draw *count and order* are identical and a `'hard'` spot is
+ * itself a pure, replayable function of `(seed, config)`.
+ *
+ * @param harder Map an item to its hardness rank (lower ⇒ harder) — `roundness` for the money buckets.
+ */
+function pickByDifficulty<T>(
+  dealer: Dealer,
+  items: readonly T[],
+  difficulty: Difficulty,
+  harder: (item: T) => number,
+): T {
+  if (items.length === 0) throw new RangeError('cannot pick from an empty list')
+  // STANDARD: defer to the exact prior uniform draw — one nextInt(length) call. Byte-for-byte the old pick.
+  if (difficulty === 'standard') return pick(dealer, items)
+  // HARD: weight toward the less-round values. Still ONE dealer draw (over the total weight), so the
+  // draw order/count matches standard — only the bound and the index→item mapping differ.
+  const maxRank = Math.max(...items.map(harder))
+  const weights = items.map((item) => difficultyWeight(harder(item), maxRank, difficulty))
+  const total = weights.reduce((sum, w) => sum + w, 0)
+  let threshold = dealer.nextInt(total)
+  for (let i = 0; i < items.length; i++) {
+    threshold -= weights[i]!
+    if (threshold < 0) return items[i]!
+  }
+  return items[items.length - 1]!
 }
 
 /**
@@ -293,23 +372,37 @@ function coachChoicesFor(actions: ActionSet): readonly ActionChoice[] {
  * rule which are right, and Raise grades exactly like Call (both continues). So the richer set never
  * authors an answer; it only offers a second coach-graded continue button.
  *
+ * **Difficulty (ticket 0081).** `'standard'` (the default) draws the dead-money pot and the price fraction
+ * with the prior uniform {@link pick}, byte-for-byte. `'hard'` draws both with {@link pickByDifficulty},
+ * leaning toward the *less-round* pot ({@link roundness}: a `60`/`150` over a clean `100`) and the
+ * less-round price fraction (a `0.25`/`0.75` over a tidy `0.5`/`1`) so the pot-odds arithmetic is real
+ * mental math, never "half of 100". Either way the coach grades the spot identically — difficulty shifts
+ * which legal money is dealt, never the correct action.
+ *
  * @param dealer The seeded dealer every choice is drawn from.
  * @param priced Whether a non-trivial price is required (the `'priced'` price mode).
  * @param street The board street to deal — `'flop'` (default), `'turn'`, or `'river'`.
  * @param actions Which answer buttons to offer — `'call-fold'` (default) or `'call-raise-fold'`.
+ * @param difficulty `'standard'` (uniform, the default) or `'hard'` (less-round money) — see {@link Difficulty}.
  */
 function generateCoachSpot(
   dealer: Dealer,
   priced: boolean,
   street: PostflopStreet,
   actions: ActionSet,
+  difficulty: Difficulty,
 ): CoachSpot {
   const holeCards = dealer.dealHole()
   const board = dealer.dealBoard(street)
   const numActive = MIN_ACTIVE + dealer.nextInt(MAX_ACTIVE - MIN_ACTIVE + 1)
 
-  const deadPot = pick(dealer, POT_BUCKETS)
-  const fraction = pick(dealer, priced ? PRICED_FRACTIONS : PRICE_FRACTIONS)
+  const deadPot = pickByDifficulty(dealer, POT_BUCKETS, difficulty, roundness)
+  const fraction = pickByDifficulty(
+    dealer,
+    priced ? PRICED_FRACTIONS : PRICE_FRACTIONS,
+    difficulty,
+    fractionRoundness,
+  )
   // `toCall` is the chips the hero must ADD to call — the villain's bet, a fraction of the dead money
   // it bet INTO (`deadPot`, before the bet). Rounded to a whole chip.
   const toCall = Math.round(deadPot * fraction)
@@ -472,18 +565,29 @@ export function buildBuckets(dealer: Dealer, value: number): NumericChoice[] {
  * `potOddsThreshold` for the same deal — a calculation spot's pot-odds answer never disagrees with what
  * a coach spot on the same deal would price.
  *
+ * **Difficulty (ticket 0081).** `'standard'` (the default) draws the pot and price uniformly, byte-for-byte.
+ * `'hard'` draws both with {@link pickByDifficulty} toward the *less-round* values — exactly the lever the
+ * calculation kind benefits from most, since the asked number IS the pot-odds arithmetic: a `50 into 150`
+ * price is a clean third, a `45 into 165` price forces the real division. The grade is unchanged — the
+ * correct bucket is still the one the live `potOdds`/coach math lands in.
+ *
  * @param dealer The seeded dealer every choice is drawn from.
  * @param quantity Which number to ask for (the pot-odds price, the required equity, or an equity estimate).
+ * @param difficulty `'standard'` (uniform, the default) or `'hard'` (less-round money) — see {@link Difficulty}.
  */
-function generateCalculationSpot(dealer: Dealer, quantity: CalculationQuantity): CalculationSpot {
+function generateCalculationSpot(
+  dealer: Dealer,
+  quantity: CalculationQuantity,
+  difficulty: Difficulty,
+): CalculationSpot {
   const holeCards = dealer.dealHole()
   const board = dealer.dealBoard('flop')
   const numActive = MIN_ACTIVE + dealer.nextInt(MAX_ACTIVE - MIN_ACTIVE + 1)
 
-  const deadPot = pick(dealer, POT_BUCKETS)
+  const deadPot = pickByDifficulty(dealer, POT_BUCKETS, difficulty, roundness)
   // A calculation spot is ALWAYS priced — a free spot has degenerate pot odds (0), so the price
   // quantities (and the equity-vs-price framing) are only well-posed against a real bet.
-  const fraction = pick(dealer, PRICED_FRACTIONS)
+  const fraction = pickByDifficulty(dealer, PRICED_FRACTIONS, difficulty, fractionRoundness)
   const toCall = Math.round(deadPot * fraction)
   // Same win-pot convention as generateCoachSpot, so the pot-odds answer matches the coach's threshold.
   const pot = deadPot + toCall

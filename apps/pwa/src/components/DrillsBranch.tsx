@@ -30,6 +30,15 @@
  * The bias only *re-weights* the topics the player already picked; it never force-includes an unpicked
  * topic. The picker + recap show the bottom tab bar (they are lobby surfaces); the running session is
  * tab-less and immersive, exactly like the lesson player.
+ *
+ * **Mastery + adaptive difficulty (ticket 0081).** Off the SAME durable store (one `list()` read — no
+ * second aggregation), we also surface per-concept **mastery** ("70% over 40 reps") next to each theme in
+ * the lobby and in the recap, and *adapt difficulty* from it: a mastered concept is dealt **harder**
+ * parameters (less-round money — {@link applyDifficulty} bakes the per-concept {@link Difficulty} into the
+ * theme's `config`), and a chronically-weak concept is weighted UP in the next session's draw — folded
+ * into 0080's review {@link SessionBias} via {@link mergeBiasConcepts} (the SAME single weighting seam, not
+ * a second one). All of it is a pure read of the store's records (see `../drills/mastery`); difficulty
+ * shifts which legal spot is dealt, never the correct answer (the coach/engine still grades).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -40,8 +49,14 @@ import { TabBar } from './TabBar.js'
 import { CheckIcon, SparkIcon } from './Icons.js'
 import { DrillSession, type DrillOutcome } from './DrillSession.js'
 import {
+  applyDifficulty,
+  formatMastery,
   IndexedDbDrillProgressStore,
+  lowMasteryConcepts,
+  masteryByConcept,
+  mergeBiasConcepts,
   weakConcepts,
+  type ConceptMastery,
   type DrillProgressStore,
   type DrillSpotOutcome,
 } from '../drills/index.js'
@@ -154,6 +169,9 @@ export function DrillsBranch({
   // The learner's recently-missed concepts — the spaced-repetition "review" set the next session's draw
   // is biased toward. Loaded from the durable store (async) and refreshed after each session is recorded.
   const [reviewConcepts, setReviewConcepts] = useState<readonly Concept[]>([])
+  // Per-concept mastery (ticket 0081), read from the SAME store records as the review set — the source for
+  // the lobby/recap readout AND the adaptive difficulty + low-mastery bias. A view, not a second store.
+  const [mastery, setMastery] = useState<ReadonlyMap<Concept, ConceptMastery>>(() => new Map())
 
   // The default store is created lazily ONCE (same idiom as App's history/progress stores) so the drill
   // loop reads/writes one durable on-device record across renders. Tests inject their own store. Memoised
@@ -166,15 +184,18 @@ export function DrillsBranch({
   )
   const clock = now ?? Date.now
 
-  // Read the current weak concepts from the store, wrapped so a storage failure degrades gracefully
-  // (empty review set) and never throws into the loop — the history/progress-store idiom.
+  // Read the store ONCE and derive BOTH the spaced-repetition review set (0080) AND the per-concept mastery
+  // view (0081) from the same records — no second aggregation. Wrapped so a storage failure degrades
+  // gracefully (empty review set, empty mastery) and never throws into the loop — the progress-store idiom.
   const refreshReview = useCallback(async (): Promise<void> => {
     try {
       const records = await store.list()
       setReviewConcepts(weakConcepts(records, MAX_REVIEW_CONCEPTS))
+      setMastery(masteryByConcept(records))
     } catch (err: unknown) {
       console.warn('drill-progress: weak-concept read failed', err)
       setReviewConcepts([])
+      setMastery(new Map())
     }
   }, [store])
 
@@ -219,11 +240,17 @@ export function DrillsBranch({
   // refresh never re-deals the running session.
   const start = (themes: readonly DrillTheme[], len: number): void => {
     if (themes.length === 0) return
+    // The bias concepts MERGE 0080's recently-missed review set with this ticket's chronically-low-mastery
+    // set — through the SAME single SessionBias seam (mergeBiasConcepts unions them), never a second knob.
+    const biasConcepts = mergeBiasConcepts(reviewConcepts, lowMasteryConcepts(mastery))
     const bias: SessionBias | undefined =
-      reviewConcepts.length > 0
-        ? { concepts: new Set(reviewConcepts), weight: REVIEW_WEIGHT }
+      biasConcepts.length > 0
+        ? { concepts: new Set(biasConcepts), weight: REVIEW_WEIGHT }
         : undefined
-    setPhase({ kind: 'running', seed, themes, length: len, bias })
+    // Bake the adaptive per-concept difficulty into the picked themes' configs (harder draws for mastered
+    // concepts) — frozen with the session so a mid-session mastery refresh never re-deals.
+    const dealt = applyDifficulty(themes, mastery)
+    setPhase({ kind: 'running', seed, themes: dealt, length: len, bias })
     setSeed((s) => s + 1)
   }
 
@@ -273,17 +300,23 @@ export function DrillsBranch({
 
             {/* By-concept breakdown — which topics you drilled, and where you slipped. */}
             <div className="recap" data-testid="drills-breakdown">
-              {byConcept.map((c) => (
-                <div className="recap-row" key={c.concept} data-testid={`concept-${c.concept}`}>
-                  <span className="rr-check">
-                    <CheckIcon />
-                  </span>
-                  <span className="rr-name">{c.title}</span>
-                  <span className="rr-sub" data-testid={`concept-tally-${c.concept}`}>
-                    {c.correct} / {c.total} · {conceptWords(c.concept)}
-                  </span>
-                </div>
-              ))}
+              {byConcept.map((c) => {
+                // The lifetime mastery over time (ticket 0081), alongside this session's tally — so the
+                // learner sees progress across sessions, not just today's count. Read from the same store.
+                const readout = formatMastery(mastery.get(c.concept))
+                return (
+                  <div className="recap-row" key={c.concept} data-testid={`concept-${c.concept}`}>
+                    <span className="rr-check">
+                      <CheckIcon />
+                    </span>
+                    <span className="rr-name">{c.title}</span>
+                    <span className="rr-sub" data-testid={`concept-tally-${c.concept}`}>
+                      {c.correct} / {c.total} · {conceptWords(c.concept)}
+                      {readout ? ` · ${readout.percent} over ${readout.reps}` : ''}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
           <div className="endprimer-cta">
@@ -331,11 +364,18 @@ export function DrillsBranch({
         <div className="setup-card">
           {DRILL_THEMES.map((theme) => {
             const on = selectedIds.has(theme.id)
+            // The per-concept mastery readout (ticket 0081), read from the same store — "70% over 40 reps"
+            // when drilled, a gentle "not drilled yet" before. It is a decision-quality read, not a score.
+            const readout = formatMastery(mastery.get(theme.concept))
             return (
               <div className="setup-row" key={theme.id}>
                 <div className="setup-label">
                   {theme.title}
-                  <span className="hint">drills {conceptWords(theme.concept)}</span>
+                  <span className="hint" data-testid={`theme-mastery-${theme.id}`}>
+                    {readout
+                      ? `${conceptWords(theme.concept)} · ${readout.percent} over ${readout.reps}`
+                      : `drills ${conceptWords(theme.concept)} · not drilled yet`}
+                  </span>
                 </div>
                 <button
                   type="button"

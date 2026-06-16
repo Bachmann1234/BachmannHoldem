@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_ACTION_SET,
+  DEFAULT_DIFFICULTY,
   DEFAULT_KIND,
   DEFAULT_PRICE_MODE,
   DEFAULT_QUANTITY,
@@ -15,6 +16,7 @@ const ALL_DEFAULTS = {
   quantity: DEFAULT_QUANTITY,
   street: DEFAULT_STREET,
   actions: DEFAULT_ACTION_SET,
+  difficulty: DEFAULT_DIFFICULTY,
 }
 
 describe('resolveConfig', () => {
@@ -58,6 +60,10 @@ describe('resolveConfig', () => {
     })
   })
 
+  it('honours an explicit difficulty, defaulting the rest (ticket 0081)', () => {
+    expect(resolveConfig({ difficulty: 'hard' })).toEqual({ ...ALL_DEFAULTS, difficulty: 'hard' })
+  })
+
   it('honours a fully-specified config', () => {
     expect(
       resolveConfig({
@@ -66,6 +72,7 @@ describe('resolveConfig', () => {
         quantity: 'required-equity',
         street: 'river',
         actions: 'call-raise-fold',
+        difficulty: 'hard',
       }),
     ).toEqual({
       kind: 'coach',
@@ -73,7 +80,14 @@ describe('resolveConfig', () => {
       quantity: 'required-equity',
       street: 'river',
       actions: 'call-raise-fold',
+      difficulty: 'hard',
     })
+  })
+
+  it('the standard difficulty default preserves the pre-0081 uniform behaviour (ticket 0081)', () => {
+    // The byte-identical-existing-callers contract: when a caller omits difficulty, it resolves to
+    // 'standard' — the uniform parameter draw the generator made before the difficulty knob existed.
+    expect(DEFAULT_DIFFICULTY).toBe('standard')
   })
 
   it('the flop / call-fold defaults preserve the pre-0078 behaviour', () => {

@@ -4,3 +4,4 @@
  */
 export * from './record.js'
 export * from './store.js'
+export * from './mastery.js'

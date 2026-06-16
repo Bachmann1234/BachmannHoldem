@@ -10,6 +10,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DRILL_THEMES } from '@holdem/drills'
 import type { DrillProgressRecord, DrillProgressStore, DrillSpotOutcome } from '../drills/index.js'
+import { DRILL_PROGRESS_SCHEMA_VERSION } from '../drills/index.js'
 import { foldOutcome } from '../drills/store.js'
 import { DrillsBranch } from './DrillsBranch.js'
 
@@ -194,6 +195,35 @@ describe('DrillsBranch — spaced repetition (ticket 0080)', () => {
     // After recording, the review set is refreshed so the NEXT session re-queues the just-drilled
     // concepts — the spaced-repetition loop closes.
     await waitFor(() => expect(store.calls.list).toBeGreaterThan(listsBefore))
+  })
+
+  it('surfaces per-concept MASTERY in the lobby, read from the same store (ticket 0081)', async () => {
+    // Preload the store with a pot-odds aggregate: 28/40 → "70% over 40 reps". Every pot-odds-concept
+    // theme's row must show that readout (read off the SAME store, no second aggregation).
+    const store = makeFakeStore()
+    store.records.set('pot-odds', {
+      schemaVersion: DRILL_PROGRESS_SCHEMA_VERSION,
+      concept: 'pot-odds',
+      correct: 28,
+      total: 40,
+      missStreak: 0,
+      lastDrilledAt: 1000,
+      lastMissedAt: 0,
+    })
+    render(<DrillsBranch onNavigate={vi.fn()} progressStore={store} />)
+
+    const potOddsTheme = DRILL_THEMES.find((t) => t.concept === 'pot-odds')!
+    await waitFor(() => {
+      const readout = screen.getByTestId(`theme-mastery-${potOddsTheme.id}`)
+      expect(readout.textContent).toContain('70%')
+      expect(readout.textContent).toContain('40 reps')
+    })
+
+    // An undrilled concept's row shows the gentle "not drilled yet" placeholder, never "0% over 0 reps".
+    const undrilled = DRILL_THEMES.find((t) => t.concept === 'ranges')!
+    expect(screen.getByTestId(`theme-mastery-${undrilled.id}`).textContent).toContain(
+      'not drilled yet',
+    )
   })
 
   it('a throwing store NEVER breaks the loop — the session still reaches its summary', async () => {

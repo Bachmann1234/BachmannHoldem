@@ -130,6 +130,30 @@ export type PriceMode = 'any' | 'priced'
 export type ActionSet = 'call-fold' | 'call-raise-fold'
 
 /**
+ * How hard a generated spot's *parameters* are drawn — the adaptive-difficulty knob
+ * ([[0081-drills-mastery-difficulty-glossary]]). This shifts **which legal spot is dealt**, never the
+ * correct answer: every difficulty still produces a coach-/engine-graded spot with **no answer key**, so
+ * the cardinal no-answer-key invariant is untouched. Difficulty only re-weights the *deal-time-deterministic*
+ * parameter draws (the generator never computes equity at deal time, so it cannot target a break-even spot
+ * — it leans the seeded draw toward inputs that demand more real mental math).
+ *
+ * - `'standard'` — the **default** and the pre-0081 behaviour, **byte-for-byte**: every parameter draw is
+ *   the prior uniform `dealer.nextInt(n)` pick, in the same order, consuming the same dealer floats. So an
+ *   omitted/`'standard'` difficulty replays every existing generated spot unchanged (pinned by a test).
+ * - `'hard'` — lean the seeded draws toward harder values, on a handful of well-justified levers that are
+ *   all deal-time-deterministic (no equity needed): a **less-round** pot/price (so the pot-odds arithmetic
+ *   isn't a clean "half of 100") and **closer distractors** (a narrower number-bucket / category window, so
+ *   the wrong answers sit right next to the right one). Each lever consumes the *same number of dealer
+ *   draws in the same order* as `'standard'` — it only changes how a draw is *mapped to a value* — so a
+ *   `'hard'` session stays a pure function of `(seed, config)` and replays byte-for-byte too.
+ *
+ * The level is *adaptive*: the PWA derives it from per-concept mastery (rises as mastery rises, eases when
+ * it drops) — see the shell's `difficultyForMastery`. Kept a small enum (not a 0..1 scalar) so the levers
+ * are a fixed, testable set rather than a continuum the generator would have to interpolate.
+ */
+export type Difficulty = 'standard' | 'hard'
+
+/**
  * A drill **theme config** — the optional, all-defaults-provided parameterisation a caller (today: a
  * test; tomorrow: 0066's session composer) passes alongside a seed to shape the spot. Kept minimal on
  * purpose: it constrains the spot *family*, and nothing here knows about named themes, weighting, or
@@ -174,6 +198,14 @@ export interface DrillConfig {
    * see {@link ActionSet}.
    */
   readonly actions?: ActionSet
+  /**
+   * How hard to draw this spot's *parameters* — the adaptive-difficulty knob ([[0081]]). Omitted ⇒
+   * {@link DEFAULT_DIFFICULTY} (`'standard'`), the prior uniform draw, **byte-for-byte**, so every existing
+   * theme/test is unchanged. The PWA raises this to `'hard'` for concepts the learner has mastered (so the
+   * arithmetic gets less round and the distractors get closer); it never changes the *correct* answer, only
+   * which legal spot is dealt. See {@link Difficulty}.
+   */
+  readonly difficulty?: Difficulty
 }
 
 /** The spot kind generated when a config omits {@link DrillConfig.kind} — the postflop coach spot. */
@@ -204,9 +236,17 @@ export const DEFAULT_STREET: PostflopStreet = 'flop'
 export const DEFAULT_ACTION_SET: ActionSet = 'call-fold'
 
 /**
+ * The difficulty used when a config omits {@link DrillConfig.difficulty} — `'standard'`, the prior uniform
+ * parameter draw. Keeping the default `'standard'` is what makes every pre-0081 caller byte-identical: the
+ * generator's difficulty-aware draws collapse to the exact `dealer.nextInt(n)` picks they were before.
+ */
+export const DEFAULT_DIFFICULTY: Difficulty = 'standard'
+
+/**
  * Resolve a (possibly-`undefined`, possibly-partial) {@link DrillConfig} into a fully-populated one,
  * applying {@link DEFAULT_KIND} / {@link DEFAULT_PRICE_MODE} / {@link DEFAULT_QUANTITY} /
- * {@link DEFAULT_STREET} / {@link DEFAULT_ACTION_SET} — so {@link generateSpot} reads concrete values and
+ * {@link DEFAULT_STREET} / {@link DEFAULT_ACTION_SET} / {@link DEFAULT_DIFFICULTY} — so
+ * {@link generateSpot} reads concrete values and
  * the defaulting lives in exactly one documented place rather than scattered `?? default` across the
  * generator. A pure mapping, no randomness.
  *
@@ -229,5 +269,6 @@ export function resolveConfig(config?: DrillConfig): Required<DrillConfig> {
     quantity: config?.quantity ?? DEFAULT_QUANTITY,
     street,
     actions: config?.actions ?? DEFAULT_ACTION_SET,
+    difficulty: config?.difficulty ?? DEFAULT_DIFFICULTY,
   }
 }

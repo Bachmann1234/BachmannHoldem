@@ -2,7 +2,7 @@
 id: 0081
 title: Per-concept mastery + adaptive difficulty, and a beginner cheat-sheet
 type: feature
-status: todo
+status: done
 milestone: M5.5
 priority: low
 created: 2026-06-16
@@ -18,16 +18,16 @@ thin for a true beginner whose whole value prop is number sense (learning-app re
 
 ## Acceptance criteria
 
-- [ ] **Per-concept mastery** tracked across sessions (e.g. "pot-odds: 70% over 40 reps"), surfaced
+- [x] **Per-concept mastery** tracked across sessions (e.g. "pot-odds: 70% over 40 reps"), surfaced
       so the learner sees progress — builds on the persistence from
       [[0080-drills-spaced-repetition]].
-- [ ] **Adaptive difficulty**: a difficulty input on `DrillConfig` that weights spot selection
+- [x] **Adaptive difficulty**: a difficulty input on `DrillConfig` that weights spot selection
       toward weak concepts / harder parameters as mastery rises (and eases when it drops), replacing
       pure uniform-random selection.
-- [ ] **Grow the glossary toward a cheat-sheet**: expand beyond the current 6 terms and add a
+- [x] **Grow the glossary toward a cheat-sheet**: expand beyond the current 6 terms and add a
       pot-odds → equity quick-reference table (the rule-of-2-and-4 / common bet-size → required-equity
       pegs) as a reference surface reachable from drills and the coach.
-- [ ] Deterministic where seeded; tests cover mastery aggregation and difficulty weighting; purity
+- [x] Deterministic where seeded; tests cover mastery aggregation and difficulty weighting; purity
       preserved in the pure package.
 
 ## Notes

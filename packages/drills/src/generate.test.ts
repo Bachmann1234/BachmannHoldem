@@ -801,6 +801,119 @@ describe('pickWindowStart — the shared seeded-window boundary invariant', () =
   })
 })
 
+describe('generateSpot — adaptive difficulty (ticket 0081)', () => {
+  /** A wider seed sweep — the difficulty levers are *distributional*, so we need many deals to see the shift. */
+  const MANY_SEEDS = Array.from({ length: 200 }, (_, i) => i + 1)
+
+  /** Trailing-zero count of a chip number (capped at 2) — the "roundness" the hard lever weights against. */
+  function roundness(n: number): number {
+    if (n === 0) return 2
+    let zeros = 0
+    let v = n
+    while (v % 10 === 0 && zeros < 2) {
+      zeros += 1
+      v = Math.floor(v / 10)
+    }
+    return zeros
+  }
+
+  it("omitting difficulty matches an explicit 'standard' difficulty — BYTE-FOR-BYTE, every kind", () => {
+    // THE PIN: the lowest/default difficulty reproduces today's uniform-random selection exactly, so every
+    // existing generated spot (and its test) is unchanged. Swept across every kind + the price modes that
+    // draw money buckets, since 'standard' must be the prior uniform draw, deal for deal.
+    for (const seed of SEEDS) {
+      expect(generateSpot(seed)).toEqual(generateSpot(seed, { difficulty: 'standard' }))
+      expect(generateSpot(seed, { kind: 'coach', priceMode: 'priced' })).toEqual(
+        generateSpot(seed, { kind: 'coach', priceMode: 'priced', difficulty: 'standard' }),
+      )
+      for (const quantity of ['pot-odds', 'required-equity', 'equity'] as const) {
+        expect(generateSpot(seed, { kind: 'calculation', quantity })).toEqual(
+          generateSpot(seed, { kind: 'calculation', quantity, difficulty: 'standard' }),
+        )
+      }
+    }
+  })
+
+  it("'hard' difficulty is deterministic — same seed → identical spot (deep-equal)", () => {
+    for (const seed of SEEDS) {
+      const cfg = { kind: 'coach', priceMode: 'priced', difficulty: 'hard' } as const
+      expect(generateSpot(seed, cfg)).toEqual(generateSpot(seed, cfg))
+      const calc = { kind: 'calculation', quantity: 'pot-odds', difficulty: 'hard' } as const
+      expect(generateSpot(seed, calc)).toEqual(generateSpot(seed, calc))
+    }
+  })
+
+  it("'hard' shifts the pot/price draw toward LESS-round values (the math gets harder)", () => {
+    // The distribution shift the lever exists to make: average over many deals, the 'hard' draws are less
+    // round (lower trailing-zero count) than the uniform 'standard' draws — so the pot-odds arithmetic is
+    // real mental math, not "half of a clean 100". Measured on calculation spots (always priced).
+    const avgRoundness = (difficulty: 'standard' | 'hard'): number => {
+      let sum = 0
+      for (const seed of MANY_SEEDS) {
+        const spot = generateSpot(seed, {
+          kind: 'calculation',
+          quantity: 'pot-odds',
+          difficulty,
+        }) as CalculationSpot
+        // pot - toCall is the dead-money bucket; toCall/(dead) recovers the price fraction. Rank both by
+        // roundness and sum — the hard draws should average a lower roundness (gnarlier numbers).
+        const dead = spot.context.pot - spot.context.toCall
+        sum += roundness(dead) + roundness(spot.context.toCall)
+      }
+      return sum / MANY_SEEDS.length
+    }
+    // Strictly less round on average — the hard lever genuinely biases toward the awkward numbers.
+    expect(avgRoundness('hard')).toBeLessThan(avgRoundness('standard'))
+  })
+
+  it("'hard' still honours the no-answer-key invariant (coach grades every choice)", () => {
+    // Difficulty changes which legal spot is dealt, NEVER the correct answer. Grade every choice of a hard
+    // coach spot and assert exactly the coach-blessed ones come back correct — the same cardinal proof, on
+    // the harder draws.
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, {
+        kind: 'coach',
+        priceMode: 'priced',
+        difficulty: 'hard',
+      }) as CoachSpot
+      const context = synthesizeContext(spot.context)
+      let anyCorrect = false
+      spot.choices.forEach((choice, i) => {
+        const result = gradeSpot(spot, i)
+        expect(result.correct).toBe(coachDecision(context, choice.action).verdict !== 'leak')
+        if (result.correct) anyCorrect = true
+      })
+      expect(anyCorrect).toBe(true)
+    }
+  })
+
+  it("'hard' calculation spots still grade to the live potOdds bucket (no answer key)", () => {
+    // The no-answer-key proof on the calculation kind under 'hard': the graded-correct bucket is still the
+    // one containing the live potOdds(toCall, pot) — the difficulty shifted the deal, not the answer.
+    for (const seed of SEEDS) {
+      const spot = generateSpot(seed, {
+        kind: 'calculation',
+        quantity: 'pot-odds',
+        difficulty: 'hard',
+      }) as CalculationSpot
+      const value = potOdds(spot.context.toCall, spot.context.pot)
+      const expected = spot.choices.findIndex((c) => value >= c.lo && value < c.hi)
+      expect(expected).toBeGreaterThanOrEqual(0)
+      spot.choices.forEach((_c, i) => expect(gradeSpot(spot, i).correct).toBe(i === expected))
+    }
+  })
+
+  it("preflop spots ignore difficulty — they draw no money buckets ('hard' === 'standard')", () => {
+    // Preflop reads the chart on holding + seat; there are no pot/price draws for the levers to act on, so
+    // a 'hard' preflop spot is byte-identical to a 'standard' one.
+    for (const seed of SEEDS) {
+      expect(generateSpot(seed, { kind: 'preflop', difficulty: 'hard' })).toEqual(
+        generateSpot(seed, { kind: 'preflop' }),
+      )
+    }
+  })
+})
+
 describe('postflop generators only ever deal a real (≥3-card) board (the preflop-street defect)', () => {
   // The correctness defect this guards: a postflop generator handed street:'preflop' would deal a 0-card
   // board and crash evaluate7 ('expects 5..7 cards, got 2'). DrillConfig.street is now typed PostflopStreet

@@ -8,6 +8,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { describeHandClass } from '@holdem/coach'
+import { outsToEquity, potOdds } from '@holdem/odds'
 import { GlossaryOverlay } from './GlossaryOverlay.js'
 
 afterEach(cleanup)
@@ -60,6 +61,38 @@ describe('GlossaryOverlay', () => {
   it('no longer asserts trash "makes no money" (no false universal, ticket 0056)', () => {
     render(<GlossaryOverlay onClose={vi.fn()} />)
     expect(screen.getByTestId('glossary-body').textContent).not.toMatch(/makes no money/i)
+  })
+
+  it('renders the number-sense cheat-sheet vocabulary (ticket 0081)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByText('Number sense')).toBeTruthy()
+    const body = screen.getByTestId('glossary-body')
+    for (const term of ['Equity', 'Pot odds', 'Break-even equity', 'Outs', 'EV']) {
+      expect(body.textContent).toContain(term)
+    }
+  })
+
+  it('renders the pot-odds → equity table with values DERIVED from @holdem/odds (ticket 0081)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByTestId('cheatsheet-pot-odds')).toBeTruthy()
+    // The half-pot row's required equity must equal potOdds for that bet — never a hand-typed literal.
+    const halfPotExpected = `${Math.round(potOdds(0.5, 1.5) * 100)}%` // 25%
+    const row = screen.getByTestId('peg-0.500')
+    expect(row.textContent).toContain('Half pot')
+    expect(row.textContent).toContain(halfPotExpected)
+    // The pot-sized row reads 33% (potOdds(1, 2)).
+    expect(screen.getByTestId('peg-1.000').textContent).toContain(
+      `${Math.round(potOdds(1, 2) * 100)}%`,
+    )
+  })
+
+  it('renders the rule-of-2-and-4 table with values DERIVED from outsToEquity (ticket 0081)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByTestId('cheatsheet-outs')).toBeTruthy()
+    // A 9-out flush draw: flop ×4 / turn ×2, both straight from outsToEquity — never typed.
+    const flush = screen.getByTestId('outs-9')
+    expect(flush.textContent).toContain(`${Math.round(outsToEquity(9, 2) * 100)}%`) // 36%
+    expect(flush.textContent).toContain(`${Math.round(outsToEquity(9, 1) * 100)}%`) // 18%
   })
 
   it('highlights the row when opened on a focusTerm (deep-link from a chart explanation)', () => {

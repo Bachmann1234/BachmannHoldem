@@ -1534,6 +1534,32 @@
   line-height: 1.4;
   color: var(--text-2);
 }
+/* the beginner cheat-sheet quick-reference tables (ticket 0081) — pot-odds → equity and the
+   rule-of-2-and-4. A compact, readable grid that reuses the glossary's type scale + accent. */
+.glossary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+.glossary-table th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--line, color-mix(in oklab, var(--text) 12%, transparent));
+}
+.glossary-table td {
+  padding: 4px 8px 4px 0;
+  color: var(--text);
+  border-bottom: 1px solid color-mix(in oklab, var(--text) 6%, transparent);
+}
+.glossary-table th:not(:first-child),
+.glossary-table td:not(:first-child) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* the row a deep-link from a chart explanation lands on — a brief accent wash so the eye finds it
    (ticket 0064). Padding + matching negative margin so the highlight has room without shifting the
    grid. */

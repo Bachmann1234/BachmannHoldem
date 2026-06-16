@@ -7,6 +7,15 @@
  * vocabulary a learner meets the moment they read a hand review or the coach's reasoning — hero,
  * villain, range, GTO — so the words are decoded in the same place as the symbols.
  *
+ * **The beginner number-sense cheat-sheet (ticket 0081).** Because number sense is the beginner's whole
+ * value prop (see [../../docs/LEARNING-APPROACH.md]), the overlay grows past a pure decode into a
+ * cheat-sheet: a "Number sense" vocabulary section (equity, pot odds, EV, outs, break-even) and two
+ * quick-reference TABLES — the pot-odds → required-equity pegs (quarter/half/pot bet → the equity a call
+ * needs) and the rule-of-2-and-4 (outs → flop/turn equity). The table numbers are DERIVED from
+ * `@holdem/odds` at module load (see {@link ./cheatSheet}), never hand-typed, so they cannot drift from
+ * the coach's pricing or the calculation drills' grading. This is the reference the calc drills (0077) and
+ * the coach point a struggling learner at.
+ *
  * Presentational only and self-contained: a centred modal over its own scrim, opened from the Learn
  * header next to the chart link. The hand-class examples are read through `@holdem/coach`'s
  * {@link describeHandClass}, so the glossary can never disagree with the chart caption it explains.
@@ -18,6 +27,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { describeHandClass, type GradeTermId } from '@holdem/coach'
 import { GLOSSARY_TERMS, HAND_STRENGTH_TERM_ORDER } from './glossaryTerms.js'
+import { NUMBER_SENSE_TERMS, OUTS_PEGS, POT_ODDS_PEGS } from './cheatSheet.js'
 
 /** One decoded term: the shorthand as written, and what it means in plain English. */
 interface GlossaryEntry {
@@ -77,6 +87,13 @@ const SECTIONS: readonly GlossarySection[] = [
       term: GLOSSARY_TERMS[id].term,
       meaning: GLOSSARY_TERMS[id].meaning,
     })),
+  },
+  {
+    // The beginner number-sense vocabulary (ticket 0081) — the words behind the cheat-sheet tables below.
+    title: 'Number sense',
+    intro:
+      'The math words a beginner lives by — and the cheat-sheet tables that follow put numbers on them.',
+    entries: NUMBER_SENSE_TERMS.map((t) => ({ term: t.term, meaning: t.meaning })),
   },
   {
     title: 'Table positions',
@@ -224,6 +241,60 @@ export function GlossaryOverlay({ onClose, focusTerm }: GlossaryOverlayProps): R
               </dl>
             </section>
           ))}
+
+          {/* The pot-odds → required-equity quick-reference — every value DERIVED from @holdem/odds. */}
+          <section className="glossary-section" data-testid="cheatsheet-pot-odds">
+            <h3 className="glossary-title">Pot odds → equity</h3>
+            <p className="glossary-intro">
+              The equity a call needs to break even, by bet size. Above it, calling makes money over
+              time; below it, fold.
+            </p>
+            <table className="glossary-table">
+              <thead>
+                <tr>
+                  <th scope="col">Villain bets</th>
+                  <th scope="col">You need</th>
+                </tr>
+              </thead>
+              <tbody>
+                {POT_ODDS_PEGS.map((peg) => (
+                  <tr key={peg.bet} data-testid={`peg-${peg.fraction.toFixed(3)}`}>
+                    <td>{peg.bet}</td>
+                    <td>{peg.requiredEquity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
+          {/* The rule-of-2-and-4 — outs → flop/turn equity, every value DERIVED from outsToEquity. */}
+          <section className="glossary-section" data-testid="cheatsheet-outs">
+            <h3 className="glossary-title">Rule of 2 and 4</h3>
+            <p className="glossary-intro">
+              Turn your outs into equity: ×4 on the flop (two cards to come), ×2 on the turn (one
+              card). Roughly right — close enough to decide.
+            </p>
+            <table className="glossary-table">
+              <thead>
+                <tr>
+                  <th scope="col">Draw</th>
+                  <th scope="col">Outs</th>
+                  <th scope="col">Flop</th>
+                  <th scope="col">Turn</th>
+                </tr>
+              </thead>
+              <tbody>
+                {OUTS_PEGS.map((peg) => (
+                  <tr key={peg.outs} data-testid={`outs-${peg.outs}`}>
+                    <td>{peg.draw}</td>
+                    <td>{peg.outs}</td>
+                    <td>{peg.flop}</td>
+                    <td>{peg.turn}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
         </div>
       </div>
     </>,
