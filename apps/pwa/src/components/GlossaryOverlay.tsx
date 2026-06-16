@@ -3,9 +3,10 @@
  * everywhere a learner meets it: the starting-hand chart cells (`JTo`), the coach drawer's "your hand"
  * highlight, the seat tags on the felt (`BTN`/`SB`/`BB`), and the card faces. The chart's tap-to-decode
  * caption answers "what is *this* hand"; this answers "what does the *notation* mean" once, for the
- * whole system. A closing "Talking about hands" section goes past pure notation to the analytical
- * vocabulary a learner meets the moment they read a hand review or the coach's reasoning — hero,
- * villain, range, GTO — so the words are decoded in the same place as the symbols.
+ * whole system. Past pure notation it also defines the spoken poker vocabulary a learner meets in the
+ * lessons but not the rules: a "Draws and the board" section (flush draw, overcard, made hand, …) and
+ * a closing "Talking about hands" section for the analytical words a hand review or the coach leans on
+ * (hero, villain, range, GTO) — so the words are decoded in the same place as the symbols.
  *
  * Presentational only and self-contained: a centred modal over its own scrim, opened from the Learn
  * header next to the chart link. The hand-class examples are read through `@holdem/coach`'s
@@ -77,6 +78,53 @@ const SECTIONS: readonly GlossarySection[] = [
       term: GLOSSARY_TERMS[id].term,
       meaning: GLOSSARY_TERMS[id].meaning,
     })),
+  },
+  {
+    title: 'Draws and the board',
+    intro:
+      'Whether your hand is already complete or still needs a card — and how it ranks against the board.',
+    entries: [
+      {
+        term: 'Made hand',
+        meaning:
+          'A hand that is already complete — a pair or better that can win at showdown with no more help. The opposite of a draw.',
+      },
+      {
+        term: 'Flush draw',
+        meaning:
+          'Four cards of one suit, one short of a flush. With the turn and river still to come you complete it about 35% of the time — a strong, common draw.',
+      },
+      {
+        term: 'Gutshot',
+        meaning:
+          'An inside straight draw: four to a straight, but you need one specific middle rank — like 9-8-7-5 waiting on a 6. Only four cards complete it, so it is the weakest straight draw.',
+      },
+      {
+        term: 'Open-ended',
+        meaning:
+          'A straight draw open at both ends, like 8-7-6-5 — a 9 or a 4 makes it. Eight cards complete it, twice as many as a gutshot.',
+      },
+      {
+        term: 'Overcard',
+        meaning:
+          'A card higher than every card on the board. Holding A-Q on a 9-7-2 flop, both your cards are overcards — unpaired, but still live to make the top pair.',
+      },
+      {
+        term: 'Top pair',
+        meaning:
+          'Pairing the highest card on the board with one of your cards — a solid, everyday made hand. Its strength rides on your kicker.',
+      },
+      {
+        term: 'Overpair',
+        meaning:
+          'A pocket pair higher than every board card, like QQ on a 9-7-2 flop. It beats any top pair the board can make.',
+      },
+      {
+        term: 'Underpair',
+        meaning:
+          'A pocket pair lower than the top board card, like 99 on an A-7-2 flop. Anyone holding that ace already has you beat.',
+      },
+    ],
   },
   {
     title: 'Table positions',

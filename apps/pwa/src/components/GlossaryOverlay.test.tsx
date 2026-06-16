@@ -57,6 +57,24 @@ describe('GlossaryOverlay', () => {
     }
   })
 
+  it('defines the draw and board terms the lessons assume (flush draw, overcard, …)', () => {
+    render(<GlossaryOverlay onClose={vi.fn()} />)
+    expect(screen.getByText('Draws and the board')).toBeTruthy()
+    const body = screen.getByTestId('glossary-body')
+    for (const term of [
+      'Made hand',
+      'Flush draw',
+      'Gutshot',
+      'Open-ended',
+      'Overcard',
+      'Top pair',
+      'Overpair',
+      'Underpair',
+    ]) {
+      expect(body.textContent).toContain(term)
+    }
+  })
+
   it('no longer asserts trash "makes no money" (no false universal, ticket 0056)', () => {
     render(<GlossaryOverlay onClose={vi.fn()} />)
     expect(screen.getByTestId('glossary-body').textContent).not.toMatch(/makes no money/i)
