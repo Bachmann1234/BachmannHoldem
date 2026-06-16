@@ -2,7 +2,7 @@
 id: 0077
 title: Calculation / estimation drill type — retrieve the math as a number
 type: feature
-status: todo
+status: done
 milestone: M5.5
 priority: high
 created: 2026-06-16
@@ -19,15 +19,15 @@ compute the answers.
 
 ## Acceptance criteria
 
-- [ ] A non-binary drill spot type that asks the player to **produce a number**, e.g.: "what pot
+- [x] A non-binary drill spot type that asks the player to **produce a number**, e.g.: "what pot
       odds / price are you getting?", "estimate your equity here", "what equity do you need to
       call?" — with input (or graded buckets) rather than a 2-option choice.
-- [ ] Graded against the **deterministic coach numbers the app already computes** (the equity oracle,
+- [x] Graded against the **deterministic coach numbers the app already computes** (the equity oracle,
       `potOdds`), with a tolerance band for estimates so a "close enough" rule-of-2-and-4 answer is
       correct — no hand-authored answer keys.
-- [ ] Emitted by the generator (extend `DrillKind` / `@holdem/drills`) and rendered in the drills
+- [x] Emitted by the generator (extend `DrillKind` / `@holdem/drills`) and rendered in the drills
       session UI ([[0067-pwa-drills-session]]); feedback shows the exact number and how it's derived.
-- [ ] Deterministic + seeded like the existing generators (`mulberry32`), tests assert the spot
+- [x] Deterministic + seeded like the existing generators (`mulberry32`), tests assert the spot
       grades to the computed value within tolerance; purity preserved in the pure package.
 
 ## Notes

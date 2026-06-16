@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { gradeSpot, synthesizeContext, type CoachSpot, type PreflopSpot } from '@holdem/curriculum'
+import {
+  gradeSpot,
+  synthesizeContext,
+  type CalculationSpot,
+  type CoachSpot,
+  type PreflopSpot,
+} from '@holdem/curriculum'
 import { composeSession, DRILL_THEMES, type DrillTheme, type SessionItem } from './themes.js'
 
 /** A spread of session seeds to exercise the composer across many distinct draws. */
@@ -19,6 +25,9 @@ describe('DRILL_THEMES — the catalogue', () => {
     expect(ids).toContain('preflop-ranges')
     expect(ids).toContain('pot-odds-calls')
     expect(ids).toContain('postflop-equity')
+    // The calculation themes (ticket 0077): the numeric-retrieval topics.
+    expect(ids).toContain('pot-odds-math')
+    expect(ids).toContain('equity-estimate')
     expect(DRILL_THEMES.length).toBeGreaterThanOrEqual(3)
     // ids are the persisted keys — they must be unique.
     expect(new Set(ids).size).toBe(ids.length)
@@ -76,6 +85,31 @@ describe('DRILL_THEMES — each theme generates only legal spots of its declared
     }
     // 'any' price mode must be able to produce a free spot — proof the theme did not silently force a price.
     expect(sawFree).toBe(true)
+  })
+
+  it('pot-odds-math → CalculationSpots graded against potOdds, with the pot-odds concept', () => {
+    for (const seed of SEEDS) {
+      const [item] = composeSession([theme('pot-odds-math')], 1, seed)
+      const spot = item!.spot as CalculationSpot
+      expect(spot.kind).toBe('calculation')
+      expect(spot.quantity).toBe('required-equity')
+      expect(spot.context.toCall).toBeGreaterThan(0) // always priced
+      // Graded with no answer key — the correct bucket is derived; the concept flows through.
+      const res = gradeSpot(spot, 0)
+      expect(res.concept).toBe('pot-odds')
+      expect(item!.theme.concept).toBe('pot-odds')
+    }
+  })
+
+  it('equity-estimate → CalculationSpots asking for equity, graded against the coach read', () => {
+    for (const seed of SEEDS.slice(0, 8)) {
+      const [item] = composeSession([theme('equity-estimate')], 1, seed)
+      const spot = item!.spot as CalculationSpot
+      expect(spot.kind).toBe('calculation')
+      expect(spot.quantity).toBe('equity')
+      expect(gradeSpot(spot, 0).concept).toBe('equity')
+      expect(item!.theme.concept).toBe('equity')
+    }
   })
 })
 

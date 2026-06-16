@@ -197,6 +197,9 @@ importers:
       '@holdem/format':
         specifier: workspace:*
         version: link:../format
+      '@holdem/odds':
+        specifier: workspace:*
+        version: link:../odds
 
   packages/drills:
     dependencies:

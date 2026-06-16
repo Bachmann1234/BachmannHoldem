@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { parseCards, type Card } from '@holdem/engine'
+import { potOdds } from '@holdem/odds'
+import { coachDecision } from '@holdem/coach'
 import { pct } from '@holdem/format'
 import { gradeSpot } from './grade.js'
-import type { CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
+import { synthesizeContext } from './spot.js'
+import type { CalculationSpot, CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
 
 function hole(text: string): readonly [Card, Card] {
   const cards = parseCards(text)
@@ -259,6 +262,108 @@ describe('gradeSpot — declarative carve-out', () => {
       ],
     }
     expect(() => gradeSpot(broken, 0)).toThrow(RangeError)
+  })
+})
+
+describe('gradeSpot — calculation (numeric retrieval, no answer key)', () => {
+  // 30 to call into a 90 win-pot → potOdds(30, 90) = 30/120 = 0.25 exactly. Buckets tile [20%,30%) and
+  // [30%,40%): under the half-open [lo,hi) convention 0.25 is in the FIRST (correct), so a player who
+  // taps [20%,30%) is right and [30%,40%) is the distractor.
+  const POT_ODDS_SPOT: CalculationSpot = {
+    kind: 'calculation',
+    prompt: '30 to call into a 90 pot — what equity do you need?',
+    quantity: 'required-equity',
+    concept: 'pot-odds',
+    choices: [
+      { label: '10–20%', lo: 0.1, hi: 0.2 },
+      { label: '20–30%', lo: 0.2, hi: 0.3 },
+      { label: '30–40%', lo: 0.3, hi: 0.4 },
+    ],
+    context: {
+      holeCards: hole('Ah Kd'),
+      board: parseCards('As 7c 2d'),
+      pot: 90,
+      toCall: 30,
+      numActive: 2,
+    },
+  }
+
+  it('derives the correct bucket from potOdds at grade time — never a stored flag', () => {
+    // The math the grade re-runs: potOdds(toCall, pot) — exactly what the coach reports too.
+    const value = potOdds(30, 90)
+    expect(value).toBeCloseTo(0.25, 9)
+    const res = gradeSpot(POT_ODDS_SPOT, 1) // [20%,30%) contains 0.25
+    expect(res.correctIndex).toBe(1)
+    expect(res.correct).toBe(true)
+    expect(res.concept).toBe('pot-odds')
+    expect(res.verdict).toBeUndefined() // no coach verdict on a calculation spot
+    // The explanation shows the EXACT number and how it's derived, via @holdem/format's pct.
+    expect(res.explanation).toContain(pct(value))
+    expect(res.explanation).toContain('30/120')
+  })
+
+  it('a wrong bucket grades incorrect, still pointing at the derived correct bucket', () => {
+    const res = gradeSpot(POT_ODDS_SPOT, 2) // [30%,40%) — too high
+    expect(res.correct).toBe(false)
+    expect(res.correctIndex).toBe(1)
+    expect(res.chosenIndex).toBe(2)
+  })
+
+  it("'pot-odds' and 'required-equity' grade against the SAME potOdds value", () => {
+    const price: CalculationSpot = { ...POT_ODDS_SPOT, quantity: 'pot-odds' }
+    const need: CalculationSpot = { ...POT_ODDS_SPOT, quantity: 'required-equity' }
+    expect(gradeSpot(price, 1).correctIndex).toBe(gradeSpot(need, 1).correctIndex)
+    expect(gradeSpot(price, 1).correct).toBe(true)
+    expect(gradeSpot(need, 1).correct).toBe(true)
+  })
+
+  it("'pot-odds' answer equals the coach's potOddsThreshold for the same deal (no divergence)", () => {
+    // The cardinal cross-check: the number a calculation spot grades against is the SAME number the
+    // live coach would price the deal at — so a drill can never disagree with the coach.
+    const ctx = synthesizeContext(POT_ODDS_SPOT.context)
+    const threshold = coachDecision(ctx, { type: 'call' }).potOddsThreshold
+    expect(threshold).toBeCloseTo(potOdds(30, 90), 9)
+  })
+
+  it("grades the 'equity' quantity against the coach's own seeded read", () => {
+    // The equity the grade buckets against is coachDecision(...).equity — the live coach's seeded read.
+    const ctx = synthesizeContext(POT_ODDS_SPOT.context)
+    const equity = coachDecision(ctx, { type: 'call' }).equity
+    // Offer a bucket that straddles the coach's equity plus two distractors; the grade must pick it.
+    const lo = Math.floor(equity * 10) / 10 // a clean 10%-wide bucket containing the equity
+    const equitySpot: CalculationSpot = {
+      kind: 'calculation',
+      prompt: 'Estimate your equity',
+      quantity: 'equity',
+      concept: 'equity',
+      choices: [
+        { label: 'low', lo: 0, hi: lo },
+        { label: 'mid', lo, hi: lo + 0.1 },
+        { label: 'high', lo: lo + 0.1, hi: 1.0001 },
+      ],
+      context: POT_ODDS_SPOT.context,
+    }
+    const res = gradeSpot(equitySpot, 1)
+    expect(res.correct).toBe(true) // the coach's equity lands in the [lo, lo+0.1) bucket
+    expect(res.correctIndex).toBe(1)
+    expect(res.concept).toBe('equity')
+  })
+
+  it('throws RangeError when no offered bucket contains the computed value (ill-posed)', () => {
+    const illPosed: CalculationSpot = {
+      ...POT_ODDS_SPOT,
+      // potOdds is 0.25, but the only buckets offered are far above it — no bucket contains the value.
+      choices: [
+        { label: '50–60%', lo: 0.5, hi: 0.6 },
+        { label: '60–70%', lo: 0.6, hi: 0.7 },
+      ],
+    }
+    expect(() => gradeSpot(illPosed, 0)).toThrow(RangeError)
+  })
+
+  it('throws RangeError on an out-of-range chosen index', () => {
+    expect(() => gradeSpot(POT_ODDS_SPOT, 3)).toThrow(RangeError)
+    expect(() => gradeSpot(POT_ODDS_SPOT, -1)).toThrow(RangeError)
   })
 })
 

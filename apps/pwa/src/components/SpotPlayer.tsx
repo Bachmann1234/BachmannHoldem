@@ -6,8 +6,10 @@
  * Three exports, lifted verbatim from the lesson player so both surfaces share one implementation:
  *
  * - {@link SpotView} — a curriculum {@link Spot}'s "stage": a postflop mini-felt (pot, board, hero
- *   hand, a To-call / Free price chip) or a preflop {@link SeatRing} + position label + hero hand, plus
- *   the prompt. Identical pixels whether the spot came from a hand-authored lesson or the drill generator.
+ *   hand, a To-call / Free price chip — shared by the coach spot AND the calculation spot, ticket 0077,
+ *   since both carry the same priced {@link SpotContext}) or a preflop {@link SeatRing} + position label
+ *   + hero hand, plus the prompt. Identical pixels whether the spot came from a hand-authored lesson or
+ *   the drill generator.
  * - {@link SpotAnswers} — the answer-choices block: the spot's `choices` as tappable buttons that lock
  *   on answer, lighting the canonical right answer green / a wrong pick red.
  * - {@link ResultSheet} — the slide-up `.drawer` graded-result sheet (sibling to {@link CoachDrawer}):
@@ -86,7 +88,7 @@ export function SpotView({ spot }: { readonly spot: Spot }): React.JSX.Element {
       </div>
     )
   }
-  if (spot.kind === 'coach') {
+  if (spot.kind === 'coach' || spot.kind === 'calculation') {
     const { pot, toCall, board, holeCards } = spot.context
     const free = toCall === 0
     return (
@@ -195,13 +197,16 @@ export interface ResultSheetProps {
  * The graded result — a slide-up drawer sibling to {@link CoachDrawer} (`.drawer` + `.scrim`,
  * `.verdict` badge, `.eq-bar`), with a slim inline metric row instead of the big 3-card grid.
  *
- * Three layouts, mapped off the engine's {@link GradeResult}/{@link SpotVerdict}:
- * - **Preflop** (no `verdict`, or a {@link PreflopVerdict}) → badge + headline + the chart rationale,
- *   no metric row (the coach drawer's preflop mode).
- * - **Free check** (a {@link DecisionVerdict} with `potOddsThreshold === 0`, the equity lesson) →
- *   equity only; price/EV show "—"/0.
+ * Layouts, mapped off the engine's {@link GradeResult}/{@link SpotVerdict}:
  * - **Postflop priced** (a {@link DecisionVerdict} with a price) → the slim metric row (equity /
  *   pot-odds price / EV-of-call) + the equity win/lose bar.
+ * - **Free check** (a {@link DecisionVerdict} with `potOddsThreshold === 0`, the equity lesson) →
+ *   equity only; price/EV show "—"/0.
+ * - **Preflop** (no `verdict`, a {@link PreflopVerdict}) → badge + headline + the chart rationale,
+ *   no metric row (the coach drawer's preflop mode).
+ * - **Calculation** (no `verdict`, a `'calculation'` spot — ticket 0077) → the correct number bucket as
+ *   the headline answer + the derivation `explanation` (the show-the-math feedback). No coach verdict.
+ * - **Declarative** (no `verdict`, the carve-out) → the authored `explanation` alone.
  */
 export function ResultSheet({
   result,
@@ -322,6 +327,24 @@ export function ResultSheet({
           // Preflop chart-graded: no metric row — the chart rationale, like the coach drawer's preflop mode.
           <div className="coach-note" data-testid="result-rationale">
             <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
+          </div>
+        ) : spot.kind === 'calculation' ? (
+          // Calculation spot (ticket 0077): no coach verdict — the EXACT number and how it's derived IS
+          // the teaching. Surface the correct bucket as the headline answer, then the derivation
+          // (`result.explanation`, built by gradeSpot from the spot's own pot/toCall via @holdem/format),
+          // pairing the retrieval with the show-the-math feedback (ticket 0079).
+          <div data-testid="result-calculation">
+            <div className="metric-row">
+              <div className="metric-inline">
+                <div className="k">The answer</div>
+                <div className="v accent" data-testid="metric-answer">
+                  {spot.choices[result.correctIndex]?.label ?? '—'}
+                </div>
+              </div>
+            </div>
+            <div className="coach-note" data-testid="result-why">
+              {result.explanation}
+            </div>
           </div>
         ) : (
           // Declarative carve-out (no coach verdict): the author's own explanation is the whole "why".

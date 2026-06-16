@@ -39,8 +39,21 @@ import {
   type DecisionVerdict,
   type PreflopVerdict,
 } from '@holdem/coach'
-import { explainDecision, explainPreflop as explainPreflopWhy, VERDICT_LABEL } from '@holdem/format'
-import { synthesizeContext, type Spot, type ActionChoice } from './spot.js'
+import { potOdds } from '@holdem/odds'
+import {
+  explainDecision,
+  explainPreflop as explainPreflopWhy,
+  pct,
+  VERDICT_LABEL,
+} from '@holdem/format'
+import {
+  synthesizeContext,
+  type Spot,
+  type ActionChoice,
+  type CalculationSpot,
+  type CalculationQuantity,
+  type NumericChoice,
+} from './spot.js'
 
 /**
  * The coach verdict backing a graded coach spot — either the postflop {@link DecisionVerdict} or the
@@ -131,6 +144,85 @@ function explainPreflop(verdict: PreflopVerdict): string {
 }
 
 /**
+ * Compute the deterministic value a {@link CalculationSpot} asks the player to retrieve — the seam
+ * that makes a calculation spot honour the no-answer-key invariant. *Nothing is stored*: the value is
+ * derived here, at grade time, from the math the rest of the app already computes, so a drill can never
+ * disagree with the live coach.
+ *
+ * - `'pot-odds'` / `'required-equity'` → `potOdds(toCall, pot)`. These are *the same number* — the
+ *   break-even equity a call needs *is* the price the call costs — so both grade against `potOdds`,
+ *   which is exactly the `potOddsThreshold` the coach's {@link DecisionVerdict} reports for the same
+ *   deal (the coach computes it the same way). The pot-accounting convention is the spot's, untouched:
+ *   `potOdds` divides by `pot + toCall`.
+ * - `'equity'` → the coach's **own seeded equity read** for the deal:
+ *   `coachDecision(synthesizeContext(ctx), { type: 'call' }).equity`. Grading against the coach's read
+ *   — rather than a fresh sim with a different seed/method — is what guarantees the number the drill
+ *   grades is byte-identical to the equity the live coach would narrate, so the two can never contradict.
+ *   (Calling vs folding does not change the equity read; the action only steers the verdict, and we read
+ *   only `.equity`.)
+ *
+ * Throws {@link RangeError} (via {@link synthesizeContext} / the odds helpers) on a malformed context.
+ */
+function computeQuantity(spot: CalculationSpot): number {
+  const { pot, toCall } = spot.context
+  switch (spot.quantity) {
+    case 'pot-odds':
+    case 'required-equity':
+      // The price / the break-even equity — one number, two framings. Exactly the coach's
+      // potOddsThreshold for the same pot/toCall (the coach computes potOdds(toCall, pot) too).
+      return potOdds(toCall, pot)
+    case 'equity':
+      // The coach's OWN seeded read — never a fresh sim — so the graded equity can never disagree with
+      // what the live coach narrates for this deal. The chosen action ('call') is immaterial to the
+      // equity field; we read only `.equity`.
+      return coachDecision(synthesizeContext(spot.context), { type: 'call' }).equity
+  }
+}
+
+/**
+ * Find the index of the offered bucket that **contains** `value` under the half-open `[lo, hi)`
+ * convention ({@link NumericChoice}): `lo <= value < hi`. Returns `-1` when no offered bucket contains
+ * the value — the ill-posed case {@link gradeSpot} turns into a {@link RangeError}, mirroring the
+ * coach path's "offers no choice the coach grades as correct" guard. Because the buckets are half-open
+ * at the top, adjacent buckets sharing a boundary never both match, so a value lands in at most one.
+ */
+function findContainingBucket(choices: readonly NumericChoice[], value: number): number {
+  return choices.findIndex((choice) => value >= choice.lo && value < choice.hi)
+}
+
+/**
+ * Build the explanation for a graded {@link CalculationSpot} — the EXACT computed number and *how it is
+ * derived*, phrased with `@holdem/format`'s {@link pct} so the drill narrates a percentage identically
+ * to the rest of the app (pairs with ticket 0079's show-the-math feedback). One sentence per
+ * {@link CalculationQuantity}, each walking the arithmetic from the spot's own pot/toCall:
+ *
+ * - `'pot-odds'` → "Pot odds: 30 to call into a 90 pot ⇒ 30/120 = 25% — that's the price you're getting."
+ * - `'required-equity'` → the same fraction framed as the equity the call demands.
+ * - `'equity'` → the coach's seeded read, stated as the share of the pot, with the rule-of-2-and-4
+ *   "close enough" framing the bucket tolerance embodies.
+ */
+function explainCalculation(
+  quantity: CalculationQuantity,
+  value: number,
+  pot: number,
+  toCall: number,
+): string {
+  const v = pct(value)
+  // `pot` is the win-pot (already includes the villain's bet), so the total you'd play for is
+  // `pot + toCall` and the price is `toCall / total` — the exact potOdds arithmetic, named once here so
+  // the two price framings can't drift in how they spell the denominator.
+  const total = pot + toCall
+  switch (quantity) {
+    case 'pot-odds':
+      return `Pot odds: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v} — that's the price you're getting.`
+    case 'required-equity':
+      return `Required equity: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v} — you need about ${v} equity to break even on the call.`
+    case 'equity':
+      return `Your equity here is about ${v} — your share of the pot at showdown. A rule-of-2-and-4 estimate in the right ballpark is good enough.`
+  }
+}
+
+/**
  * Run the spot's grader over a coach-graded choice's action and return the verdict. Postflop spots
  * run {@link coachDecision} over the synthesised context; preflop spots run {@link gradePreflop}. One
  * helper so {@link gradeSpot} stays a thin dispatcher and the "grade by running the coach" rule lives
@@ -161,8 +253,17 @@ function gradeChoiceVerdict(
  * authority. (The declarative carve-out is the sole exception: it reads the authored `correct`
  * flags, because the coach cannot rule on that concept.)
  *
- * Throws {@link RangeError} on a malformed spot (bad context, via {@link synthesizeContext}) or an
- * out-of-range `chosenIndex`, in the odds/bots idiom.
+ * **The calculation kind (ticket 0077) derives its answer too — just a number, not an action.** A
+ * {@link CalculationSpot} carries no correct flag: {@link gradeSpot} *computes* the asked quantity
+ * (`potOdds(toCall, pot)` for the price quantities, the coach's seeded `.equity` for the equity
+ * quantity) and the correct bucket is whichever offered `[lo, hi)` range *contains* that value. The
+ * player is correct iff their chosen bucket is that one — the bucket width is the estimate tolerance.
+ * It throws when no offered bucket contains the value (an ill-posed spot), mirroring the coach path's
+ * "offers no choice the coach grades as correct" guard.
+ *
+ * Throws {@link RangeError} on a malformed spot (bad context, via {@link synthesizeContext}), an
+ * out-of-range `chosenIndex`, or — for a calculation spot — buckets that do not cover the computed
+ * value, in the odds/bots idiom.
  *
  * @param spot The retrieval check to grade.
  * @param chosenIndex The index into `spot.choices` the player picked.
@@ -184,6 +285,33 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       correctIndex,
       concept: spot.concept,
       explanation: spot.explanation,
+    }
+  }
+
+  if (spot.kind === 'calculation') {
+    // The numeric-retrieval kind: compute the asked quantity from the math the app already owns
+    // (potOdds for the price quantities, the coach's seeded read for equity) and the correct bucket is
+    // whichever offered range CONTAINS that value — derived here, never stored on the spot (the
+    // no-answer-key invariant, applied to a number instead of an action). The player is correct iff
+    // their own chosen bucket is that containing bucket.
+    const value = computeQuantity(spot)
+    const correctIndex = findContainingBucket(spot.choices, value)
+    if (correctIndex < 0) {
+      // No offered bucket contains the computed value — an ill-posed spot (the buckets don't cover the
+      // answer). Mirror the coach path's "offers no correct choice" guard in the odds/bots idiom.
+      throw new RangeError(
+        `calculation spot offers no bucket containing the computed value ${value}`,
+      )
+    }
+    return {
+      // Correct iff the player landed the value in the right bucket. The bucket width IS the tolerance.
+      correct: chosenIndex === correctIndex,
+      chosenIndex,
+      correctIndex,
+      concept: spot.concept,
+      // No coach verdict to attach (like the declarative carve-out): the value is the whole grade, and
+      // the explanation shows it derived from the spot's own numbers via @holdem/format.
+      explanation: explainCalculation(spot.quantity, value, spot.context.pot, spot.context.toCall),
     }
   }
 

@@ -13,12 +13,15 @@
  * The public surface is one generator and its config seam:
  *
  * - {@link generateSpot} — seed (+ optional {@link DrillConfig}) → a curriculum `Spot` (a postflop
- *   {@link CoachSpot} or a preflop {@link PreflopSpot}) the existing `gradeSpot` rules on. Pure: the
- *   same seed always yields the same spot, and the spot carries **no answer key** — its correct answer
- *   is whatever the deterministic coach math rules.
- * - {@link DrillConfig} / {@link DrillKind} / {@link PriceMode} / {@link resolveConfig} — the minimal
- *   parameterisation [[0066-drills-themed-sets]] hangs its theme catalogue + session composer on,
- *   without a rewrite here. This package builds the generation *primitive*, not the themes.
+ *   {@link CoachSpot}, a preflop {@link PreflopSpot}, or a numeric-retrieval {@link CalculationSpot} —
+ *   ticket 0077) the existing `gradeSpot` rules on. Pure: the same seed always yields the same spot, and
+ *   the spot carries **no answer key** — its correct answer (which action, or which number bucket) is
+ *   whatever the deterministic `potOdds`/coach math rules at grade time.
+ * - {@link DrillConfig} / {@link DrillKind} / {@link PriceMode} / {@link CalculationQuantity} /
+ *   {@link resolveConfig} — the minimal parameterisation [[0066-drills-themed-sets]] hangs its theme
+ *   catalogue + session composer on (and [[0077-drills-calculation-spots]] extends with the calculation
+ *   kind + asked quantity), without a rewrite here. This package builds the generation *primitive*, not
+ *   the themes.
  * - {@link makeDealer} / {@link Dealer} / {@link BOARD_SIZE} — the seeded dealing primitives the
  *   generator threads, exported so 0066 (and tests) can build reproducible deals directly.
  * - {@link DRILL_THEMES} / {@link DrillTheme} / {@link SessionItem} / {@link composeSession} — the

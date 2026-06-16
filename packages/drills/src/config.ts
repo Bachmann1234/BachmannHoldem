@@ -16,6 +16,11 @@
  * the generator threads, never anything here.
  */
 
+// `CalculationQuantity` is the curriculum's type, imported for use in this module's annotations and
+// re-exported below — never redeclared here, so the drill config and the curriculum's
+// `CalculationSpot`/`gradeSpot` are keyed on the one type and can't drift apart.
+import type { CalculationQuantity } from '@holdem/curriculum'
+
 /**
  * Which curriculum spot kind a drill should be — the top-level branch {@link generateSpot} takes.
  * Mirrors the curriculum's own discriminated union ({@link Spot}'s `kind`), minus the `'declarative'`
@@ -27,8 +32,28 @@
  * - `'coach'` — a postflop priced continue-decision graded by `coachDecision` (a {@link CoachSpot}).
  * - `'preflop'` — a starting-hand-chart open/fold decision graded by `gradePreflop` (a
  *   {@link PreflopSpot}).
+ * - `'calculation'` — a numeric-retrieval ask graded by `gradeSpot`'s calculation branch (a
+ *   {@link CalculationSpot}, ticket 0077): the player taps the number bucket the math lands in. Still
+ *   no answer key — the correct bucket is *computed* from `potOdds` / the coach's seeded equity at
+ *   grade time, exactly the no-answer-key invariant the `'declarative'` kind would have violated and
+ *   the reason this set excludes it.
  */
-export type DrillKind = 'coach' | 'preflop'
+export type DrillKind = 'coach' | 'preflop' | 'calculation'
+
+/**
+ * Which numeric quantity a generated `'calculation'` spot asks for. **Re-exported from the curriculum's
+ * own {@link CalculationQuantity}** (not redeclared here) so a calculation theme can demand a *specific*
+ * number to retrieve (the pot-odds price vs. an equity estimate) using the very type the curriculum's
+ * `CalculationSpot`/`gradeSpot` are keyed on — the two can never drift apart. Each quantity is graded
+ * deterministically against the math the app already computes:
+ *
+ * - `'pot-odds'` — "what price are you getting?" — graded against `potOdds(toCall, pot)`.
+ * - `'required-equity'` — "what equity do you need to call?" — the same break-even number, framed as
+ *   the equity the price demands.
+ * - `'equity'` — "estimate your equity" — graded against the coach's *own seeded* `.equity` read, so
+ *   the drill can never disagree with the live coach. The bucket width is the rule-of-2-and-4 tolerance.
+ */
+export type { CalculationQuantity }
 
 /**
  * The price character a generated *postflop* ({@link CoachSpot}) spot should have — the seam 0066's
@@ -61,6 +86,13 @@ export interface DrillConfig {
    * theme sets this to `'priced'`.
    */
   readonly priceMode?: PriceMode
+  /**
+   * For a `'calculation'` spot, which number to ask the player to retrieve. Omitted ⇒
+   * {@link DEFAULT_QUANTITY} (`'pot-odds'`). Ignored for the `'coach'`/`'preflop'` kinds, which ask
+   * for an *action*, not a number. A calculation theme ([[0077-drills-calculation-spots]]) sets this
+   * to the quantity its topic isolates — `'required-equity'`, `'equity'`, …
+   */
+  readonly quantity?: CalculationQuantity
 }
 
 /** The spot kind generated when a config omits {@link DrillConfig.kind} — the postflop coach spot. */
@@ -70,14 +102,22 @@ export const DEFAULT_KIND: DrillKind = 'coach'
 export const DEFAULT_PRICE_MODE: PriceMode = 'any'
 
 /**
+ * The quantity asked when a `'calculation'` config omits {@link DrillConfig.quantity} — the pot-odds
+ * price, the most fundamental of the three (every priced spot has one, and it is computed closed-form,
+ * not sampled). Ignored by the non-calculation kinds.
+ */
+export const DEFAULT_QUANTITY: CalculationQuantity = 'pot-odds'
+
+/**
  * Resolve a (possibly-`undefined`, possibly-partial) {@link DrillConfig} into a fully-populated one,
- * applying {@link DEFAULT_KIND} / {@link DEFAULT_PRICE_MODE} — so {@link generateSpot} reads concrete
- * values and the defaulting lives in exactly one documented place rather than scattered `?? default`
- * across the generator. A pure mapping, no randomness.
+ * applying {@link DEFAULT_KIND} / {@link DEFAULT_PRICE_MODE} / {@link DEFAULT_QUANTITY} — so
+ * {@link generateSpot} reads concrete values and the defaulting lives in exactly one documented place
+ * rather than scattered `?? default` across the generator. A pure mapping, no randomness.
  */
 export function resolveConfig(config?: DrillConfig): Required<DrillConfig> {
   return {
     kind: config?.kind ?? DEFAULT_KIND,
     priceMode: config?.priceMode ?? DEFAULT_PRICE_MODE,
+    quantity: config?.quantity ?? DEFAULT_QUANTITY,
   }
 }

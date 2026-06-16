@@ -121,6 +121,15 @@ export interface DrillTheme {
  *   of the pot, the lens for a free decision where there is no price to weigh it against. This is the
  *   "one more" beyond the epic's two, and it deliberately leaves the price *unconstrained* so the topic
  *   exercises the equity read across free and priced spots alike.
+ * - `pot-odds-math` → `{ kind: 'calculation', quantity: 'required-equity' }`. A numeric-retrieval ask
+ *   (ticket 0077): facing a real price, *produce the equity the call needs* by tapping the right number
+ *   bucket. Drills `'pot-odds'` — the math itself, retrieved as a number, not a Call/Fold pick — the gap
+ *   the whole calculation kind closes (the player never just *recognised* the right action, they had to
+ *   *compute* the price). Graded against `potOdds`, no answer key.
+ * - `equity-estimate` → `{ kind: 'calculation', quantity: 'equity' }`. The other numeric ask: *estimate
+ *   your equity* into the right bucket, graded against the coach's own seeded read with the bucket width
+ *   as the rule-of-2-and-4 tolerance. Drills `'equity'` as a retrieved number rather than a recognised
+ *   line.
  *
  * Each theme's {@link DrillTheme.concept} is the idea its {@link DrillTheme.config} is built to
  * exercise; the per-spot grade-time concept the coach derives will agree with it on the spots that
@@ -147,6 +156,18 @@ export const DRILL_THEMES = [
     title: 'Postflop equity',
     concept: 'equity',
     config: { kind: 'coach', priceMode: 'any' },
+  },
+  {
+    id: 'pot-odds-math',
+    title: 'Pot-odds math',
+    concept: 'pot-odds',
+    config: { kind: 'calculation', quantity: 'required-equity' },
+  },
+  {
+    id: 'equity-estimate',
+    title: 'Equity estimate',
+    concept: 'equity',
+    config: { kind: 'calculation', quantity: 'equity' },
   },
 ] as const satisfies readonly DrillTheme[]
 

@@ -76,8 +76,15 @@ describe('DrillSession — the loop', () => {
     expect(grade.correct).toBe(true)
 
     // The deterministic numbers/explanation come straight from the engine via @holdem/format.
-    const verdict = expected.verdict!
-    if ('potOddsThreshold' in verdict) {
+    const verdict = expected.verdict
+    if (verdict === undefined) {
+      // A calculation spot (ticket 0077) carries no coach verdict — the derived answer bucket + the
+      // show-the-math explanation are rendered instead, both straight off gradeSpot.
+      expect(screen.getByTestId('metric-answer').textContent).toBe(
+        spot.choices[expected.correctIndex]!.label,
+      )
+      expect(screen.getByTestId('result-why').textContent).toBe(expected.explanation)
+    } else if ('potOddsThreshold' in verdict) {
       expect(screen.getByTestId('metric-equity').textContent).toBe(pct(verdict.equity))
       expect(screen.getByTestId('result-why').textContent).toBe(explainDecision(verdict))
     } else {

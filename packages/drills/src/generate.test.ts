@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { parseCards, rankIndex, suitIndex, type Card } from '@holdem/engine'
+import { potOdds } from '@holdem/odds'
 import { classifyPosition, coachDecision, gradePreflop } from '@holdem/coach'
-import { gradeSpot, synthesizeContext, type CoachSpot, type PreflopSpot } from '@holdem/curriculum'
-import { generateSpot } from './generate.js'
+import {
+  gradeSpot,
+  synthesizeContext,
+  type CalculationSpot,
+  type CoachSpot,
+  type PreflopSpot,
+} from '@holdem/curriculum'
+import { buildBuckets, generateSpot } from './generate.js'
+import { makeDealer } from './deal.js'
 
 /** A spread of seeds to exercise the generator across many distinct deals. */
 const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1)
@@ -309,6 +317,210 @@ describe('generateSpot — no answer key, honoured end to end', () => {
   })
 })
 
+describe('generateSpot — calculation spots (numeric retrieval, ticket 0077)', () => {
+  /** The three calculation quantities the generator can emit. */
+  const QUANTITIES = ['pot-odds', 'required-equity', 'equity'] as const
+
+  it('same seed → identical calculation spot (deep-equal), for every quantity', () => {
+    for (const seed of SEEDS) {
+      for (const quantity of QUANTITIES) {
+        expect(generateSpot(seed, { kind: 'calculation', quantity })).toEqual(
+          generateSpot(seed, { kind: 'calculation', quantity }),
+        )
+      }
+    }
+  })
+
+  it('omitting the quantity defaults to the pot-odds price', () => {
+    for (const seed of SEEDS) {
+      expect(generateSpot(seed, { kind: 'calculation' })).toEqual(
+        generateSpot(seed, { kind: 'calculation', quantity: 'pot-odds' }),
+      )
+    }
+  })
+
+  it('emits a well-formed, always-priced calculation spot with ≥2 partitioning buckets', () => {
+    for (const seed of SEEDS) {
+      const spot = generateSpot(seed, { kind: 'calculation' }) as CalculationSpot
+      expect(spot.kind).toBe('calculation')
+      // Always priced — a free spot has degenerate (0) pot odds, so the ask must face a real bet.
+      expect(spot.context.toCall).toBeGreaterThan(0)
+      // The same win-pot accounting as a coach spot (pot = dead + bet), so the price matches the coach's.
+      expect(spot.context.toCall).toBeLessThanOrEqual(spot.context.pot - spot.context.toCall)
+      // At least two choices, and the buckets partition cleanly: ascending, gap-free, no overlap.
+      expect(spot.choices.length).toBeGreaterThanOrEqual(2)
+      spot.choices.forEach((c, i) => {
+        expect(c.hi).toBeGreaterThan(c.lo)
+        expect(c.lo).toBeGreaterThanOrEqual(0)
+        expect(c.hi).toBeLessThanOrEqual(1.0001)
+        if (i > 0) expect(c.lo).toBeCloseTo(spot.choices[i - 1]!.hi, 9) // contiguous (no gap/overlap)
+      })
+    }
+  })
+
+  it("the pot-odds answer the grade computes equals the coach's potOddsThreshold for the same deal", () => {
+    // The cardinal cross-check: a generated calc spot's pot-odds value is the SAME number the live coach
+    // prices the deal at — derived from the spot's own pot/toCall, never stored, never divergent.
+    for (const seed of SEEDS) {
+      const spot = generateSpot(seed, {
+        kind: 'calculation',
+        quantity: 'pot-odds',
+      }) as CalculationSpot
+      const { pot, toCall } = spot.context
+      const threshold = coachDecision(synthesizeContext(spot.context), {
+        type: 'call',
+      }).potOddsThreshold
+      expect(potOdds(toCall, pot)).toBeCloseTo(threshold, 9)
+    }
+  })
+
+  // THE NO-ANSWER-KEY PROOF: a generated calc spot stores no correct flag. Re-compute the value with the
+  // app's own math, find the containing bucket, and assert gradeSpot rules EXACTLY that bucket correct —
+  // i.e. correctness comes only from the live math, never anything the generator stored.
+  it('price quantities: graded correct bucket = the bucket containing potOdds(toCall, pot)', () => {
+    for (const seed of SEEDS) {
+      for (const quantity of ['pot-odds', 'required-equity'] as const) {
+        const spot = generateSpot(seed, { kind: 'calculation', quantity }) as CalculationSpot
+        const value = potOdds(spot.context.toCall, spot.context.pot)
+        const expected = spot.choices.findIndex((c) => value >= c.lo && value < c.hi)
+        expect(expected).toBeGreaterThanOrEqual(0) // the value is always inside an offered bucket
+        // Grading EVERY choice: exactly the containing bucket comes back correct.
+        spot.choices.forEach((_c, i) => {
+          expect(gradeSpot(spot, i).correct).toBe(i === expected)
+          expect(gradeSpot(spot, i).correctIndex).toBe(expected)
+        })
+      }
+    }
+  })
+
+  it("equity quantity: graded correct bucket = the bucket containing the coach's seeded equity (within tolerance)", () => {
+    // The equity read runs the coach's Monte-Carlo, so use the smaller slice. The value is the coach's
+    // OWN seeded read, and the bucket width IS the rule-of-2-and-4 tolerance — so the generated spot
+    // grades to the computed value's bucket within tolerance, by construction.
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, {
+        kind: 'calculation',
+        quantity: 'equity',
+      }) as CalculationSpot
+      const equity = coachDecision(synthesizeContext(spot.context), { type: 'call' }).equity
+      const expected = spot.choices.findIndex((c) => equity >= c.lo && equity < c.hi)
+      expect(expected).toBeGreaterThanOrEqual(0)
+      spot.choices.forEach((_c, i) => {
+        expect(gradeSpot(spot, i).correct).toBe(i === expected)
+      })
+    }
+  })
+
+  it('every generated calculation spot grades through gradeSpot without throwing (well-posed buckets)', () => {
+    for (const seed of COACH_SEEDS) {
+      for (const quantity of QUANTITIES) {
+        const spot = generateSpot(seed, { kind: 'calculation', quantity })
+        spot.choices.forEach((_c, i) => expect(() => gradeSpot(spot, i)).not.toThrow())
+      }
+    }
+  })
+})
+
+describe('buildBuckets — covers the full [0, 1] range incl. an exact 1.0 lock, no >100% label', () => {
+  // The bucket-grade contract: gradeSpot's findContainingBucket uses the half-open `lo <= v < hi` rule
+  // (grade.ts). buildBuckets must offer a tiling under which EVERY reachable value — a tiny pot-odds
+  // price, a near-coin-flip equity, a near-lock ≥ 0.96, and an EXACT 1.0 flopped lock — lands in exactly
+  // one offered bucket, while no bucket's LABEL exceeds 100% and no `hi` renders above 100%. The old
+  // buildBuckets emitted a "96–104%" ceiling bucket (an impossible >100% equity) for value ≥ 0.96, and
+  // its top bucket of `[…, 1.0)` did not contain a value of exactly 1.0 — so gradeSpot threw on a legal
+  // flopped lock. This pins both edges fixed.
+
+  /** grade.ts's containment predicate, replicated so the test grades by the SAME rule the coach uses. */
+  function containsUnderGradeRule(c: { lo: number; hi: number }, value: number): boolean {
+    return value >= c.lo && value < c.hi
+  }
+
+  // A dense sweep across the full closed [0, 1] range, with the dangerous edges explicitly pinned:
+  // 0.0 (the floor), ~0.96 / ~0.99 (the near-lock band the old code spilled past 100%), and EXACTLY 1.0.
+  const VALUES = [
+    0, 0.001, 0.05, 0.0833, 0.1667, 0.25, 0.3333, 0.5, 0.6667, 0.8, 0.88, 0.9, 0.92, 0.95, 0.96,
+    0.9599, 0.9601, 0.98, 0.9835, 0.99, 0.999, 1.0,
+  ]
+
+  it("every value lands in exactly one offered bucket under grade.ts's `lo <= v < hi` rule", () => {
+    for (const value of VALUES) {
+      // Sweep several seeds so the seeded window OFFSET is exercised (the correct bucket is not always in
+      // the same button position), and the invariant must hold for every placement.
+      for (let seed = 1; seed <= 12; seed++) {
+        const buckets = buildBuckets(makeDealer(seed), value)
+        const matches = buckets.filter((c) => containsUnderGradeRule(c, value))
+        expect(matches).toHaveLength(1) // exactly one — never -1 (would throw) and never two (ambiguous)
+      }
+    }
+  })
+
+  it('no offered bucket ever shows a label or `hi` above 100% — even at value 1.0', () => {
+    for (const value of VALUES) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const buckets = buildBuckets(makeDealer(seed), value)
+        for (const c of buckets) {
+          // The rendered upper bound rounds to at most 100 — never "104%". The label is "lo–hi%".
+          const hiPercent = Number(c.label.split('–')[1]!.replace('%', ''))
+          expect(hiPercent).toBeLessThanOrEqual(100)
+          // And the partition invariant the package already asserts: hi never renders above 100% (the
+          // ceiling bucket's hi is a hair past 1 so it CONTAINS 1.0, but stays within the 1.0001 bound).
+          expect(c.hi).toBeLessThanOrEqual(1.0001)
+          expect(c.lo).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
+  })
+
+  it('the ceiling bucket contains a value of EXACTLY 1.0 (a flopped lock grades, never throws)', () => {
+    // The half-open rule excludes a `hi` of exactly 1.0, so the ceiling bucket must reach a hair past 1
+    // to contain 1.0 — the precise edge the old `[…, 1.0)` top bucket got wrong.
+    for (let seed = 1; seed <= 12; seed++) {
+      const buckets = buildBuckets(makeDealer(seed), 1.0)
+      const top = buckets[buckets.length - 1]!
+      expect(containsUnderGradeRule(top, 1.0)).toBe(true)
+      expect(top.label).toMatch(/–100%$/) // labelled at the 100% ceiling, not above it
+    }
+  })
+})
+
+describe('generateSpot — a high-equity (≥0.96) calculation spot grades without throwing', () => {
+  // The end-to-end pin: a flopped near-lock (AA on an A-high dry board, heads-up) reads ≥ 0.96 equity —
+  // the band the old buildBuckets spilled past 100% / could not contain at 1.0. A calculation spot built
+  // on it must grade through gradeSpot (which re-computes the coach's seeded equity and finds the
+  // containing bucket) with NO thrown RangeError, and rule exactly the containing bucket correct.
+  it('an equity calc spot with value ≥ 0.96 grades to its containing bucket, no RangeError', () => {
+    // Construct the spot directly so we deterministically exercise the high-equity band end to end (the
+    // seeded generator rarely deals a flopped lock, so we pin one rather than hunt for a seed).
+    const context = {
+      holeCards: parseCards('Ah Ad') as [Card, Card],
+      board: parseCards('As 7c 2d'),
+      pot: 150,
+      toCall: 50,
+      numActive: 2,
+    }
+    const equity = coachDecision(synthesizeContext(context), { type: 'call' }).equity
+    expect(equity).toBeGreaterThanOrEqual(0.96) // the band the bug fix is about
+
+    const spot: CalculationSpot = {
+      kind: 'calculation',
+      prompt: 'test',
+      choices: buildBuckets(makeDealer(7), equity),
+      quantity: 'equity',
+      context,
+      concept: 'equity',
+    }
+
+    // The whole point: grading every choice never throws (the ceiling bucket covers the read), and
+    // exactly the bucket containing the coach's seeded equity comes back correct.
+    const expected = spot.choices.findIndex((c) => equity >= c.lo && equity < c.hi)
+    expect(expected).toBeGreaterThanOrEqual(0)
+    spot.choices.forEach((_c, i) => {
+      expect(() => gradeSpot(spot, i)).not.toThrow()
+      expect(gradeSpot(spot, i).correct).toBe(i === expected)
+    })
+  })
+})
+
 describe('generateSpot — prompts state the situation, not the answer', () => {
   it('every generated prompt is a non-empty string ending in the open/call question', () => {
     for (const seed of SEEDS) {
@@ -317,6 +529,11 @@ describe('generateSpot — prompts state the situation, not the answer', () => {
       expect(coach.prompt).toMatch(/Call or fold\?$/)
       const pre = generateSpot(seed, { kind: 'preflop' })
       expect(pre.prompt).toMatch(/Open or fold\?$/)
+      // A calculation prompt states the situation + the number to retrieve, ending in a question mark
+      // or the equity-estimate stem — never the answer.
+      const calc = generateSpot(seed, { kind: 'calculation' })
+      expect(calc.prompt.length).toBeGreaterThan(0)
+      expect(calc.prompt).toMatch(/to call\./)
     }
   })
 })

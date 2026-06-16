@@ -40,19 +40,31 @@
  */
 
 import { formatCard, type Card } from '@holdem/engine'
-import { describeHandClass, handClassLabel } from '@holdem/coach'
-import type { ActionChoice, CoachSpot, PreflopSpot, Spot, SpotContext } from '@holdem/curriculum'
+import { potOdds } from '@holdem/odds'
+import { coachDecision, describeHandClass, handClassLabel } from '@holdem/coach'
+import {
+  synthesizeContext,
+  type ActionChoice,
+  type CalculationSpot,
+  type CoachSpot,
+  type NumericChoice,
+  type PreflopSpot,
+  type Spot,
+  type SpotContext,
+} from '@holdem/curriculum'
 import { makeDealer, type Dealer } from './deal.js'
-import { resolveConfig, type DrillConfig } from './config.js'
+import { resolveConfig, type CalculationQuantity, type DrillConfig } from './config.js'
 
 /**
  * Generate one drill {@link Spot} from a `seed` and an optional {@link DrillConfig}.
  *
  * The seed seeds a {@link Dealer} that every random choice is threaded through, so the call is pure:
  * `generateSpot(7)` always returns the same spot. The config (defaulted via {@link resolveConfig})
- * selects the branch — a postflop {@link CoachSpot} (the default) or a preflop {@link PreflopSpot} —
- * and shapes a coach spot's price. The returned spot flows straight into curriculum's `gradeSpot`; its
- * correct answer is whatever the coach rules, never stored here.
+ * selects the branch — a postflop {@link CoachSpot} (the default), a preflop {@link PreflopSpot}, or a
+ * numeric-retrieval {@link CalculationSpot} (ticket 0077) — and shapes a coach spot's price / a
+ * calculation spot's asked quantity. The returned spot flows straight into curriculum's `gradeSpot`;
+ * its correct answer (which action, or — for a calculation spot — which number bucket) is whatever the
+ * math rules at grade time, never stored here.
  *
  * Throws {@link RangeError} on a non-integer `seed` (via {@link makeDealer}) — a malformed seed must
  * fail loudly rather than silently producing a different deal.
@@ -64,9 +76,9 @@ import { resolveConfig, type DrillConfig } from './config.js'
 export function generateSpot(seed: number, config?: DrillConfig): Spot {
   const resolved = resolveConfig(config)
   const dealer = makeDealer(seed)
-  return resolved.kind === 'preflop'
-    ? generatePreflopSpot(dealer)
-    : generateCoachSpot(dealer, resolved.priceMode === 'priced')
+  if (resolved.kind === 'preflop') return generatePreflopSpot(dealer)
+  if (resolved.kind === 'calculation') return generateCalculationSpot(dealer, resolved.quantity)
+  return generateCoachSpot(dealer, resolved.priceMode === 'priced')
 }
 
 /**
@@ -188,6 +200,204 @@ function generateCoachSpot(dealer: Dealer, priced: boolean): CoachSpot {
     prompt: buildCoachPrompt(holeCards, board, pot, toCall, numActive),
     choices: COACH_CHOICES,
     context,
+  }
+}
+
+/**
+ * The width, in equity-fraction units, of one number bucket on a generated {@link CalculationSpot} — the
+ * span of `[lo, hi)` each {@link NumericChoice} covers, and therefore the *tolerance* of the answer (a
+ * pick is correct when the computed value lands in the same bucket). `0.08` (eight percentage points)
+ * is tight enough that the bucket is a real retrieval check — the player must land in roughly the right
+ * decile, not merely "low / medium / high" — while being wide enough to swallow the equity read's
+ * Monte-Carlo sampling dust (≈±0.8%, well inside the band) so the `'equity'` quantity never flips
+ * buckets between runs. It doubles as the rule-of-2-and-4 "close enough" tolerance the ticket asks for:
+ * an outs estimate a bucket-width off the exact equity still grades correct. A named, tunable knob.
+ */
+const BUCKET_WIDTH = 0.08
+
+/**
+ * How many number buckets a generated calculation spot offers — a 3-choice retrieval check (the
+ * containing bucket plus two plausible distractors). At least two is the curriculum contract; three is
+ * the sweet spot the owner picked: enough that a lucky guess is a 1-in-3, few enough to stay tappable
+ * on a phone, mirroring the binary Call/Fold of the other kinds without ballooning into a numeric pad.
+ */
+const CALC_CHOICES = 3
+
+/**
+ * The exclusive upper bound of the **ceiling bucket** — the top-most bucket the grid can offer, the one
+ * that touches the 100% ceiling. A hair *above* `1.0` (not exactly `1.0`) on purpose: {@link gradeSpot}'s
+ * containment rule is half-open `lo <= value < hi`, so a `hi` of exactly `1.0` would NOT contain a
+ * perfectly legal locked-up `value === 1.0` (a flopped nuts vs the assumed range) — `findContainingBucket`
+ * would return `-1` and `gradeSpot` would throw on a legal spot. Nudging the bound a hair past 1 makes the
+ * ceiling bucket *inclusive of 1.0 for containment* (`1.0 < 1.0001`), while {@link bucketLabel} still
+ * renders it "…–100%" (`Math.round(1.0001 * 100) === 100`) — so containment and the displayed label are
+ * decoupled and never disagree at the 1.0 edge, and no label ever shows above 100%. Kept ≤ `1.0001` so the
+ * package test's `expect(c.hi).toBeLessThanOrEqual(1.0001)` partition invariant still holds.
+ */
+const CEILING_HI = 1.0001
+
+/**
+ * Format a `[lo, hi)` equity-fraction bucket as the human button label — a percent *range*, e.g.
+ * `[0.2, 0.28) → "20–28%"`. Rounds each bound to a whole percent (the buckets are whole-percent-aligned
+ * by construction — see {@link buildBuckets}) so the label reads clean, and matches how the rest of the
+ * app renders percentages (`@holdem/format`'s `pct` is one-decimal; a *range* label reads better whole,
+ * and the underlying grade uses the exact `lo`/`hi`, not the label). The ceiling bucket's `hi` of
+ * {@link CEILING_HI} rounds to a clean `100`, so a top-of-range bucket reads "…–100%", never "…–104%".
+ */
+function bucketLabel(lo: number, hi: number): string {
+  return `${Math.round(lo * 100)}–${Math.round(hi * 100)}%`
+}
+
+/**
+ * The grid-bucket index of the **ceiling bucket** — the top-most bucket the grid offers, the one that
+ * touches the 100% ceiling. With `W = 0.08` that is index `12`: `floor(1 / 0.08) === 12`. Every grid
+ * bucket `k < CEILING_BUCKET` is the ordinary half-open `[k·W, (k+1)·W)`; the ceiling bucket `k ===
+ * CEILING_BUCKET` is `[CEILING_BUCKET·W, CEILING_HI)` — i.e. `[0.96, 1.0001)` — whose top is clamped to
+ * {@link CEILING_HI} so it both *contains* a value of exactly `1.0` (a flopped lock) and *labels* as
+ * "…–100%", never the impossible "96–104%" the unclamped `[0.96, 1.04)` would have rendered.
+ *
+ * Why this is the largest offered index: a fraction-quantity value lives in `[0, 1]` (pot-odds in
+ * ~`0.167–0.333`, equity across the closed `[0, 1]`), so `floor(value / W)` is at most
+ * `floor(1.0 / 0.08) === 12 === CEILING_BUCKET`; clamping the containing index there guarantees no
+ * offered bucket ever exceeds the ceiling. (For `value === 1.0`, `floor(1.0 / 0.08)` is already exactly
+ * 12, so the clamp is a no-op there; it guards only against float dust nudging the index to 13.)
+ */
+const CEILING_BUCKET = Math.floor(1 / BUCKET_WIDTH)
+
+/**
+ * The `[lo, hi)` bounds of grid bucket `k`, whole-percent-aligned. The ordinary bucket is
+ * `[k·W, (k+1)·W)`; the {@link CEILING_BUCKET} is special-cased to `[k·W, CEILING_HI)` so its top is the
+ * 1.0-inclusive, 100%-labelled ceiling (see {@link CEILING_HI}) rather than a `> 100%` spill. Bounds are
+ * rounded to whole-percent fractions so float dust (`0.08·3 = 0.24000000000000002`) never leaks into a
+ * `lo`/`hi` and a boundary value sits cleanly on the grid the grade compares to.
+ */
+function gridBucketBounds(k: number): { lo: number; hi: number } {
+  const lo = Math.round(k * BUCKET_WIDTH * 100) / 100
+  const hi = k >= CEILING_BUCKET ? CEILING_HI : Math.round((k + 1) * BUCKET_WIDTH * 100) / 100
+  return { lo, hi }
+}
+
+/**
+ * Build the offered number buckets for a calculation spot: a contiguous run of {@link CALC_CHOICES}
+ * half-open `[lo, hi)` buckets of {@link BUCKET_WIDTH} each, tiling the percentage line so that **exactly
+ * one** of them contains `value` and the rest are *adjacent* (hence plausible) distractors.
+ *
+ * **The tiling (why exactly one bucket ever contains the value).** Buckets are anchored to a fixed grid
+ * of multiples of {@link BUCKET_WIDTH} — bucket `k` is `[k·W, (k+1)·W)`, except the top-most
+ * {@link CEILING_BUCKET} which is `[k·W, CEILING_HI)` (≈`[0.96, 1.0001)`). `value` lands in grid bucket
+ * `floor(value / W)`, **clamped to `CEILING_BUCKET`** so a value of exactly `1.0` (a flopped lock vs the
+ * assumed range) lands in the ceiling bucket — which *contains* `1.0` under {@link gradeSpot}'s half-open
+ * `lo <= v < hi` rule because its `hi` is a hair above 1 ({@link CEILING_HI}). Because the buckets are
+ * half-open at the top and tile the grid with no gaps or overlaps, `value` is in that one grid bucket and
+ * no other (a boundary value `k·W` belongs to the *upper* bucket). We then offer a window of
+ * `CALC_CHOICES` consecutive grid buckets that *includes* the containing one, so the correct bucket is
+ * always on offer and the distractors are the neighbouring deciles — a genuine "is it ~25% or ~33%?"
+ * retrieval, never an absurd "5% vs 95%".
+ *
+ * **The window placement (seeded variety, always in range).** The dealer picks how far *before* the
+ * containing bucket the window starts (`offset` in `0..CALC_CHOICES-1`), so the correct answer is not
+ * always the same button position across seeds. The start is then clamped so the whole window stays at
+ * non-negative buckets and within `[0, CEILING_BUCKET]` (no bucket above the 100% ceiling), and re-nudged
+ * to keep the containing bucket inside the clamped window — so wherever the value falls (a tiny pot-odds
+ * price, a near-coin-flip equity, a flopped 100% lock), the offered buckets are legal percentages whose
+ * labels never exceed 100% and the answer is always present.
+ *
+ * Returns the buckets in ascending order (a stable, readable low→high button column), so `gradeSpot`'s
+ * `correctIndex` and the UI's order agree. Pure: all randomness is the seeded `dealer`.
+ */
+export function buildBuckets(dealer: Dealer, value: number): NumericChoice[] {
+  // The grid bucket the value falls in: bucket k spans [k·W, (k+1)·W). floor(value/W) is that index,
+  // CLAMPED to CEILING_BUCKET so value === 1.0 (floor(1/0.08) === 12) — and any float-dust overshoot —
+  // lands in the 1.0-inclusive ceiling bucket rather than an out-of-range index.
+  const containing = Math.min(CEILING_BUCKET, Math.floor(value / BUCKET_WIDTH))
+  // The window may start at most this far back and still hold CALC_CHOICES buckets within [0, CEILING].
+  const maxStart = Math.max(0, CEILING_BUCKET - (CALC_CHOICES - 1))
+
+  // Seeded variety: how many buckets BEFORE the containing one the window starts (0 ⇒ correct is the
+  // lowest offered, CALC_CHOICES-1 ⇒ the highest). Drawn off the same reproducible stream.
+  const offset = dealer.nextInt(CALC_CHOICES)
+  let start = containing - offset
+  // Clamp the window into [0, maxStart] so every offered bucket is a legal bucket (≤ the ceiling)…
+  start = Math.max(0, Math.min(maxStart, start))
+  // …then re-nudge so the containing bucket is still inside the (possibly clamped) window — if clamping
+  // pushed the window past the value (value near 0 or near 1), slide it back to cover the containing
+  // bucket, but never past `maxStart` (which would re-introduce an out-of-ceiling bucket — the old bug,
+  // where this re-nudge OVERRODE the ceiling clamp and emitted a "96–104%" bucket). After this,
+  // `start <= containing <= start + CALC_CHOICES - 1` holds AND `start <= maxStart`.
+  if (containing < start) start = containing
+  if (containing > start + CALC_CHOICES - 1) {
+    start = Math.min(maxStart, containing - (CALC_CHOICES - 1))
+  }
+  start = Math.max(0, start)
+
+  const buckets: NumericChoice[] = []
+  for (let i = 0; i < CALC_CHOICES; i++) {
+    const { lo, hi } = gridBucketBounds(start + i)
+    buckets.push({ label: bucketLabel(lo, hi), lo, hi })
+  }
+  return buckets
+}
+
+/**
+ * Generate a numeric-retrieval {@link CalculationSpot} (ticket 0077): deal a coherent *priced* postflop
+ * spot, compute the asked {@link CalculationQuantity} from the math the app already owns, and offer the
+ * number buckets {@link buildBuckets} tiles around it. The player taps the bucket the math lands in.
+ *
+ * **Always priced.** Unlike a coach spot, a calculation spot is *always* dealt a non-zero price (the
+ * fraction is drawn from {@link PRICED_FRACTIONS}, never the free `0`): a free spot has pot odds of `0`
+ * — a degenerate "what price?" — so every calculation quantity (the price, the equity needed to pay it,
+ * the equity read against that price) is only well-posed facing a real bet.
+ *
+ * **The value is computed, never stored (the no-answer-key invariant).** We compute the value *here*
+ * only to *place the buckets around it* — the same math {@link gradeSpot} re-runs at grade time to
+ * decide the correct bucket. The spot carries the buckets and the `quantity`, never which bucket is
+ * right; `gradeSpot` derives that. We deliberately use the **same** computations `gradeSpot` does
+ * (`potOdds(toCall, pot)` for the price quantities; the coach's *own seeded* `.equity` for the equity
+ * quantity, via the curriculum's `synthesizeContext` so the read is byte-identical to the live coach's),
+ * so the bucket we tile *around* is exactly the bucket the grade will rule correct.
+ *
+ * **Pot accounting.** Identical to {@link generateCoachSpot}: `toCall = round(deadPot · fraction)` and
+ * `pot = deadPot + toCall` (the win-pot), so `potOdds(toCall, pot)` equals the coach's
+ * `potOddsThreshold` for the same deal — a calculation spot's pot-odds answer never disagrees with what
+ * a coach spot on the same deal would price.
+ *
+ * @param dealer The seeded dealer every choice is drawn from.
+ * @param quantity Which number to ask for (the pot-odds price, the required equity, or an equity estimate).
+ */
+function generateCalculationSpot(dealer: Dealer, quantity: CalculationQuantity): CalculationSpot {
+  const holeCards = dealer.dealHole()
+  const board = dealer.dealBoard('flop')
+  const numActive = MIN_ACTIVE + dealer.nextInt(MAX_ACTIVE - MIN_ACTIVE + 1)
+
+  const deadPot = pick(dealer, POT_BUCKETS)
+  // A calculation spot is ALWAYS priced — a free spot has degenerate pot odds (0), so the price
+  // quantities (and the equity-vs-price framing) are only well-posed against a real bet.
+  const fraction = pick(dealer, PRICED_FRACTIONS)
+  const toCall = Math.round(deadPot * fraction)
+  // Same win-pot convention as generateCoachSpot, so the pot-odds answer matches the coach's threshold.
+  const pot = deadPot + toCall
+
+  const context: SpotContext = { holeCards, board, pot, toCall, numActive }
+
+  // Compute the value with the SAME math gradeSpot will re-run — only to PLACE the buckets around it; the
+  // spot stores no correct flag (gradeSpot derives the bucket). For 'equity' we read the coach's own
+  // seeded equity through the curriculum's synthesizeContext, so it is byte-identical to the live read.
+  const value =
+    quantity === 'equity'
+      ? coachDecision(synthesizeContext(context), { type: 'call' }).equity
+      : potOdds(toCall, pot)
+
+  const choices = buildBuckets(dealer, value)
+
+  const concept: CalculationSpot['concept'] = quantity === 'equity' ? 'equity' : 'pot-odds'
+
+  return {
+    kind: 'calculation',
+    prompt: buildCalculationPrompt(quantity, holeCards, board, pot, toCall, numActive),
+    choices,
+    quantity,
+    context,
+    concept,
   }
 }
 
@@ -319,6 +529,39 @@ function buildCoachPrompt(
       ? `It's checked to you (pot ${pot}, ${opp})`
       : `${opp}, pot ${pot}, ${toCall} to call`
   return `You hold ${formatHole(holeCards)} on ${boardText}. ${price}. Call or fold?`
+}
+
+/**
+ * The question stem for each {@link CalculationQuantity} — the *what number* a calculation prompt asks
+ * for, appended after the spot's situation. Kept as a small table (not inline branches) so the wording
+ * for each quantity lives in one obvious place, and stated as a question the player retrieves a number
+ * for — never hinting at the answer (the buckets are the answer surface; the math rules which is right).
+ */
+const CALC_QUESTION: Readonly<Record<CalculationQuantity, string>> = {
+  'pot-odds': 'What pot odds are you getting — what fraction of the final pot does the call cost?',
+  'required-equity': 'What equity do you need to call profitably?',
+  equity: 'Estimate your equity — your share of the pot if you saw it to showdown.',
+}
+
+/**
+ * Build the question shown on a {@link CalculationSpot}. A plain, deterministic sentence of the spot's
+ * public facts — the holding, the board, the table size, and the price — followed by the
+ * {@link CALC_QUESTION} stem for the asked quantity. States the situation only; the number the player
+ * must produce is left to the math (and the offered buckets), never spelled out here. Same seed ⇒ same
+ * prompt.
+ */
+function buildCalculationPrompt(
+  quantity: CalculationQuantity,
+  holeCards: readonly [Card, Card],
+  board: readonly Card[],
+  pot: number,
+  toCall: number,
+  numActive: number,
+): string {
+  const boardText = board.map(formatCard).join(' ')
+  const villains = numActive - 1
+  const opp = villains === 1 ? '1 opponent' : `${villains} opponents`
+  return `You hold ${formatHole(holeCards)} on ${boardText}. ${opp}, pot ${pot}, ${toCall} to call. ${CALC_QUESTION[quantity]}`
 }
 
 /**

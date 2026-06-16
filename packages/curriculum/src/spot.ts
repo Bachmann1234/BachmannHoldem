@@ -152,6 +152,93 @@ export interface PreflopSpot {
 }
 
 /**
+ * The numeric **quantity** a {@link CalculationSpot} asks the player to retrieve — the discriminator
+ * for *which* deterministic number the grade computes and finds the player's bucket against (ticket
+ * 0077). Every one of these is a number the app *already computes* somewhere, so a calculation spot
+ * can never disagree with the live coach (the no-answer-key invariant, carried over to a numeric ask).
+ *
+ * - `'pot-odds'` — the price the hero is getting, as a fraction `0..1`: `potOdds(toCall, pot)` =
+ *   `toCall / (pot + toCall)`. *"What price are you getting?"*
+ * - `'required-equity'` — the minimum equity a call needs to break even, which is *the same number*
+ *   (`potOdds(toCall, pot)` is by definition the break-even equity). The two share a value but ask the
+ *   idea from opposite ends — the price you pay vs. the equity that price demands — so they exist as
+ *   distinct prompts/quantities even though {@link gradeSpot} grades both against `potOdds`. *"What
+ *   equity do you need to call?"*
+ * - `'equity'` — the hero's estimated share of the pot at showdown, as a fraction `0..1`, graded
+ *   against the **coach's own seeded read** — `coachDecision(synthesizeContext(ctx), { type: 'call' }).equity`
+ *   — never a fresh sim with a different seed/method, so the estimate the drill grades is byte-identical
+ *   to the equity the live coach would narrate for the same deal. The bucket width is the
+ *   "rule-of-2-and-4 close enough" tolerance the ticket asks for. *"Estimate your equity here."*
+ */
+export type CalculationQuantity = 'pot-odds' | 'required-equity' | 'equity'
+
+/**
+ * One answer on a {@link CalculationSpot}: a human `label` (e.g. `"~25%"`, `"30–40%"`) plus the
+ * **half-open numeric range** `[lo, hi)` it stands for. The player taps a range rather than typing a
+ * number, reusing the tappable-choice UI machinery — the bucket width *is* the estimate tolerance.
+ *
+ * **No `correct` flag — the bucket is graded, not authored.** {@link gradeSpot} computes the spot's
+ * quantity from the math at grade time and the correct bucket is whichever one *contains* that value.
+ * This is the no-answer-key invariant applied to a numeric ask: the spot stores the *ranges*, never
+ * *which* range is right.
+ *
+ * **Half-open `[lo, hi)` convention (so buckets partition cleanly).** A value `v` is contained when
+ * `lo <= v < hi`. Half-open at the top means adjacent buckets (`[a, b)`, `[b, c)`) share their
+ * boundary `b` without overlapping — `b` belongs to the *upper* bucket only — so any computed value
+ * falls in **exactly one** offered bucket when the buckets tile the line with no gaps. The generator
+ * is responsible for offering a gap-free tiling that covers the computed value; {@link gradeSpot}
+ * throws a {@link RangeError} if no offered bucket contains it (an ill-posed spot).
+ */
+export interface NumericChoice {
+  /** The button text shown to the player, e.g. `"~25%"` or `"20–28%"`. Purely presentational. */
+  readonly label: string
+  /** The **inclusive** lower bound of the bucket — `v` is in this bucket when `lo <= v`. */
+  readonly lo: number
+  /** The **exclusive** upper bound of the bucket — `v` is in this bucket when `v < hi`. */
+  readonly hi: number
+}
+
+/**
+ * A **calculation** spot — the retrieval check that asks the player to *produce a number*, not pick a
+ * line (ticket 0077). The single biggest gap on the practice side was that the primer *teaches* the
+ * math (pot odds, equity, break-even) but every other spot reduces to a binary Call/Fold pick — the
+ * player never *retrieves the number*. This kind closes that gap: it presents a small set of
+ * {@link NumericChoice} buckets ("~20%", "~28%", "~33%") and asks the player to land the math in the
+ * right one.
+ *
+ * **It is graded against the math the app already computes — never an authored answer key.** The spot
+ * carries the {@link SpotContext} inputs and a {@link CalculationQuantity} discriminator; at grade time
+ * {@link gradeSpot} *computes* the value (`potOdds(toCall, pot)` for the price quantities, the coach's
+ * seeded `.equity` for the equity quantity) and the correct bucket is whichever one contains it. So
+ * exactly like a {@link CoachSpot}, the lesson can never disagree with the live coach — the correct
+ * answer is derived, not stored. This is the cardinal rule extended from "which action" to "which
+ * number".
+ *
+ * **Pot accounting (the same pitfall as every other priced spot).** `context.pot` is the pot the hero
+ * would *win* (dead money **plus** the villain's current bet) and `context.toCall` is the chips the
+ * hero must *add* — forwarded untouched, exactly as {@link CoachSpot} does, so a calculation spot's
+ * pot-odds answer equals the coach's `potOddsThreshold` for the same deal. Do **not** fold `toCall`
+ * into `pot`.
+ */
+export interface CalculationSpot {
+  readonly kind: 'calculation'
+  /** The question shown to the player, e.g. "30 to call into a 90 pot — what equity do you need?". */
+  readonly prompt: string
+  /**
+   * The ordered bucket buttons, each a half-open `[lo, hi)` numeric range (see {@link NumericChoice}).
+   * At least two, partitioning the line so the computed value lands in exactly one — the correct one is
+   * derived by {@link gradeSpot}, never stored.
+   */
+  readonly choices: readonly NumericChoice[]
+  /** The quantity to compute and bucket the player against — the {@link gradeSpot} branch selector. */
+  readonly quantity: CalculationQuantity
+  /** The five coach-read inputs the quantity is computed from; {@link synthesizeContext} inflates them. */
+  readonly context: SpotContext
+  /** The `concept` this spot exercises — `'pot-odds'`, `'equity'`, … — for the cross-link to its lesson. */
+  readonly concept: Concept
+}
+
+/**
  * A **declarative** spot — the flagged last-resort carve-out.
  *
  * Some concepts the content ticket needs (position, board texture) do not map onto a single coach
@@ -175,9 +262,11 @@ export interface DeclarativeSpot {
 /**
  * A retrieval check the curriculum can grade — the discriminated union over spot {@link CoachSpot.kind
  * kinds}. M5 drills extend the curriculum by adding spots of these kinds (or, if ever needed, a new
- * `kind` + a new {@link gradeSpot} branch), never by adding bespoke engine code.
+ * `kind` + a new {@link gradeSpot} branch), never by adding bespoke engine code. The
+ * {@link CalculationSpot} (ticket 0077) is exactly such an addition: a numeric-retrieval ask whose
+ * correct bucket is *derived* from the same `potOdds`/coach math at grade time, still no answer key.
  */
-export type Spot = CoachSpot | PreflopSpot | DeclarativeSpot
+export type Spot = CoachSpot | PreflopSpot | CalculationSpot | DeclarativeSpot
 
 /**
  * The inert seat the synthesised {@link DecisionContext} is built for. The coach's postflop read

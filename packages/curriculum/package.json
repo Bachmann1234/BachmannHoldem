@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@holdem/engine": "workspace:*",
+    "@holdem/odds": "workspace:*",
     "@holdem/bots": "workspace:*",
     "@holdem/coach": "workspace:*",
     "@holdem/format": "workspace:*"
