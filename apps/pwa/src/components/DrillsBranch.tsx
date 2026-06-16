@@ -18,24 +18,47 @@
  * **complement** playing volume — they do not replace it, and improvement here is decision-quality, not
  * a score to grind. The picker + recap copy says exactly that and nothing stronger.
  *
- * Progress is **ephemeral** (in-memory) this milestone — the summary is derived from the just-finished
- * in-memory outcomes, nothing is persisted (durable cross-session stats are M6, which can later persist
- * this same per-concept shape). The picker + recap show the bottom tab bar (they are lobby surfaces);
- * the running session is tab-less and immersive, exactly like the lesson player.
+ * **Spaced repetition (ticket 0080).** Progress is no longer ephemeral: each finished session's
+ * per-concept outcomes are recorded to a durable {@link DrillProgressStore} (the shared IndexedDB layer
+ * M6 stats + per-concept mastery [[0081]] also consume), and the NEXT session is *biased* toward the
+ * concepts the learner recently got wrong — resurfacing the missed *concept TYPE* via a freshly composed
+ * spot, interleaved (never blocked), so mistakes get spaced reps. The store provides the "weak concepts"
+ * input; the pure {@link composeSession} stays seeded + deterministic, weighting the draw via its
+ * {@link SessionBias} seam. Recording and the weak-concept read are BOTH wrapped so any storage failure
+ * degrades gracefully (console.warn) and never breaks the loop — the history/progress-store idiom.
+ *
+ * The bias only *re-weights* the topics the player already picked; it never force-includes an unpicked
+ * topic. The picker + recap show the bottom tab bar (they are lobby surfaces); the running session is
+ * tab-less and immersive, exactly like the lesson player.
  */
 
-import { useState } from 'react'
-import { DRILL_THEMES, type DrillTheme } from '@holdem/drills'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DRILL_THEMES, type DrillTheme, type SessionBias } from '@holdem/drills'
 import type { Concept } from '@holdem/coach'
 import type { Tab } from './TabBar.js'
 import { TabBar } from './TabBar.js'
 import { CheckIcon, SparkIcon } from './Icons.js'
 import { DrillSession, type DrillOutcome } from './DrillSession.js'
+import {
+  IndexedDbDrillProgressStore,
+  weakConcepts,
+  type DrillProgressStore,
+  type DrillSpotOutcome,
+} from '../drills/index.js'
 
 /** The session-length choices the picker offers — a short warm-up, the default, or a longer set. */
 const LENGTHS = [5, 10, 20] as const
 /** The default session length (the middle choice), preselected in the picker. */
 const DEFAULT_LENGTH = 10
+
+/**
+ * How many of the learner's recently-missed concepts to resurface as review at most, and how hard to
+ * weight them. A light touch on purpose: re-queue *augments* the session (a few extra reps on weak
+ * topics, interleaved) rather than swamping it with review — the same "drills complement, not dominate"
+ * discipline. The weight makes a weak topic ~2× as likely at each position it is a candidate.
+ */
+const MAX_REVIEW_CONCEPTS = 3
+const REVIEW_WEIGHT = 1
 
 /** Render a kebab-case {@link Concept} as words ("pot-odds" → "pot odds"), the shared primer idiom. */
 function conceptWords(concept: Concept): string {
@@ -46,6 +69,19 @@ function conceptWords(concept: Concept): string {
 export interface DrillsBranchProps {
   /** Navigate to another top-level tab — forwarded to the lobby/summary tab bar. */
   readonly onNavigate: (tab: Tab) => void
+  /**
+   * The durable per-concept drill-progress store the spaced-repetition seam records to and reads weak
+   * concepts from (ticket 0080). Defaults to the IndexedDB-backed store; tests inject a fake / throwing
+   * fake so they never touch real storage. Optional so a non-persisting caller still works — and every
+   * call is wrapped, so even a present-but-throwing store never breaks the loop.
+   */
+  readonly progressStore?: DrillProgressStore
+  /**
+   * Epoch-ms clock the recording seam stamps outcomes with (recency for re-queue). Defaults to
+   * `Date.now`; tests inject a fixed clock. Kept out of the pure store/record (the shell supplies time),
+   * mirroring how the hand-history record's `playedAt` is shell-supplied.
+   */
+  readonly now?: () => number
 }
 
 /**
@@ -61,6 +97,8 @@ type Phase =
       readonly seed: number
       readonly themes: readonly DrillTheme[]
       readonly length: number
+      /** The spaced-repetition bias frozen at session start — so a mid-session refresh never re-deals. */
+      readonly bias: SessionBias | undefined
     }
   | {
       readonly kind: 'over'
@@ -99,7 +137,11 @@ function tallyByConcept(outcomes: readonly DrillOutcome[]): readonly ConceptTall
   return order.map((concept) => ({ concept, ...acc.get(concept)! }))
 }
 
-export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Element {
+export function DrillsBranch({
+  onNavigate,
+  progressStore,
+  now,
+}: DrillsBranchProps): React.JSX.Element {
   // A monotonically advancing seed so each session (and "Drill again") deals a different reproducible set.
   const [seed, setSeed] = useState(1)
   const [phase, setPhase] = useState<Phase>({ kind: 'lobby' })
@@ -109,6 +151,57 @@ export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Eleme
     () => new Set(DRILL_THEMES.map((t) => t.id)),
   )
   const [length, setLength] = useState<number>(DEFAULT_LENGTH)
+  // The learner's recently-missed concepts — the spaced-repetition "review" set the next session's draw
+  // is biased toward. Loaded from the durable store (async) and refreshed after each session is recorded.
+  const [reviewConcepts, setReviewConcepts] = useState<readonly Concept[]>([])
+
+  // The default store is created lazily ONCE (same idiom as App's history/progress stores) so the drill
+  // loop reads/writes one durable on-device record across renders. Tests inject their own store. Memoised
+  // so `store` is a STABLE dep for the callbacks below (a new default instance per render would re-fire
+  // the effect; an injected store is referentially stable already).
+  const defaultStoreRef = useRef<DrillProgressStore | null>(null)
+  const store = useMemo(
+    () => progressStore ?? (defaultStoreRef.current ??= new IndexedDbDrillProgressStore()),
+    [progressStore],
+  )
+  const clock = now ?? Date.now
+
+  // Read the current weak concepts from the store, wrapped so a storage failure degrades gracefully
+  // (empty review set) and never throws into the loop — the history/progress-store idiom.
+  const refreshReview = useCallback(async (): Promise<void> => {
+    try {
+      const records = await store.list()
+      setReviewConcepts(weakConcepts(records, MAX_REVIEW_CONCEPTS))
+    } catch (err: unknown) {
+      console.warn('drill-progress: weak-concept read failed', err)
+      setReviewConcepts([])
+    }
+  }, [store])
+
+  // Load the review set once on mount so the FIRST session of a visit is already biased toward prior
+  // mistakes. (The store is stable, so this runs once.)
+  useEffect(() => {
+    void refreshReview()
+  }, [refreshReview])
+
+  // Record a finished session's per-concept outcomes durably, then refresh the review set so the next
+  // session re-queues the just-missed concepts. Wrapped so a storage failure is swallowed — recording is
+  // best-effort and must never block the recap. The store owns the per-concept aggregation.
+  const record = useCallback(
+    async (outcomes: readonly DrillOutcome[]): Promise<void> => {
+      const spotOutcomes: DrillSpotOutcome[] = outcomes.map((o) => ({
+        concept: o.theme.concept,
+        correct: o.result.correct,
+      }))
+      try {
+        await store.recordOutcomes(spotOutcomes, clock())
+      } catch (err: unknown) {
+        console.warn('drill-progress: record failed', err)
+      }
+      await refreshReview()
+    },
+    [store, clock, refreshReview],
+  )
 
   const toggleTheme = (id: string): void => {
     setSelectedIds((prev) => {
@@ -119,10 +212,18 @@ export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Eleme
     })
   }
 
-  // Start a session over the picked themes. Guarded so we never hand composeSession an empty list.
+  // Start a session over the picked themes. Guarded so we never hand composeSession an empty list. The
+  // spaced-repetition bias (weight the seeded draw toward the learner's recently-missed concepts) is
+  // FROZEN here at session start — `undefined` when there is nothing to review, so the composer takes its
+  // plain uniform-interleave path (byte-identical to no bias). Freezing it means a mid-session review
+  // refresh never re-deals the running session.
   const start = (themes: readonly DrillTheme[], len: number): void => {
     if (themes.length === 0) return
-    setPhase({ kind: 'running', seed, themes, length: len })
+    const bias: SessionBias | undefined =
+      reviewConcepts.length > 0
+        ? { concepts: new Set(reviewConcepts), weight: REVIEW_WEIGHT }
+        : undefined
+    setPhase({ kind: 'running', seed, themes, length: len, bias })
     setSeed((s) => s + 1)
   }
 
@@ -132,9 +233,11 @@ export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Eleme
         themes={phase.themes}
         length={phase.length}
         seed={phase.seed}
-        onComplete={(outcomes) =>
+        bias={phase.bias}
+        onComplete={(outcomes) => {
+          void record(outcomes)
           setPhase({ kind: 'over', outcomes, themes: phase.themes, length: phase.length })
-        }
+        }}
         onExit={() => setPhase({ kind: 'lobby' })}
       />
     )

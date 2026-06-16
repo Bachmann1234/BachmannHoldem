@@ -6,9 +6,11 @@
  * tallies, and that "Drill again" restarts.
  */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DRILL_THEMES } from '@holdem/drills'
+import type { DrillProgressRecord, DrillProgressStore, DrillSpotOutcome } from '../drills/index.js'
+import { foldOutcome } from '../drills/store.js'
 import { DrillsBranch } from './DrillsBranch.js'
 
 afterEach(cleanup)
@@ -19,6 +21,33 @@ function runToSummary(): void {
     if (screen.queryByTestId('drills-over') !== null) break
     fireEvent.click(screen.getByTestId('answer-0'))
     fireEvent.click(screen.getByTestId('result-cta'))
+  }
+}
+
+/**
+ * An in-memory {@link DrillProgressStore} for the wiring tests — aggregates exactly like the real
+ * IndexedDB store (via the shared `foldOutcome`) but synchronously, so no IndexedDB/fake-indexeddb is
+ * needed in a jsdom component test. `records` exposes the merged aggregate for assertions.
+ */
+function makeFakeStore(): DrillProgressStore & {
+  records: Map<string, DrillProgressRecord>
+  calls: { recordOutcomes: number; list: number }
+} {
+  const records = new Map<string, DrillProgressRecord>()
+  const calls = { recordOutcomes: 0, list: 0 }
+  return {
+    records,
+    calls,
+    async recordOutcomes(outcomes: readonly DrillSpotOutcome[], now: number): Promise<void> {
+      calls.recordOutcomes += 1
+      for (const o of outcomes) {
+        records.set(o.concept, foldOutcome(records.get(o.concept), o, now))
+      }
+    },
+    async list(): Promise<DrillProgressRecord[]> {
+      calls.list += 1
+      return [...records.values()]
+    },
   }
 }
 
@@ -127,5 +156,63 @@ describe('DrillsBranch — picker + summary', () => {
 
     fireEvent.click(screen.getByTestId('drills-again'))
     expect(screen.getByTestId('drill-session')).toBeTruthy()
+  })
+})
+
+describe('DrillsBranch — spaced repetition (ticket 0080)', () => {
+  it('records the finished session per-concept on complete (the durable store)', async () => {
+    const store = makeFakeStore()
+    render(<DrillsBranch onNavigate={vi.fn()} progressStore={store} now={() => 1000} />)
+    // Single theme + short length for a deterministic, quick run.
+    for (const theme of DRILL_THEMES.slice(1))
+      fireEvent.click(screen.getByTestId(`theme-${theme.id}`))
+    fireEvent.click(screen.getByTestId('length-5'))
+    fireEvent.click(screen.getByTestId('drills-start'))
+    runToSummary()
+
+    const concept = DRILL_THEMES[0]!.concept
+    await waitFor(() => {
+      expect(store.calls.recordOutcomes).toBe(1)
+      const rec = store.records.get(concept)
+      expect(rec).toBeDefined()
+      // All 5 spots of the one concept were folded into a single aggregate.
+      expect(rec!.total).toBe(5)
+      expect(rec!.lastDrilledAt).toBe(1000)
+    })
+  })
+
+  it('reads weak concepts on mount and re-reads after recording (the re-queue input)', async () => {
+    const store = makeFakeStore()
+    render(<DrillsBranch onNavigate={vi.fn()} progressStore={store} now={() => 1000} />)
+    // Loaded once on mount for the FIRST session's bias.
+    await waitFor(() => expect(store.calls.list).toBeGreaterThanOrEqual(1))
+
+    fireEvent.click(screen.getByTestId('length-5'))
+    fireEvent.click(screen.getByTestId('drills-start'))
+    const listsBefore = store.calls.list
+    runToSummary()
+    // After recording, the review set is refreshed so the NEXT session re-queues the just-drilled
+    // concepts — the spaced-repetition loop closes.
+    await waitFor(() => expect(store.calls.list).toBeGreaterThan(listsBefore))
+  })
+
+  it('a throwing store NEVER breaks the loop — the session still reaches its summary', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const throwingStore: DrillProgressStore = {
+      async recordOutcomes(): Promise<void> {
+        throw new Error('quota exceeded')
+      },
+      async list(): Promise<DrillProgressRecord[]> {
+        throw new Error('IndexedDB blocked')
+      },
+    }
+    render(<DrillsBranch onNavigate={vi.fn()} progressStore={throwingStore} />)
+    fireEvent.click(screen.getByTestId('length-5'))
+    fireEvent.click(screen.getByTestId('drills-start'))
+    runToSummary()
+    // The drill loop is unaffected — it reaches the summary even though every store call threw.
+    expect(screen.getByTestId('drills-over')).toBeTruthy()
+    await waitFor(() => expect(warn).toHaveBeenCalled())
+    warn.mockRestore()
   })
 })

@@ -261,9 +261,83 @@ function validateSeed(seed: number): void {
 }
 
 /**
+ * An OPTIONAL selection **bias** for {@link composeSession} — a generic "weight these concepts heavier"
+ * knob the spaced-repetition re-queue ([[0080-drills-spaced-repetition]]) drives, and one
+ * [[0081-drills-mastery-difficulty-glossary]]'s adaptive difficulty is meant to reuse for the SAME
+ * mechanism (weight toward weak/low-mastery concepts) without a second seam. It is deliberately concept-
+ * keyed and weight-shaped rather than re-queue-specific so both callers express "lean the seeded draw
+ * toward these topics" the same way.
+ *
+ * **What it does NOT do.** It does not pick *which* themes are in the session (the picker still owns that
+ * — bias only re-weights the seeded draw among the themes already chosen) and it does not break the
+ * interleave invariant: bias only changes *which* candidate is drawn at each position, never the rule
+ * that the candidate pool excludes the previous item's theme. So no two consecutive items still share a
+ * theme; bias merely makes a weighted topic appear *more often* across the session, interleaved, not
+ * blocked. A biased concept that no chosen theme exercises simply has no effect.
+ *
+ * **Determinism is preserved.** The weighted draw consumes exactly ONE float per position off the same
+ * stream, in the same fixed draw order (theme, then spot seed), so a session stays a pure function of
+ * `(themes, length, seed, bias)`. And with an **empty/omitted** bias every weight collapses to `1`, the
+ * weighted draw reduces *exactly* to the prior uniform `pool[floor(r * pool.length)]` pick, so existing
+ * `composeSession(themes, length, seed)` calls replay byte-for-byte (pinned by a test).
+ */
+export interface SessionBias {
+  /**
+   * The concepts to weight the seeded draw toward (e.g. the learner's recently-missed concepts). Any
+   * theme whose {@link DrillTheme.concept} is in this set is drawn with weight `1 + weight`; every other
+   * theme keeps weight `1`. An empty set is a no-op (uniform draw — byte-identical to no bias).
+   */
+  readonly concepts: ReadonlySet<Concept>
+  /**
+   * How much extra draw weight a biased concept's themes get, on top of the baseline `1`. `0` is a no-op;
+   * a positive value makes those topics proportionally more likely *at each position they are a candidate*
+   * (so they recur more across the session, still interleaved). Must be finite and `>= 0`.
+   */
+  readonly weight: number
+}
+
+/** Validate a {@link SessionBias.weight} in the package's loud-failure idiom — a malformed weight must throw. */
+function validateBias(bias: SessionBias | undefined): void {
+  if (bias === undefined) return
+  if (!Number.isFinite(bias.weight) || bias.weight < 0) {
+    throw new RangeError(`session bias weight must be a finite number >= 0, got ${bias.weight}`)
+  }
+}
+
+/**
+ * The draw weight for a theme under an (optional) bias: the baseline `1`, plus `bias.weight` if the
+ * theme's concept is in the bias set. With no bias (or an empty set / zero weight) every theme weighs
+ * exactly `1`, which is what makes the weighted pick collapse to the prior uniform draw.
+ */
+function themeWeight(theme: DrillTheme, bias: SessionBias | undefined): number {
+  return bias !== undefined && bias.concepts.has(theme.concept) ? 1 + bias.weight : 1
+}
+
+/**
+ * Weighted pick from `pool` consuming exactly ONE float `r ∈ [0, 1)` — a cumulative-weight scan over
+ * `r * totalWeight`. **Crucially, when every weight is `1` this returns the SAME index as the prior
+ * `pool[floor(r * pool.length)]` uniform draw** (totalWeight = pool.length; the cumulative scan lands in
+ * the same bucket), so an absent/empty bias replays byte-for-byte. The final-element fallback guards the
+ * `r → 1` floating-point edge.
+ */
+function weightedPick(
+  pool: readonly DrillTheme[],
+  weights: readonly number[],
+  r: number,
+): DrillTheme {
+  const total = weights.reduce((sum, w) => sum + w, 0)
+  let threshold = r * total
+  for (let i = 0; i < pool.length; i++) {
+    threshold -= weights[i]!
+    if (threshold < 0) return pool[i]!
+  }
+  return pool[pool.length - 1]!
+}
+
+/**
  * Compose a deterministic, **interleaved** drill session: pick spots from `themes` in a *seeded
  * randomized* topic order in which no two consecutive items share a theme, and return `length`
- * {@link SessionItem}s in that order. Same `(themes, length, seed)` ⇒ byte-identical session.
+ * {@link SessionItem}s in that order. Same `(themes, length, seed[, bias])` ⇒ byte-identical session.
  *
  * **The interleaving policy (the headline — do not "simplify" this to blocked OR to fixed round-robin).**
  * For each position we draw the next theme *at random* (off the session's seeded stream) from the themes
@@ -306,8 +380,15 @@ function validateSeed(seed: number): void {
  * project's `mulberry32` rather than inventing a parallel PRNG — the single shared "deterministic given a
  * seed" meaning the whole package rests on — and never touch `Math.random()`.
  *
+ * **Spaced-repetition bias (optional, [[0080]]).** An optional {@link SessionBias} weights the seeded
+ * draw toward a set of "review" concepts (the learner's recent mistakes) so weak topics recur more
+ * often — interleaved, never blocked (the bias only changes *which* candidate is drawn from the
+ * pool-that-already-excludes-the-previous-theme, so the no-consecutive-repeat invariant holds). It is a
+ * generic concept→weight knob, designed so [[0081]]'s adaptive difficulty reuses the SAME seam. Omitting
+ * it (or passing an empty/zero bias) reproduces the prior uniform draw byte-for-byte.
+ *
  * Throws {@link RangeError} on an empty `themes` list (a session needs at least one topic to draw from),
- * a non-integer/negative `length`, or a non-integer `seed`.
+ * a non-integer/negative `length`, a non-integer `seed`, or a malformed {@link SessionBias.weight}.
  *
  * @param themes The themes to draw spots from — typically a subset of {@link DRILL_THEMES} the user
  *   picked. Only the *set* of topics matters; the seeded draw chooses the order (input order does not fix
@@ -315,17 +396,21 @@ function validateSeed(seed: number): void {
  * @param length How many spots the session contains. `0` yields an empty session.
  * @param seed The session seed — the single source of both the topic order and every per-spot seed, so
  *   the session replays.
+ * @param bias Optional spaced-repetition / difficulty weighting toward a set of concepts. Omit (or pass
+ *   an empty set / zero weight) for the prior uniform interleave.
  */
 export function composeSession(
   themes: readonly DrillTheme[],
   length: number,
   seed: number,
+  bias?: SessionBias,
 ): SessionItem[] {
   if (themes.length === 0) {
     throw new RangeError('a session needs at least one theme to draw spots from')
   }
   validateLength(length)
   validateSeed(seed)
+  validateBias(bias)
 
   // One seeded stream for the WHOLE session: BOTH the topic order and every per-spot seed are drawn off
   // it, in a fixed per-position draw order (theme first, then spot seed). Threading a single stream this
@@ -348,9 +433,13 @@ export function composeSession(
     // round-robin (`themes[i % n]`) or a per-theme block — either leaks/eliminates the retrieval challenge.
     const candidates = themes.filter((t) => t.id !== prevThemeId)
     const pool = candidates.length > 0 ? candidates : themes
-    // FIXED DRAW ORDER: theme choice first, then the spot seed — both off the same stream, so the triple
-    // `(themes, length, seed)` replays byte-for-byte.
-    const theme = pool[Math.floor(nextFloat() * pool.length)]!
+    // FIXED DRAW ORDER: theme choice first, then the spot seed — both off the same stream, so the tuple
+    // `(themes, length, seed, bias)` replays byte-for-byte. The pick is WEIGHTED by the optional bias —
+    // but with no bias every weight is 1 and `weightedPick` returns the SAME index the prior uniform
+    // `pool[floor(r * pool.length)]` draw did, so omitting `bias` is byte-identical. Bias re-weights the
+    // candidate (which already excludes the previous theme), so the interleave invariant is untouched.
+    const weights = pool.map((t) => themeWeight(t, bias))
+    const theme = weightedPick(pool, weights, nextFloat())
     const spot = generateSpot(nextSpotSeed(), theme.config)
     items.push({ spot, theme })
     prevThemeId = theme.id

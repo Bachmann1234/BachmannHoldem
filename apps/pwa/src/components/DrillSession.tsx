@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import { composeSession, type DrillTheme } from '@holdem/drills'
+import { composeSession, type DrillTheme, type SessionBias } from '@holdem/drills'
 import { gradeSpot, type GradeResult } from '@holdem/curriculum'
 import { SessionHeader } from './SessionHeader.js'
 import { ResultSheet, SpotAnswers, SpotView } from './SpotPlayer.js'
@@ -45,6 +45,12 @@ export interface DrillSessionProps {
   readonly length: number
   /** The session seed — replays the whole interleaved session byte-for-byte. */
   readonly seed: number
+  /**
+   * Optional spaced-repetition bias (ticket 0080) — weights the seeded composition toward the learner's
+   * recently-missed concepts so weak topics recur more, interleaved (never blocked). Omitted/undefined
+   * reproduces the prior uniform interleave byte-for-byte. Threaded straight into {@link composeSession}.
+   */
+  readonly bias?: SessionBias
   /** Finished the last spot — the shell shows its "session over" recap. Carries every spot's outcome. */
   readonly onComplete: (outcomes: readonly DrillOutcome[]) => void
   /** Leave the session early (the Back affordance) — no recap. */
@@ -61,12 +67,17 @@ export function DrillSession({
   themes,
   length,
   seed,
+  bias,
   onComplete,
   onExit,
 }: DrillSessionProps): React.JSX.Element {
   // Compose the interleaved session once — the pure engine owns the ordering + the deals; same
-  // (themes, length, seed) ⇒ the same session, and a re-render must not re-deal.
-  const session = useMemo(() => composeSession(themes, length, seed), [themes, length, seed])
+  // (themes, length, seed, bias) ⇒ the same session, and a re-render must not re-deal. `bias` is frozen
+  // by the caller for the session's lifetime, so it is a stable dep.
+  const session = useMemo(
+    () => composeSession(themes, length, seed, bias),
+    [themes, length, seed, bias],
+  )
   const total = session.length
 
   const [spotIndex, setSpotIndex] = useState(0)

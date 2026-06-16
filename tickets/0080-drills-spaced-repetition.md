@@ -2,7 +2,7 @@
 id: 0080
 title: Spaced repetition of missed drill spots — persist and re-queue
 type: feature
-status: todo
+status: done
 milestone: M5.5
 priority: medium
 created: 2026-06-16
@@ -19,13 +19,13 @@ can persist it" — this is that M6 follow-through.
 
 ## Acceptance criteria
 
-- [ ] Missed spots (and the concept they exercise) are **persisted** across sessions — a lightweight
+- [x] Missed spots (and the concept they exercise) are **persisted** across sessions — a lightweight
       IndexedDB-backed store, reusing the `HandHistoryStore` pattern.
-- [ ] Later sessions **re-queue** weak/failed concepts (resurface a missed spot type, not
+- [x] Later sessions **re-queue** weak/failed concepts (resurface a missed spot type, not
       necessarily the byte-identical deal) so the learner gets spaced reps on their mistakes.
-- [ ] Integrates with the interleaved session composer ([[0066-drills-themed-sets]]) rather than
+- [x] Integrates with the interleaved session composer ([[0066-drills-themed-sets]]) rather than
       replacing it; re-queued spots interleave, not block.
-- [ ] Tests cover persistence + re-queue selection; degrades gracefully when storage is unavailable.
+- [x] Tests cover persistence + re-queue selection; degrades gracefully when storage is unavailable.
 
 ## Notes
 

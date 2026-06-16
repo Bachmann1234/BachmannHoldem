@@ -65,6 +65,7 @@ import {
   type HeroDecision,
 } from './history/index.js'
 import { LocalStorageLiveSessionStore, type LiveSessionStore } from './session/store.js'
+import { IndexedDbDrillProgressStore, type DrillProgressStore } from './drills/index.js'
 import './styles.css'
 import './primer.css'
 
@@ -128,6 +129,13 @@ export interface AppProps {
    * (via a ref) and threaded into {@link Session}.
    */
   readonly sessionStore?: LiveSessionStore
+  /**
+   * The durable per-concept drill-progress store the Drills branch records mistakes to and re-queues
+   * weak concepts from (ticket 0080) — the shared IndexedDB layer M6 stats + per-concept mastery
+   * ([[0081]]) will also consume. Defaults to the IndexedDB-backed store; tests inject a fake / throwing
+   * fake. Created once (via a ref) and threaded into {@link DrillsBranch}.
+   */
+  readonly drillProgressStore?: DrillProgressStore
 }
 
 /**
@@ -169,6 +177,12 @@ export function App(props: AppProps): React.JSX.Element {
   const defaultSessionStoreRef = useRef<LiveSessionStore | null>(null)
   const sessionStore =
     props.sessionStore ?? (defaultSessionStoreRef.current ??= new LocalStorageLiveSessionStore())
+  // The drill-progress store is likewise created lazily ONCE so the Drills branch reads/writes one
+  // durable per-concept record across renders (the spaced-repetition store, ticket 0080). Tests inject
+  // their own.
+  const defaultDrillStoreRef = useRef<DrillProgressStore | null>(null)
+  const drillProgressStore =
+    props.drillProgressStore ?? (defaultDrillStoreRef.current ??= new IndexedDbDrillProgressStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
       {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn — but hide it
@@ -189,7 +203,9 @@ export function App(props: AppProps): React.JSX.Element {
       {activeTab === 'learn' ? (
         <LearnBranch onNavigate={onNavigate} progressStore={progressStore} />
       ) : null}
-      {activeTab === 'drills' ? <DrillsBranch onNavigate={onNavigate} /> : null}
+      {activeTab === 'drills' ? (
+        <DrillsBranch onNavigate={onNavigate} progressStore={drillProgressStore} />
+      ) : null}
     </div>
   )
 }

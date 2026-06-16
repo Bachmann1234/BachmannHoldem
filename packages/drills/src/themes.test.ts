@@ -7,7 +7,13 @@ import {
   type PreflopSpot,
 } from '@holdem/curriculum'
 import type { HandReadingSpot } from '@holdem/curriculum'
-import { composeSession, DRILL_THEMES, type DrillTheme, type SessionItem } from './themes.js'
+import {
+  composeSession,
+  DRILL_THEMES,
+  type DrillTheme,
+  type SessionBias,
+  type SessionItem,
+} from './themes.js'
 
 /** A spread of session seeds to exercise the composer across many distinct draws. */
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1)
@@ -298,6 +304,84 @@ describe('composeSession — composed spots stay graded by gradeSpot, concept re
       // A well-posed spot always offers at least one coach-blessed choice.
       expect(anyCorrect).toBe(true)
     }
+  })
+})
+
+describe('composeSession — spaced-repetition bias (ticket 0080)', () => {
+  const all = [...DRILL_THEMES]
+
+  /** The longest run of consecutive items sharing the same theme id in a session. */
+  function longestSameThemeRun(items: readonly SessionItem[]): number {
+    let longest = 0
+    let run = 0
+    let prev: string | null = null
+    for (const item of items) {
+      run = item.theme.id === prev ? run + 1 : 1
+      prev = item.theme.id
+      if (run > longest) longest = run
+    }
+    return longest
+  }
+
+  it('an OMITTED bias replays byte-for-byte with no bias (the reduction invariant)', () => {
+    // The load-bearing back-compat guarantee: an empty/omitted bias must reduce the weighted draw to the
+    // prior uniform draw EXACTLY, so every existing call replays unchanged.
+    for (const seed of SEEDS) {
+      const plain = composeSession(all, 12, seed)
+      const emptySet: SessionBias = { concepts: new Set(), weight: 5 }
+      const zeroWeight: SessionBias = { concepts: new Set(['pot-odds']), weight: 0 }
+      expect(composeSession(all, 12, seed, emptySet)).toEqual(plain)
+      expect(composeSession(all, 12, seed, zeroWeight)).toEqual(plain)
+    }
+  })
+
+  it('is deterministic — same (themes, length, seed, bias) → deep-equal session', () => {
+    const bias: SessionBias = { concepts: new Set(['pot-odds']), weight: 3 }
+    for (const seed of SEEDS) {
+      expect(composeSession(all, 9, seed, bias)).toEqual(composeSession(all, 9, seed, bias))
+    }
+  })
+
+  it('PRESERVES the interleave invariant — no two consecutive items share a theme', () => {
+    const bias: SessionBias = { concepts: new Set(['pot-odds']), weight: 10 }
+    for (const seed of SEEDS) {
+      for (const length of [3, 6, 12]) {
+        const items = composeSession(all, length, seed, bias)
+        // Even with a heavy bias toward pot-odds (3 themes share that concept), the run-length stays 1:
+        // bias re-weights WITHIN the pool that already excludes the previous theme, so it can never block.
+        expect(longestSameThemeRun(items)).toBe(1)
+      }
+    }
+  })
+
+  it('actually RESURFACES the biased concept more often (weak concepts recur)', () => {
+    // Count how often a pot-odds spot appears across a sweep with vs without the bias. The biased run must
+    // show strictly more pot-odds reps — proof the re-queue genuinely weights toward the missed concept.
+    const bias: SessionBias = { concepts: new Set(['pot-odds']), weight: 8 }
+    const countConcept = (b?: SessionBias): number => {
+      let n = 0
+      for (const seed of SEEDS) {
+        for (const item of composeSession(all, 12, seed, b)) {
+          if (item.theme.concept === 'pot-odds') n += 1
+        }
+      }
+      return n
+    }
+    expect(countConcept(bias)).toBeGreaterThan(countConcept(undefined))
+  })
+
+  it('a biased concept no chosen theme exercises is a harmless no-op', () => {
+    // Bias toward 'ev' (no catalogue theme has that concept) over a preflop-only set: nothing changes.
+    const onlyRanges = [DRILL_THEMES.find((t) => t.id === 'preflop-ranges')!]
+    const bias: SessionBias = { concepts: new Set(['ev']), weight: 9 }
+    expect(composeSession(onlyRanges, 5, 4, bias)).toEqual(composeSession(onlyRanges, 5, 4))
+  })
+
+  it('rejects a malformed bias weight (loud failure)', () => {
+    expect(() => composeSession(all, 3, 1, { concepts: new Set(), weight: -1 })).toThrow(RangeError)
+    expect(() => composeSession(all, 3, 1, { concepts: new Set(), weight: Number.NaN })).toThrow(
+      RangeError,
+    )
   })
 })
 
