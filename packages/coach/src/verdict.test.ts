@@ -17,8 +17,15 @@ import {
   COACH_SEED,
   EPSILON,
   VALUE_BET_THRESHOLD,
+  ARCHETYPE_TIER_SHIFT,
+  ARCHETYPE_BLUFF_STEP,
   type DecisionVerdict,
+  type VillainArchetype,
 } from './verdict.js'
+
+/** The canonical width order, tightest → widest, for asserting the bounded ±1-tier clamp. */
+const WIDTH_ORDER: readonly RangeWidth[] = ['ultraTight', 'tight', 'medium', 'loose', 'anyTwo']
+const widthTier = (w: RangeWidth): number => WIDTH_ORDER.indexOf(w)
 
 /** Parse a glued two-card string into a hole-card tuple, e.g. "AhKh". */
 function hole(cards: string): readonly [Card, Card] {
@@ -851,6 +858,158 @@ describe('coachDecision — decision trace (the audit by-product)', () => {
     expect(coachDecision(unbet, CALL).trace.assumedRange).toBe(assumedRangeForLine(unbet))
     expect(coachDecision(facingBet, CALL).trace.assumedRange).toBe(assumedRangeForLine(facingBet))
     expect(coachDecision(barreled, CALL).trace.assumedRange).toBe('board-aware')
+  })
+})
+
+describe('coachDecision — archetype-aware read (ticket 0062)', () => {
+  const ALL: readonly VillainArchetype[] = ['tag', 'lag', 'rock', 'station']
+
+  describe('per-archetype direction on a priced bluff-catcher spot', () => {
+    // A facing-bet (small, early-street) priced spot: the read is a WIDTH bucket, so the ±1-tier
+    // width shift bites directly (not the polarised barrel). A genuine bluff-catcher (Q9 on a K72
+    // board — a weak holding whose equity tracks how wide/weak the assumed villain is): wider villain
+    // ⇒ weaker holdings in range ⇒ higher hero equity; tighter villain ⇒ lower. (Aces would be a
+    // monster, not a bluff-catcher, and the nested ranges aren't strictly monotone for it.)
+    const holeCards = hole('Qc9c')
+    const board = parseCards('Kd 7c 2h')
+    const spot = ctx({ holeCards, board, pot: 13, toCall: 3 }) // facing-bet width bucket
+    const baseline = coachDecision(spot, CALL)
+
+    it('tag is byte-identical to the two-arg (line-only) call', () => {
+      // tag has shift 0, so the assumed villain, equity, and verdict are exactly the line-only grade.
+      // The trace gains the (optional) archetype fields, so compare every other field explicitly.
+      const tagged = coachDecision(spot, CALL, 'tag')
+      expect(tagged.equity).toBe(baseline.equity)
+      expect(tagged.verdict).toBe(baseline.verdict)
+      expect(tagged.correctDecision).toBe(baseline.correctDecision)
+      expect(coachAssumedRead(spot, 'tag').opponentRange).toBe(coachAssumedRead(spot).opponentRange)
+      expect(ARCHETYPE_TIER_SHIFT.tag).toBe(0)
+    })
+
+    it('station reads one bucket looser and rates the bluff-catcher ≥ baseline', () => {
+      const base = coachAssumedRead(spot).opponentRange as RangeWidth
+      const station = coachAssumedRead(spot, 'station').opponentRange as RangeWidth
+      expect(widthTier(station)).toBe(widthTier(base) + 1) // one tier wider
+      expect(coachDecision(spot, CALL, 'station').equity).toBeGreaterThanOrEqual(baseline.equity)
+    })
+
+    it('lag moves the same direction as station (wider, equity ≥ baseline)', () => {
+      const base = coachAssumedRead(spot).opponentRange as RangeWidth
+      const lag = coachAssumedRead(spot, 'lag').opponentRange as RangeWidth
+      expect(widthTier(lag)).toBe(widthTier(base) + 1)
+      expect(coachDecision(spot, CALL, 'lag').equity).toBeGreaterThanOrEqual(baseline.equity)
+    })
+
+    it('rock reads one bucket tighter and rates the bluff-catcher ≤ baseline', () => {
+      const base = coachAssumedRead(spot).opponentRange as RangeWidth
+      const rock = coachAssumedRead(spot, 'rock').opponentRange as RangeWidth
+      expect(widthTier(rock)).toBe(widthTier(base) - 1) // one tier tighter
+      expect(coachDecision(spot, CALL, 'rock').equity).toBeLessThanOrEqual(baseline.equity)
+    })
+  })
+
+  describe('bounded ±1 tier across every archetype and line branch', () => {
+    // Every width-bucket line branch (unbet, facing-bet, barreled-preflop) shifted by every archetype
+    // moves at most one tier from the line-only baseline.
+    const lines = [
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 50, toCall: 0 }), // unbet
+      ctx({ holeCards: hole('AsAh'), board: parseCards('Kd 7c 2h'), pot: 13, toCall: 3 }), // facing-bet
+      ctx({ holeCards: hole('AsAh'), pot: 24, toCall: 12 }), // barreled PREFLOP (width fallback)
+    ]
+    it('the shifted width index differs from baseline by at most 1', () => {
+      for (const line of lines) {
+        const base = widthTier(coachAssumedRead(line).opponentRange as RangeWidth)
+        for (const a of ALL) {
+          const shifted = widthTier(coachAssumedRead(line, a).opponentRange as RangeWidth)
+          expect(Math.abs(shifted - base)).toBeLessThanOrEqual(1)
+        }
+      }
+    })
+
+    it('clamps at the poles: rock on ultraTight stays ultraTight, station/lag on anyTwo stays anyTwo', () => {
+      expect(WIDTH_ORDER[Math.max(0, 0 + ARCHETYPE_TIER_SHIFT.rock)]).toBe('ultraTight')
+      expect(WIDTH_ORDER[Math.min(4, 4 + ARCHETYPE_TIER_SHIFT.station)]).toBe('anyTwo')
+      expect(WIDTH_ORDER[Math.min(4, 4 + ARCHETYPE_TIER_SHIFT.lag)]).toBe('anyTwo')
+      // A barreled-preflop line (BARRELED_RANGE_WIDTH = 'ultraTight') under rock clamps at the pole.
+      const preflopBarrel = ctx({ holeCards: hole('AsAh'), pot: 24, toCall: 12 })
+      expect(coachAssumedRead(preflopBarrel, 'rock').opponentRange).toBe('ultraTight')
+    })
+  })
+
+  describe('barreled bluff fraction shift (the call-down spot)', () => {
+    // A barreled postflop line reads the board-aware polarised range, so the archetype bites via the
+    // bluff fraction, not the width. Step is exactly ARCHETYPE_BLUFF_STEP per tier, clamped to [0,1].
+    const board = parseCards('Kd 7c 2h')
+    const spot = ctx({ holeCards: hole('AsAh'), board, pot: 24, toCall: 12 }) // pot-sized flop barrel
+
+    it('station-barrel bluff fraction > rock-barrel bluff fraction on the same board', () => {
+      const station = coachAssumedRead(spot, 'station').trace
+      const rock = coachAssumedRead(spot, 'rock').trace
+      expect(station.assumedRange).toBe('board-aware')
+      expect(rock.assumedRange).toBe('board-aware')
+      // The TARGET bluff fraction handed to polarizedBarrelRange differs by 2 * STEP (station +1, rock
+      // -1); the realised fraction recorded in the trace reflects that ordering.
+      expect(station.polarized!.bluffFraction).toBeGreaterThan(rock.polarized!.bluffFraction)
+    })
+
+    it('the barreled bluff fraction stays in [0, 1] and moves exactly one STEP per tier', () => {
+      // Reconstruct the target fraction the read used for each archetype: clamp(BLUFF_FRACTION + shift*STEP).
+      for (const a of ALL) {
+        const target = Math.max(
+          0,
+          Math.min(1, BLUFF_FRACTION + ARCHETYPE_TIER_SHIFT[a] * ARCHETYPE_BLUFF_STEP),
+        )
+        expect(target).toBeGreaterThanOrEqual(0)
+        expect(target).toBeLessThanOrEqual(1)
+        // tag (shift 0) is the bare BLUFF_FRACTION; station/lag are +STEP; rock is -STEP.
+        expect(target).toBeCloseTo(
+          BLUFF_FRACTION + ARCHETYPE_TIER_SHIFT[a] * ARCHETYPE_BLUFF_STEP,
+          9,
+        )
+      }
+    })
+  })
+
+  describe('purity / determinism', () => {
+    it('a fixed (ctx, action, archetype) is deterministic across two calls', () => {
+      const spot = ctx({
+        holeCards: hole('AsAh'),
+        board: parseCards('Kd 7c 2h'),
+        pot: 24,
+        toCall: 12,
+      })
+      expect(coachDecision(spot, CALL, 'station')).toEqual(coachDecision(spot, CALL, 'station'))
+    })
+
+    it('does not mutate ctx (deep-equal before/after)', () => {
+      const spot = ctx({
+        holeCards: hole('AsAh'),
+        board: parseCards('Kd 7c 2h'),
+        pot: 24,
+        toCall: 12,
+      })
+      // A JSON snapshot is a sufficient deep copy here — every ctx field is plain serialisable data
+      // (cards are numbers). Equal before/after proves the coach treated the input as read-only.
+      const before = JSON.parse(JSON.stringify(spot))
+      coachDecision(spot, CALL, 'station')
+      expect(JSON.parse(JSON.stringify(spot))).toEqual(before)
+    })
+
+    it('records the archetype + shift on the trace, and omits them on a line-only grade', () => {
+      const spot = ctx({
+        holeCards: hole('AsAh'),
+        board: parseCards('Kd 7c 2h'),
+        pot: 24,
+        toCall: 12,
+      })
+      const tagged = coachDecision(spot, CALL, 'rock').trace
+      expect(tagged.villainArchetype).toBe('rock')
+      expect(tagged.archetypeShift).toBe(ARCHETYPE_TIER_SHIFT.rock)
+      // A line-only (two-arg) grade carries no archetype keys — byte-identical trace to today.
+      const lineOnly = coachDecision(spot, CALL).trace
+      expect(lineOnly.villainArchetype).toBeUndefined()
+      expect(lineOnly.archetypeShift).toBeUndefined()
+    })
   })
 })
 

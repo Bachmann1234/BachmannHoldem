@@ -85,6 +85,89 @@ import { evOfCall, potOdds, type Range } from '@holdem/odds'
 export const COACH_ASSUMED_RANGE: RangeWidth = DEFAULT_RANGE_WIDTH
 
 /**
+ * A villain archetype the coach can *optionally* colour its assumed-range read with — the per-villain
+ * read ticket 0062 layers on top of the line-only narrowing. These are exactly session's `BotKind`
+ * literals (`'tag' | 'lag' | 'rock' | 'station'`), declared **locally** here so the coach never imports
+ * from `@holdem/session`: the dependency direction is session → coach → bots, and importing session back
+ * would close a cycle. Because the literals match, a session `BotKind` is assignable to this with no
+ * conversion — the reducer threads its resolved `botKind` straight into {@link coachDecision}.
+ *
+ * - `'tag'` — tight-aggressive, balanced: **no** shift (the read stays exactly the line-only grade).
+ * - `'lag'` — loose-aggressive: a **wider/weaker** assumed villain (call down lighter — {@link BOT_TIPS}).
+ * - `'rock'` — tight-passive: a **tighter/stronger** assumed villain (their bets mean strength, fold more).
+ * - `'station'` — loose-passive: a **wider/weaker** assumed villain (value-bet thin, bluff less).
+ *
+ * The colour is a *bounded nudge*, not a swing: see {@link ARCHETYPE_TIER_SHIFT} / {@link ARCHETYPE_BLUFF_STEP}.
+ * When omitted (`undefined`) every function returns the byte-identical line-only output it does today.
+ */
+export type VillainArchetype = 'tag' | 'lag' | 'rock' | 'station'
+
+/**
+ * How far each {@link VillainArchetype} nudges the assumed villain along the strength axis — a single,
+ * **bounded** tier (`-1 | 0 | 1`), never more. Positive = a *wider/weaker* villain (more bluffs, looser
+ * continues — `station` / `lag`), which raises the hero's equity and rewards thinner value & calldowns;
+ * negative = a *tighter/stronger* villain (`rock`), which lowers it and rewards folds & steals; `0` = the
+ * balanced `tag`, leaving the read exactly at the line-only grade.
+ *
+ * It feeds two bounded adjustments, each clamped so a read can move the assumed villain by at most one
+ * step: a ±1 {@link RangeWidth} *tier* shift (see {@link assumedLineRead}) and a ±{@link ARCHETYPE_BLUFF_STEP}
+ * bluff-fraction shift on a barrel (see {@link coachAssumedRead}). The directions mirror session's
+ * `BOT_TIPS`. A named, tunable knob like the line-strength widths.
+ */
+export const ARCHETYPE_TIER_SHIFT: Readonly<Record<VillainArchetype, -1 | 0 | 1>> = {
+  tag: 0,
+  lag: 1,
+  rock: -1,
+  station: 1,
+}
+
+/**
+ * The amount each archetype tier shifts the **bluff fraction** of a barreled, board-aware villain range
+ * — the second of the two bounded archetype nudges. On a barrel the {@link RangeWidth} tier shift is a
+ * no-op (the read uses the concrete {@link polarizedBarrelRange}, not a width bucket), so this is what
+ * makes the archetype bite on the most important spot — the barrel call-down. A `station`/`lag` read
+ * adds `0.05` of air (more bluffs ⇒ the bluff-catcher beats more ⇒ higher equity), a `rock` read removes
+ * it; clamped into `[0, 1]`. One tier of `0.05` keeps every shifted value inside the band the 0059 sweep
+ * validated around {@link BLUFF_FRACTION}.
+ */
+export const ARCHETYPE_BLUFF_STEP = 0.05
+
+/**
+ * The canonical {@link RangeWidth} order, tightest (`0`) to widest (`4`) — the tier index the
+ * {@link ARCHETYPE_TIER_SHIFT} adds to and the array {@link WIDTH_BY_TIER} reverses. Single-sourced here
+ * so the width clamp and its inverse can never disagree.
+ */
+const WIDTH_TIER: Readonly<Record<RangeWidth, number>> = {
+  ultraTight: 0,
+  tight: 1,
+  medium: 2,
+  loose: 3,
+  anyTwo: 4,
+}
+
+/** The inverse of {@link WIDTH_TIER}: tier index `0..4` back to its {@link RangeWidth} name. */
+const WIDTH_BY_TIER: readonly RangeWidth[] = ['ultraTight', 'tight', 'medium', 'loose', 'anyTwo']
+
+/**
+ * Apply an archetype's {@link ARCHETYPE_TIER_SHIFT} to a line-derived {@link RangeWidth}, **clamped** to
+ * the valid tier range `[0, 4]` so the read can move by at most one bucket and never off the poles (a
+ * `rock` on `ultraTight` stays `ultraTight`; a `station`/`lag` on `anyTwo` stays `anyTwo`). With
+ * `archetype === undefined` it returns the input width unchanged — the early guard that preserves the
+ * byte-identical line-only output.
+ */
+function shiftWidth(width: RangeWidth, archetype: VillainArchetype | undefined): RangeWidth {
+  if (archetype === undefined) return width
+  const tier = WIDTH_TIER[width] + ARCHETYPE_TIER_SHIFT[archetype]
+  const clamped = Math.max(0, Math.min(4, tier))
+  return WIDTH_BY_TIER[clamped]!
+}
+
+/** Clamp a number into `[lo, hi]`. */
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x))
+}
+
+/**
  * The bet-size threshold, as a fraction of the pot the villain bet *into*, above which a
  * villain's bet counts as *large* and narrows the assumed range one bucket tighter than a
  * small bet on the same street.
@@ -225,7 +308,8 @@ export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
   // the {@link PostflopTrace} records, then keep only the width. This function's signature and
   // behaviour are byte-identical to before — it remains the standalone, unit-testable line→width
   // mapping {@link coachDecision} (and the existing tests) call — so the trace adds *no* new decision
-  // logic; it only surfaces the branch this read already takes.
+  // logic; it only surfaces the branch this read already takes. One-arg, so it always reads the
+  // line-only width (`archetype === undefined`); the archetype-aware path threads through the helpers.
   return assumedLineRead(ctx).width
 }
 
@@ -256,14 +340,25 @@ export function assumedRangeForLine(ctx: DecisionContext): RangeWidth {
  * Pure and deterministic, reading only `ctx.toCall`, `ctx.pot`, and `ctx.street` — exported so the
  * trace projection is unit-testable in isolation alongside {@link assumedRangeForLine}.
  */
-export function assumedLineRead(ctx: DecisionContext): {
+export function assumedLineRead(
+  ctx: DecisionContext,
+  villainArchetype?: VillainArchetype,
+): {
   width: RangeWidth
   reason: PostflopTrace['lineReason']
   betFraction: number | null
 } {
   // No chips owed: the villain has revealed nothing — keep the no-read baseline width. There is no
   // bet to size against, so the betFraction is null (not 0 — 0 would read as a check-sized "bet").
-  if (ctx.toCall === 0) return { width: UNBET_RANGE_WIDTH, reason: 'unbet', betFraction: null }
+  // An archetype shifts this width too (a station/lag widens the no-read prior, a rock tightens it),
+  // bounded ±1 tier; `shiftWidth(undefined)` is a no-op, so the line-only output is byte-identical.
+  if (ctx.toCall === 0) {
+    return {
+      width: shiftWidth(UNBET_RANGE_WIDTH, villainArchetype),
+      reason: 'unbet',
+      betFraction: null,
+    }
+  }
 
   // A later street (turn/river) means the villain, to be betting here, has in a typical hand
   // already fired an earlier street: a stand-in for the multi-barrel line we cannot count.
@@ -278,13 +373,24 @@ export function assumedLineRead(ctx: DecisionContext): {
   const betFraction = denom > 0 ? ctx.toCall / denom : Infinity
   const largeBet = betFraction >= LARGE_BET_POT_FRACTION
 
-  // Either a large bet or a later-street bet signals a strong, value-heavy line.
+  // Either a large bet or a later-street bet signals a strong, value-heavy line. The archetype
+  // nudges the width ±1 tier (a station/lag continues wider, a rock tighter); on a barreled
+  // *postflop* line the read swaps in the concrete polarised range, so the width shift is a no-op
+  // there and the bluff-fraction shift (coachAssumedRead) is what bites instead — see that helper.
   if (largeBet || laterStreet) {
-    return { width: BARRELED_RANGE_WIDTH, reason: 'barreled', betFraction }
+    return {
+      width: shiftWidth(BARRELED_RANGE_WIDTH, villainArchetype),
+      reason: 'barreled',
+      betFraction,
+    }
   }
 
   // A small bet/raise on an early street: a real commitment, but the weakest of the signals.
-  return { width: FACING_BET_RANGE_WIDTH, reason: 'facing-bet', betFraction }
+  return {
+    width: shiftWidth(FACING_BET_RANGE_WIDTH, villainArchetype),
+    reason: 'facing-bet',
+    betFraction,
+  }
 }
 
 /**
@@ -297,11 +403,12 @@ export function assumedLineRead(ctx: DecisionContext): {
  */
 function tryPolarizedBarrelRange(
   ctx: DecisionContext,
+  bluffFraction: number,
 ): ReturnType<typeof polarizedBarrelRange> | null {
   try {
     return polarizedBarrelRange({
       board: ctx.board,
-      bluffFraction: BLUFF_FRACTION,
+      bluffFraction,
       blocked: new Set(ctx.holeCards),
     })
   } catch {
@@ -336,11 +443,22 @@ function tryPolarizedBarrelRange(
  * Pure and deterministic: {@link polarizedBarrelRange} is itself a pure function of the board, and the
  * width path is unchanged. Reads only the betting line + board + hero cards from `ctx`.
  */
-export function coachAssumedRead(ctx: DecisionContext): {
+export function coachAssumedRead(
+  ctx: DecisionContext,
+  villainArchetype?: VillainArchetype,
+): {
   opponentRange: RangeWidth | Range
   trace: PostflopTrace
 } {
-  const lineRead = assumedLineRead(ctx)
+  const lineRead = assumedLineRead(ctx, villainArchetype)
+
+  // The optional archetype fields the trace records — spread into each return so the ruling can show
+  // *which* villain read coloured the grade and how far it shifted. Present only when an archetype was
+  // supplied, so a two-arg (line-only) read produces a byte-identical trace to today (no extra keys).
+  const archetypeTrace =
+    villainArchetype === undefined
+      ? {}
+      : { villainArchetype, archetypeShift: ARCHETYPE_TIER_SHIFT[villainArchetype] }
 
   // The only line that gets the board-aware treatment: a barreled bet with real texture to read.
   // A barreled *preflop* bet (3-bet) has no board, so it keeps the width fallback.
@@ -352,7 +470,20 @@ export function coachAssumedRead(ctx: DecisionContext): {
     // overpair combos always survive pruning only the two hero cards), but we honour the contract so a
     // malformed or hand-edited spot degrades to the width bucket instead of throwing out of
     // coachDecision into a client without an error boundary.
-    const polarized = tryPolarizedBarrelRange(ctx)
+    //
+    // The archetype bites HERE on the barrel — the most important spot — by shifting the bluff
+    // fraction ±ARCHETYPE_BLUFF_STEP per tier (clamped to [0,1]): a station/lag adds air (the
+    // bluff-catcher beats more ⇒ higher equity), a rock removes it. With `villainArchetype` undefined
+    // the shift is 0, so this is exactly the bare BLUFF_FRACTION read — byte-identical to today.
+    const bluffFraction =
+      villainArchetype === undefined
+        ? BLUFF_FRACTION
+        : clamp(
+            BLUFF_FRACTION + ARCHETYPE_TIER_SHIFT[villainArchetype] * ARCHETYPE_BLUFF_STEP,
+            0,
+            1,
+          )
+    const polarized = tryPolarizedBarrelRange(ctx, bluffFraction)
     if (polarized) {
       return {
         opponentRange: polarized.range,
@@ -365,6 +496,7 @@ export function coachAssumedRead(ctx: DecisionContext): {
             bluffCombos: polarized.bluffCombos,
             bluffFraction: polarized.bluffFraction,
           },
+          ...archetypeTrace,
         },
       }
     }
@@ -380,6 +512,7 @@ export function coachAssumedRead(ctx: DecisionContext): {
       lineReason: lineRead.reason,
       betFraction: lineRead.betFraction,
       polarized: null,
+      ...archetypeTrace,
     },
   }
 }
@@ -543,6 +676,19 @@ export interface PostflopTrace {
     /** Realised bluff share — `bluffCombos / (valueCombos + bluffCombos)` (see {@link BLUFF_FRACTION}). */
     readonly bluffFraction: number
   } | null
+  /**
+   * The {@link VillainArchetype} the read was coloured with (ticket 0062), or absent when the grade was
+   * line-only. **Optional** so a two-arg (line-only) {@link coachDecision} produces a byte-identical
+   * trace — the key is present *only* when an archetype was supplied. Lets a ruling show which
+   * per-villain read shaped the assumed range.
+   */
+  readonly villainArchetype?: VillainArchetype
+  /**
+   * The bounded tier shift the {@link villainArchetype} applied — {@link ARCHETYPE_TIER_SHIFT} (`-1 | 0 |
+   * 1`). Present only alongside {@link villainArchetype}. `+1` widened the assumed villain (station/lag,
+   * higher hero equity), `-1` tightened it (rock), `0` left it balanced (tag).
+   */
+  readonly archetypeShift?: -1 | 0 | 1
 }
 
 /**
@@ -681,7 +827,11 @@ export interface DecisionVerdict {
  * inputs: a context with the wrong hole-card count, an illegal board size, a negative pot,
  * or a negative `toCall`.
  */
-export function coachDecision(ctx: DecisionContext, action: Action): DecisionVerdict {
+export function coachDecision(
+  ctx: DecisionContext,
+  action: Action,
+  villainArchetype?: VillainArchetype,
+): DecisionVerdict {
   // Guard the pot-accounting numbers in the odds/bots RangeError idiom before they reach
   // the helpers — a clearer message than the deep call's, and it documents the contract.
   if (ctx.pot < 0) throw new RangeError(`ctx.pot must be ≥ 0, got ${ctx.pot}`)
@@ -700,7 +850,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
   // One call yields both the range to seed the read AND the trace, so the recorded "why" can never
   // disagree with the range actually used. The trace is a pure by-product — recording this branch,
   // not taking a new one — and is stamped onto every verdict return below.
-  const { opponentRange, trace } = coachAssumedRead(ctx)
+  const { opponentRange, trace } = coachAssumedRead(ctx, villainArchetype)
   const equity = estimateEquity({
     holeCards: ctx.holeCards,
     board: ctx.board,

@@ -460,3 +460,101 @@ describe('buildSessionPlayers / defaultOpponents', () => {
 function legalAllIn(hand: HandState): { type: 'raise'; amount: number } {
   return { type: 'raise', amount: legalActions(hand).raise!.max }
 }
+
+describe('reducer — archetype-aware grading: which villain colours the read (ticket 0062)', () => {
+  /** The archetype recorded on the most-recent postflop verdict trace, or undefined. */
+  function gradedArchetype(model: ReturnType<typeof reducer>): string | undefined {
+    return model.coach.kind === 'verdict' ? model.coach.verdict.trace.villainArchetype : undefined
+  }
+
+  it('multiway facing a bet grades against the FACING villain (the aggressor), not another active seat', () => {
+    // 3-handed, button (and hero) on seat 0; seat 1 is a station, seat 2 is a rock. The hero limps,
+    // both call; on the flop seat 1 (the station) BETS and seat 2 (the rock) CALLS, so the hero faces
+    // a bet with both villains still live. The coach must colour the grade with the station — the
+    // villain who set the price — even though a rock is also active. (Equal commits tie-break to the
+    // lowest seat, which here IS the bettor; the strict-greater rule is exercised separately below.)
+    const deck = buildDeck(3, 0, ['Qc 9c', 'As Ah', '7h 2c'], 'Kd 7c 2h 9s 4d')
+    let model = reducer(createInitialModel({ seats: 3, opponents: ['station', 'rock'] }), {
+      type: 'start-hand',
+      deck,
+    })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // station calls
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } }) // rock (BB) checks
+    // Flop: station (seat 1) bets, rock (seat 2) calls, hero faces the bet.
+    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 6 } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(model.hand!.toAct).toBe(model.heroSeat) // hero is on to act, facing the bet
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(model.coach.kind).toBe('verdict')
+    expect(gradedArchetype(model)).toBe('station') // the facing villain (the station), not the rock
+  })
+
+  it('multiway facing a bet follows the LARGEST committed (the aggressor), not seat order', () => {
+    // Same table, but now the rock (seat 2) drives the betting: station (seat 1) bets small, the rock
+    // RAISES (a higher current-street commit), so the rock is the last aggressor. The proxy is
+    // "largest committed", so the grade must be coloured by the rock even though the station acted
+    // (and sits) first — proving the selection follows commitment, not seat index.
+    const deck = buildDeck(3, 0, ['Qc 9c', 'As Ah', '7h 2c'], 'Kd 7c 2h 9s 4d')
+    let model = reducer(createInitialModel({ seats: 3, opponents: ['station', 'rock'] }), {
+      type: 'start-hand',
+      deck,
+    })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    // Flop: station bets 6, rock raises to 18 (committed 18 > 6), hero faces the raise.
+    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 6 } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'raise', amount: 18 } })
+    expect(model.hand!.toAct).toBe(model.heroSeat)
+    // The rock has the larger current-street commit, so it is the selected aggressor.
+    const rockSeat = model.seatToId.indexOf(2)
+    expect(model.hand!.players[rockSeat]!.committed).toBeGreaterThan(
+      model.hand!.players[model.seatToId.indexOf(1)]!.committed,
+    )
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(gradedArchetype(model)).toBe('rock')
+  })
+
+  it('heads-up grades against the lone villain', () => {
+    // 2-handed: the single non-hero seat colours the read. Drive to a postflop spot where the hero
+    // faces a bet from the lone villain (a station here) and confirm the grade is coloured by it.
+    const deck = buildDeck(2, 0, ['Qc 9c', 'As Ah'], 'Kd 7c 2h 9s 4d')
+    let model = reducer(createInitialModel({ seats: 2, opponents: ['station'] }), {
+      type: 'start-hand',
+      deck,
+    })
+    // Heads-up: hero is SB/button. Preflop hero calls, BB (station) checks.
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    // Flop: BB (station) bets, hero faces the bet.
+    model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 4 } })
+    expect(model.hand!.toAct).toBe(model.heroSeat)
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(gradedArchetype(model)).toBe('station')
+  })
+
+  it('multiway UNBET (no aggressor) passes no archetype — the grade stays line-only', () => {
+    // 3-handed; the hero is first to act postflop on an UNBET pot (toCall 0, no aggressor), so there
+    // is no single villain to attribute. The grade must be the line-only read (no archetype on the
+    // trace), identical to today. We arrange the hero to act first postflop by putting the button on
+    // the hero so the blinds (the villains) check to the hero — but postflop the SB acts first, so
+    // instead drive everyone to a checked flop and grade the hero's check.
+    const deck = buildDeck(3, 0, ['Qc 9c', 'As Ah', '7h 2c'], 'Kd 7c 2h 9s 4d')
+    let model = reducer(createInitialModel({ seats: 3, opponents: ['station', 'rock'] }), {
+      type: 'start-hand',
+      deck,
+    })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // station calls
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } }) // rock checks
+    // Flop, unbet: seat 1 checks, seat 2 checks, hero faces a free check (toCall 0, no aggressor).
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    expect(model.hand!.toAct).toBe(model.heroSeat)
+    expect(model.hand!.currentBet).toBe(0) // unbet pot, no aggressor
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    expect(model.coach.kind).toBe('verdict')
+    expect(gradedArchetype(model)).toBeUndefined() // line-only grade — no villain attributed
+  })
+})

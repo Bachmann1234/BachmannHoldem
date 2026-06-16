@@ -19,7 +19,7 @@
  */
 
 import { applyAction, isComplete, type Action, type Card } from '@holdem/engine'
-import { decisionContext } from '@holdem/bots'
+import { decisionContext, type DecisionContext } from '@holdem/bots'
 import { coachDecision, gradePreflop } from '@holdem/coach'
 import {
   applyHandResult,
@@ -298,11 +298,63 @@ function coachHero(model: Model, action: Action): CoachResult {
     if (ctx.street === 'preflop') {
       return { kind: 'preflop', verdict: gradePreflop(ctx, action), ctx, action }
     }
-    return { kind: 'verdict', verdict: coachDecision(ctx, action), ctx, action }
+    // Postflop: colour the grade with the relevant villain's archetype (ticket 0062). The coach takes
+    // ONE archetype for the whole assumed field, so the reducer picks WHICH villain it attributes —
+    // selection stays here to keep the coach a pure function of its inputs. `undefined` (multiway with
+    // no aggressor, or an opponent with no botKind) falls back to today's line-only grade.
+    const archetype = selectVillainArchetype(model, ctx)
+    return { kind: 'verdict', verdict: coachDecision(ctx, action, archetype), ctx, action }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     return { kind: 'error', message: `Coaching unavailable for this spot — ${reason}` }
   }
+}
+
+/**
+ * Pick the single villain whose archetype colours the coach's postflop read (ticket 0062). The coach
+ * takes ONE archetype for the whole assumed field, so the reducer chooses which live villain it
+ * attributes — and resolves that seat's `botKind` from the same 0061 source the table read uses
+ * (`seatToId[seat]` → `players.find(id)` → `.botKind`). Deterministic; never throws (the caller's
+ * try/catch is for the coach math, not this).
+ *
+ * - **Heads-up** (`numActive === 2`): the lone non-hero active villain.
+ * - **Multiway facing a bet** (`toCall > 0`): the villain who set the price — the *last aggressor*.
+ *   A `DecisionContext` carries no last-aggressor field, so we use the safe, deterministic proxy: the
+ *   active villain with the largest current-street `committed` (the one who put the most in this
+ *   street, i.e. drove the betting). Ties break to the lowest seat for determinism.
+ * - **Multiway unbet** (`toCall === 0`, no aggressor): `undefined` — there is no single villain to
+ *   attribute, so the grade stays exactly today's line-only read.
+ */
+function selectVillainArchetype(model: Model, ctx: DecisionContext): BotKind | undefined {
+  const hand = model.hand
+  if (hand === null) return undefined
+
+  // The active (still-in, able-to-act) villain seats — never the hero.
+  const villains = hand.players.filter(
+    (p) => p.seat !== model.heroSeat && (p.status === 'active' || p.status === 'allin'),
+  )
+  if (villains.length === 0) return undefined
+
+  let chosenSeat: number | undefined
+  if (ctx.numActive === 2) {
+    // Heads-up: the single villain (prefer an active one; fall back to any non-hero villain).
+    chosenSeat = villains[0]?.seat
+  } else if (ctx.toCall > 0) {
+    // Multiway facing a bet: the last aggressor, proxied by the largest current-street commit.
+    // Deterministic: strictly-greater wins, so the lowest seat keeps the lead on a tie.
+    let best = villains[0]!
+    for (const v of villains) if (v.committed > best.committed) best = v
+    chosenSeat = best.seat
+  } else {
+    // Multiway unbet, no aggressor: no single villain to attribute — stay line-only.
+    return undefined
+  }
+
+  if (chosenSeat === undefined) return undefined
+  const id = model.seatToId[chosenSeat]
+  if (id === undefined) return undefined
+  const sp = model.players.find((p) => p.id === id)
+  return sp?.botKind
 }
 
 /** The `dispatch` callback the view calls to send a {@link Msg} into the loop. */
