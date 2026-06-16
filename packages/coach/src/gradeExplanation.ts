@@ -141,7 +141,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
       if (loPip >= BROADWAY) {
         // AKs, AQs, AJs, ATs
         return [
-          `About as good as a non-pair gets. The ace makes any flush you hit the best one possible: `,
+          `About as good as a non-pair gets. The ace makes any flush you hit `,
           term('the nuts', 'nuts'),
           `. The big second card also means you flop strong top pairs and straights.`,
         ]
@@ -150,7 +150,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
       return [
         `The ace pulls its weight two ways: any flush you make is `,
         term('the nuts', 'nuts'),
-        `, the best one out there, so nobody can out-flush you. The ace is also a strong card by itself. That nut-flush upside is exactly why the weak second card is forgiven and the hand is worth playing.`,
+        `. The ace is also a strong card by itself. That nut-flush upside is exactly why the weak second card is forgiven and the hand is worth playing.`,
       ]
     }
     if (loPip >= BROADWAY) {
@@ -184,7 +184,7 @@ export function explainGrade(label: string): readonly ExplanationSegment[] {
       return [
         gap === 1 ? `A one-gapper ` : `A `,
         term('suited connector', 'suited-connector'),
-        `, two close cards sharing a suit. It rarely makes a big pair, but it makes straights and flushes: disguised hands that can win a large pot from a strong position.`,
+        `. It rarely makes a big pair, but it makes straights and flushes: disguised hands that can win a large pot from a strong position.`,
       ]
     }
     if (hiPip >= 11) {
