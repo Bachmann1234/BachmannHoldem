@@ -404,3 +404,80 @@ describe('draws & implied odds lesson — the coach-graded draw + the declarativ
     }
   })
 })
+
+describe('board-texture lesson — same hand flips by texture, fully coach-graded (ticket 0073)', () => {
+  // The epic's preferred design: TWO CoachSpots, the SAME bluff-catcher (QQ, a pair below an ace)
+  // facing the SAME large barrel (pot 120 / call 80, a 40% price), on a dry vs a wet board — so the
+  // coach's verdict flips by texture ALONE. Both grade through the board-aware polarized range (ticket
+  // 0057): on a dry A-7-2 the QQ underpair is crushed by the aces the barrel range holds (fold), while
+  // on a wet 9-8-7 the QQ overpair beats every top pair the board makes (call). No declarative carve-out
+  // — the texture is gradable directly, which is the whole point of 0057.
+  const l = lesson('foundations-board-texture')
+
+  it('teaches equity-vs-price with two coach-graded spots (a dry board and a wet board)', () => {
+    expect(l.concept).toBe('equity-vs-price')
+    expect(l.spots).toHaveLength(2)
+    expect(l.spots[0]!.kind).toBe('coach')
+    expect(l.spots[1]!.kind).toBe('coach')
+  })
+
+  it('DRY board (A-7-2 rainbow): QQ is a beaten underpair — folding correct, calling the leak', () => {
+    // Choice 0 = Call (the leak: ~26% equity vs the 40% price), choice 1 = Fold (correct).
+    const dry = l.spots[0]!
+    const fold = gradeSpot(dry, 1)
+    expect(fold.correct).toBe(true)
+    expect(fold.correctIndex).toBe(1)
+    expect(fold.concept).toBe('equity-vs-price')
+    const call = gradeSpot(dry, 0)
+    expect(call.correct).toBe(false)
+    expect(call.verdict!.verdict).toBe('leak')
+    const v = call.verdict!
+    if ('potOddsThreshold' in v) {
+      // On the dry board the coach reads QQ BELOW the price — the call is −EV.
+      expect(v.equity).toBeLessThan(v.potOddsThreshold)
+      expect(v.callEv).toBeLessThan(0)
+      // The texture path actually fired: a barreled line read against the board-aware polarized range.
+      expect(v.trace.lineReason).toBe('barreled')
+      expect(v.trace.assumedRange).toBe('board-aware')
+    }
+  })
+
+  it('WET board (9-8-7 two-tone): the SAME QQ is an overpair — calling correct, folding the leak', () => {
+    // Choice 0 = Call (correct: ~52% equity beats the 40% price), choice 1 = Fold (the leak). Same hand,
+    // same bet — only the board changed, and the verdict flipped.
+    const wet = l.spots[1]!
+    const call = gradeSpot(wet, 0)
+    expect(call.correct).toBe(true)
+    expect(call.correctIndex).toBe(0)
+    expect(call.concept).toBe('equity-vs-price')
+    expect(call.verdict!.verdict).not.toBe('leak')
+    const v = call.verdict!
+    if ('potOddsThreshold' in v) {
+      // On the wet board the coach reads QQ ABOVE the price — the call is +EV.
+      expect(v.equity).toBeGreaterThan(v.potOddsThreshold)
+      expect(v.callEv).toBeGreaterThan(0)
+      // Same texture path fired here too — board-aware, so the flip is texture-driven, not price-driven.
+      expect(v.trace.lineReason).toBe('barreled')
+      expect(v.trace.assumedRange).toBe('board-aware')
+    }
+    // Folding the +EV overpair is the leak.
+    const fold = gradeSpot(wet, 1)
+    expect(fold.correct).toBe(false)
+    expect(fold.verdict!.verdict).toBe('leak')
+  })
+
+  it('the flip is texture-only: the SAME hand and SAME price, different verdicts by board', () => {
+    // The lesson's headline guarantee — pin that the two spots share the hero hand and the price but
+    // differ only in the board, so a future change that accidentally diverged them would trip here.
+    const dry = l.spots[0]!
+    const wet = l.spots[1]!
+    if (dry.kind !== 'coach' || wet.kind !== 'coach') throw new Error('expected two coach spots')
+    expect(dry.context.holeCards).toEqual(wet.context.holeCards)
+    expect(dry.context.pot).toBe(wet.context.pot)
+    expect(dry.context.toCall).toBe(wet.context.toCall)
+    expect(dry.context.board).not.toEqual(wet.context.board)
+    // Dry: the call is the leak; Wet: the call is good — the verdict flipped on the board alone.
+    expect(gradeSpot(dry, 0).verdict!.verdict).toBe('leak')
+    expect(gradeSpot(wet, 0).verdict!.verdict).not.toBe('leak')
+  })
+})

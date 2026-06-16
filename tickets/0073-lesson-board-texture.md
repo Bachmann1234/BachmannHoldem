@@ -2,7 +2,7 @@
 id: 0073
 title: 'Lesson: board texture — wet vs. dry, and what the board makes possible'
 type: feature
-status: todo
+status: done
 milestone: M4.6
 priority: high
 created: 2026-06-16
@@ -18,15 +18,21 @@ is helped — the input to nearly every postflop decision the rest of the primer
 
 ## Acceptance criteria
 
-- [ ] A new `FOUNDATIONS` lesson on board texture: dry vs. wet, what a board makes possible, and how
+- [x] A new `FOUNDATIONS` lesson on board texture: dry vs. wet, what a board makes possible, and how
       that shifts which hands are strong — tagged with its `Concept` ([[0043-coach-concept-tag]]).
-- [ ] ~30-second beginner-pitched explanation grounded in concrete boards (e.g. a dry A-7-2 rainbow
-      vs. a wet 9-8-7 two-tone), defining "wet/dry" on first use.
-- [ ] A retrieval check graded by the coach where it can rule (the board-aware range work,
+      _(`foundations-board-texture`, concept `equity-vs-price` — locked reuse.)_
+- [x] ~30-second beginner-pitched explanation grounded in concrete boards (e.g. a dry A-7-2 rainbow
+      vs. a wet 9-8-7 two-tone), defining "wet/dry" on first use. _(Exactly those two boards.)_
+- [x] A retrieval check graded by the coach where it can rule (the board-aware range work,
       [[0057-coach-board-aware-range]], shifts the read by texture so a continue spot can demonstrate
       it); otherwise a minimal, clearly-flagged declarative check per the
       [[0045-foundations-primer-content]] escape hatch — documented, never contradicting the coach.
-- [ ] Test + purity per the [[0045-foundations-primer-content]] bar.
+      _(Fully coach-graded, no declarative carve-out needed: two `CoachSpot`s, the SAME QQ facing the
+      SAME large barrel, flip call→fold between the dry and wet board purely via the board-aware
+      polarized range — `trace.assumedRange === 'board-aware'` proven in the test. A code-review pass
+      softened the wet-board copy so the ~52% overpair reads as the close call it is, not a comfortable
+      one.)_
+- [x] Test + purity per the [[0045-foundations-primer-content]] bar.
 
 ## Notes
 

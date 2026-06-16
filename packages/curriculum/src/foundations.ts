@@ -552,12 +552,102 @@ const DRAWS_LESSON: Lesson = {
   spots: [DRAWS_COACH_SPOT, DRAWS_IMPLIED_ODDS_SPOT],
 }
 
+// ---------------------------------------------------------------------------------------------------
+// 9. board texture — wet vs dry, and what the board makes possible (concept: equity-vs-price).
+// ---------------------------------------------------------------------------------------------------
+//
+// Closes the 0042/0045 "board texture" scope gap (ticket 0073). The teaching point: the SAME hand is
+// strong or weak depending on what the board makes possible — so reading texture is the input to nearly
+// every postflop call. This is the epic's *preferred* design — fully COACH-GRADED, no declarative
+// carve-out — because the board-aware range (ticket 0057) makes texture gradable directly: on a barreled
+// line the coach reads against a texture-conditioned *polarized* range (the value combos the board
+// supports + a bluff fraction), so the SAME hand facing the SAME large bet gets a DIFFERENT verdict on a
+// dry vs a wet board, purely because the board-supported value differs. That is the coach-true texture
+// demonstration the ticket asks for; no answer key is authored.
+//
+// Two CoachSpots, the SAME bluff-catcher (Q♣Q♦, a pair below an ace) facing the SAME large barrel
+// (pot 120, call 80 — a ~2×-pot overbet, price 40%), on two boards, so the verdict flips by texture
+// ALONE. Both read as a `barreled` line (the bet is ≥ LARGE_BET_POT_FRACTION of the pot it faced), so on
+// both the coach swaps in the polarized board-aware range (`trace.assumedRange === 'board-aware'`) —
+// proven in the test, so we know the texture path actually fired.
+//
+//   - DRY  A♠7♦2♣ rainbow (no flush, no straight, an ace overhead): QQ is an UNDERPAIR to the ace.
+//     The board supports few value combos (150) — but they are dominated by all the top-pair ACES that
+//     beat QQ. The coach reads QQ at only ~26%, well below the 40% price, so the call is a −EV LEAK and
+//     folding is correct. (eq 0.257 < thr 0.40, callEv ≈ −29.)
+//   - WET  9♥8♥7♣ two-tone (straights and a flush draw live, all low cards): QQ is now an OVERPAIR — it
+//     beats every top pair (a pair of 9/8/7) the board makes and loses only to the sets/straights/
+//     two-pairs. The coach reads QQ at ~52%, just above the 40% price, so the call is +EV and correct
+//     — but a close one, not comfortable; folding is the leak. (eq 0.523 > thr 0.40, callEv ≈ +25.)
+//
+// Same QQ, same overbet — the board alone flips the verdict. Tuned + proven in foundations.test.ts
+// (dry: call leak / fold good; wet: call good / fold leak; both `trace.assumedRange === 'board-aware'`).
+// concept 'equity-vs-price' (the locked reuse — ticket 0070; a barreled postflop CoachSpot carries that
+// coach tag for free, so the lesson's declared concept agrees with the spot's verdict tag).
+
+/** board-texture spot A (DRY): QQ is an underpair to the ace on a rainbow board — fold correct, call leak. */
+const TEXTURE_DRY_SPOT: CoachSpot = {
+  kind: 'coach',
+  prompt:
+    'You hold Q♣Q♦ on A♠7♦2♣. This board is DRY: three different suits (a "rainbow", so no flush is ' +
+    'possible) and unconnected ranks (no straight is possible). But there is an ACE overhead, so your ' +
+    'queens are an UNDERPAIR — any ace beats you. Your opponent barrels big, bringing the pot to 120, ' +
+    'and you must call 80 (a price of 80 / (120 + 80) = 40%). A big bet here means a lot of aces. ' +
+    'Call or fold?',
+  choices: [CALL, FOLD],
+  context: {
+    holeCards: hole('Qc Qd'),
+    board: parseCards('As 7d 2c'),
+    pot: 120,
+    toCall: 80,
+    numActive: 2,
+  },
+}
+
+/** board-texture spot B (WET): the SAME QQ is an overpair on a low coordinated board — call correct, fold leak. */
+const TEXTURE_WET_SPOT: CoachSpot = {
+  kind: 'coach',
+  prompt:
+    'Same Q♣Q♦, same big barrel — pot 120, call 80, a 40% price — but now the board is 9♥8♥7♣. This ' +
+    'board is WET: two hearts (a flush is coming) and three connected cards (straights are everywhere). ' +
+    'It looks scarier, yet your queens are now an OVERPAIR — they beat every top pair the board makes ' +
+    '(a pair of nines, eights, or sevens), losing only to the straights, sets, and two pairs this ' +
+    'coordinated board also brings. That is barely enough: about 52% against a big bettor’s range, just ' +
+    'over the 40% price — a close call, not a comfortable one. Call or fold?',
+  choices: [CALL, FOLD],
+  context: {
+    holeCards: hole('Qc Qd'),
+    board: parseCards('9h 8h 7c'),
+    pot: 120,
+    toCall: 80,
+    numActive: 2,
+  },
+}
+
+const BOARD_TEXTURE_LESSON: Lesson = {
+  id: 'foundations-board-texture',
+  title: 'Board texture: wet vs dry',
+  concept: 'equity-vs-price',
+  explanation:
+    'The community cards have a "texture", and it decides how strong your hand really is. A DRY board ' +
+    'is ragged and safe: unconnected ranks and mixed suits, like A-7-2 with three different suits — no ' +
+    'flush and no straight are possible, so few hands beat a strong pair. A WET board is coordinated ' +
+    'and dangerous: connected ranks or two of the same suit, like 9-8-7 with two hearts — straights and ' +
+    'flushes are live, so many hands are now possible. Texture shifts which hands are strong. The same ' +
+    'pair of queens is an underpair on A-7-2 (any ace beats it, so it is weak) but an overpair on 9-8-7 ' +
+    '(it beats every top pair, so it is a call — though a close one), even though 9-8-7 looks scarier. ' +
+    'So before you call, ' +
+    'read the board: ask what straights, flushes, and pairs it makes possible, then judge your hand ' +
+    'against that. A scary-looking board can be the call, and a safe-looking one the fold.',
+  spots: [TEXTURE_DRY_SPOT, TEXTURE_WET_SPOT],
+}
+
 /**
  * The Foundations primer — the original six concept lessons (equity → pot odds → the continue rule
  * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 lessons appended
- * here: facing-a-raise (ticket 0071) and draws & implied odds (ticket 0074). The final canonical
- * ordering is ticket 0075's job; for now we append. The lesson player walks this front-to-back; M5
- * drills and both shells reuse it.
+ * here: facing-a-raise (ticket 0071), draws & implied odds (ticket 0074), and board texture
+ * (ticket 0073). The final canonical ordering is ticket 0075's job; for now we append. The lesson
+ * player walks this front-to-back; M5 drills and both shells reuse it.
  *
  * Every spot is coach- or chart-graded — so the primer can never silently disagree with the live
  * coach — with **one sanctioned exception**: the draws lesson's implied-odds spot is the flagged
@@ -576,4 +666,5 @@ export const FOUNDATIONS: readonly Lesson[] = [
   RANGES_LESSON,
   FACING_RAISE_LESSON,
   DRAWS_LESSON,
+  BOARD_TEXTURE_LESSON,
 ]

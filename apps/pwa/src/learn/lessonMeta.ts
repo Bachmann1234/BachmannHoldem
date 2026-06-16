@@ -77,6 +77,10 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
     subtitle: 'calling a little light',
     teaser: 'Draws can call light — implied odds.',
   },
+  'foundations-board-texture': {
+    subtitle: 'wet vs dry',
+    teaser: 'Read the board — same hand, different strength.',
+  },
   'foundations-ranges': {
     subtitle: 'think in strength tiers',
     teaser: 'Sort hands into strength tiers.',
