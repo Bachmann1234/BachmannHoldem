@@ -2,7 +2,7 @@
 id: 0065
 title: '@holdem/drills — seeded spot generator'
 type: feature
-status: todo
+status: done
 milestone: M5
 priority: high
 created: 2026-06-16
@@ -26,28 +26,28 @@ curriculum `Spot`s the existing `gradeSpot` already rules on, with no new engine
 
 ## Acceptance criteria
 
-- [ ] New pure package `packages/drills` (`@holdem/drills`), sibling shape to `packages/curriculum`:
+- [x] New pure package `packages/drills` (`@holdem/drills`), sibling shape to `packages/curriculum`:
       `package.json` (deps on `@holdem/curriculum` + whatever `@holdem/engine`/`@holdem/bots`/
       `@holdem/coach` the deal needs), `tsconfig.json` with project references, `src/index.ts`
       exporting the public API.
-- [ ] A **seeded RNG** the generator threads through every random choice, so a given seed always
+- [x] A **seeded RNG** the generator threads through every random choice, so a given seed always
       produces the same spot. No `Math.random()`. (Mirror however the codebase already seeds the
       equity sims — reuse that seam if one exists rather than inventing a parallel PRNG.)
-- [ ] A **spot generator**: given a seed (and later a theme config, [[0066-drills-themed-sets]]),
+- [x] A **spot generator**: given a seed (and later a theme config, [[0066-drills-themed-sets]]),
       deal a legal situation and return a curriculum `Spot` — a `CoachSpot` (postflop continue
       decision) or `PreflopSpot` (starting-hand chart) — whose answer choices are graded by the
       **existing** `gradeSpot`, never a stored answer key. The deal must produce a _legal,
       coherent_ board/holding (no duplicate cards, board length valid for the street, pot/`toCall`
       consistent).
-- [ ] **No answer keys, honoured end-to-end.** A generated spot's correct answer is whatever the
+- [x] **No answer keys, honoured end-to-end.** A generated spot's correct answer is whatever the
       deterministic coach rules over it via `gradeSpot` — assert this in tests (generate a spot,
       grade every choice, exactly the coach-blessed one(s) score correct).
-- [ ] Wired into the build: root `tsconfig.json` references `packages/drills`; `vitest.config.ts`
+- [x] Wired into the build: root `tsconfig.json` references `packages/drills`; `vitest.config.ts`
       coverage `include` gains `packages/drills/src/**` (gate it like every pure package);
       `pnpm-workspace.yaml` already globs `packages/*` (confirm). Tests cover determinism (same seed →
       same spot), card/board legality, and the no-answer-key invariant. `pnpm verify` green above
       thresholds.
-- [ ] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
+- [x] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
 
 ## Notes
 

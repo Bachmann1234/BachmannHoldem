@@ -1,0 +1,21 @@
+{
+  "name": "@holdem/drills",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure-TS seeded drill-spot generator: deals a legal, coherent situation from a seed and emits a curriculum Spot the existing gradeSpot rules on — never a stored answer key. The procedural supply M5's drills draw from, sibling to @holdem/curriculum (which stays content + a randomness-free grader).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@holdem/engine": "workspace:*",
+    "@holdem/odds": "workspace:*",
+    "@holdem/coach": "workspace:*",
+    "@holdem/curriculum": "workspace:*"
+  }
+}
