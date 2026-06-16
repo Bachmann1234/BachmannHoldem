@@ -18,6 +18,7 @@
     { "path": "../../packages/bots" },
     { "path": "../../packages/coach" },
     { "path": "../../packages/curriculum" },
+    { "path": "../../packages/drills" },
     { "path": "../../packages/format" }
   ]
 }

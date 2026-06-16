@@ -44,6 +44,7 @@ import {
 import { ActionBar } from './components/ActionBar.js'
 import { CoachDrawer } from './components/CoachDrawer.js'
 import { CoachFab } from './components/CoachFab.js'
+import { DrillsBranch } from './components/DrillsBranch.js'
 import { HistoryView } from './components/HistoryView.js'
 import { EndOfPrimer } from './components/EndOfPrimer.js'
 import { LearnView } from './components/LearnView.js'
@@ -113,13 +114,13 @@ export interface AppProps {
  * The interactive app. A `sessionKey` keys the inner {@link Session} so "New table" remounts a
  * brand-new session (fresh reducer state + fresh bot/deck refs) without any reset plumbing.
  *
- * **Top-level navigation (ticket 0046)** lives here as app-shell state — `activeTab` (`'play'` |
- * `'learn'`, boot lands on `'play'`), exactly like the coach-drawer open flag: it is UI, NOT poker
- * state, so it deliberately stays out of the `@holdem/session` reducer (keeping the session model
- * unpolluted). The `'play'` branch renders the unchanged {@link Session}; the `'learn'` branch renders
- * the {@link LearnBranch} (the Foundations path + the placeholder lesson player). The bottom tab bar
- * shows only on the lobby surfaces (the Play setup screen and the Learn path) — `onNavigate` is
- * threaded down to both.
+ * **Top-level navigation (ticket 0046, extended for Drills in 0067)** lives here as app-shell state —
+ * `activeTab` (`'play'` | `'learn'` | `'drills'`, boot lands on `'play'`), exactly like the coach-drawer
+ * open flag: it is UI, NOT poker state, so it deliberately stays out of the `@holdem/session` reducer
+ * (keeping the session model unpolluted). The `'play'` branch renders the unchanged {@link Session}; the
+ * `'learn'` branch renders the {@link LearnBranch} (the Foundations path + lesson player); the `'drills'`
+ * branch renders the {@link DrillsBranch} (the M5 themed drill loop). The bottom tab bar shows only on the
+ * lobby surfaces (the Play setup, the Learn path, the Drills lobby) — `onNavigate` is threaded down to all.
  *
  * Crucially the {@link Session} is kept *mounted* across tab switches (rendered hidden when Learn is
  * active) so flipping to Learn and back never tears down a live hand — switching tabs is navigation,
@@ -162,6 +163,7 @@ export function App(props: AppProps): React.JSX.Element {
       {activeTab === 'learn' ? (
         <LearnBranch onNavigate={onNavigate} progressStore={progressStore} />
       ) : null}
+      {activeTab === 'drills' ? <DrillsBranch onNavigate={onNavigate} /> : null}
     </div>
   )
 }

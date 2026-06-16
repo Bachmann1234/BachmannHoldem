@@ -81,6 +81,9 @@ importers:
       '@holdem/curriculum':
         specifier: workspace:*
         version: link:../../packages/curriculum
+      '@holdem/drills':
+        specifier: workspace:*
+        version: link:../../packages/drills
       '@holdem/engine':
         specifier: workspace:*
         version: link:../../packages/engine

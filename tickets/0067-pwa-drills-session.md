@@ -2,7 +2,7 @@
 id: 0067
 title: PWA drills route + session loop
 type: feature
-status: todo
+status: done
 milestone: M5
 priority: high
 created: 2026-06-16
@@ -24,22 +24,22 @@ lesson check and a graded live hand.
 
 ## Acceptance criteria
 
-- [ ] A drills route/screen that, given selected theme(s) + a seed, runs a session composed by
+- [x] A drills route/screen that, given selected theme(s) + a seed, runs a session composed by
       [[0066-drills-themed-sets]]: renders the current spot's prompt and answer **choices** as
       tappable options.
-- [ ] On answering, the UI calls the pure engine's `gradeSpot` ([[0044-curriculum-engine]]) — it does
+- [x] On answering, the UI calls the pure engine's `gradeSpot` ([[0044-curriculum-engine]]) — it does
       **no** grading math itself — and shows the result: correct/incorrect, the coach-blessed answer,
       and the explanation built from the deterministic numbers (reuse `@holdem/format` so a drill, a
       lesson, and the live coach phrase a verdict identically).
-- [ ] The player advances to the next spot and loops through the session; the session is fast and
+- [x] The player advances to the next spot and loops through the session; the session is fast and
       keyboard/tap friendly. Reuse the lesson-player advance/answer interaction rather than a parallel
       one.
-- [ ] Reuse existing components where they fit (the spot/choice renderer, verdict/explanation
+- [x] Reuse existing components where they fit (the spot/choice renderer, verdict/explanation
       display); only add drill-specific chrome (e.g. a progress indicator within the session). No
       parallel CSS — reuse `apps/pwa/src/styles.css` classes.
-- [ ] Accessible like the rest of the PWA (focus management, keyboard, `data-testid`s), matching the
+- [x] Accessible like the rest of the PWA (focus management, keyboard, `data-testid`s), matching the
       lesson-player / `CoachDrawer` a11y bar.
-- [ ] Tests: answering correctly and incorrectly each render the engine's verdict + explanation;
+- [x] Tests: answering correctly and incorrectly each render the engine's verdict + explanation;
       advancing moves to the next spot; the session reaches its end. `pnpm verify` green.
 
 ## Notes

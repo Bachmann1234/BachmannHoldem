@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * Top-level navigation test (ticket 0046) — proves the M4.5 nav shell without touching the M4 play
- * loop. Mirrors {@link App.test}'s Testing Library idiom (`render(<App .../>)`, `getByTestId`,
- * `fireEvent`). Covers: the tab bar renders Play + Learn + a locked Drills; choosing Learn shows the
- * lesson list with all six Foundations lessons; choosing Play returns to the setup screen; tapping a
- * lesson opens the (placeholder) player and Back returns to the list.
+ * Top-level navigation test (ticket 0046, Drills unlocked in 0067) — proves the nav shell without
+ * touching the M4 play loop. Mirrors {@link App.test}'s Testing Library idiom (`render(<App .../>)`,
+ * `getByTestId`, `fireEvent`). Covers: the tab bar renders Play + Learn + (now navigable) Drills;
+ * choosing Learn shows the lesson list with all six Foundations lessons; choosing Play returns to the
+ * setup screen; tapping a lesson opens the player and Back returns to the list.
  */
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
@@ -16,18 +16,18 @@ import { lessonHead } from './learn/lessonMeta.js'
 afterEach(cleanup)
 
 describe('App — top-level navigation', () => {
-  it('boots on Play with a tab bar offering Play, Learn, and a locked Drills', () => {
+  it('boots on Play with a tab bar offering Play, Learn, and a navigable Drills', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} />)
 
     // Boot lands on the Play setup screen.
     expect(screen.getByTestId('setup')).toBeTruthy()
 
-    // The lobby tab bar offers all three destinations; Drills is disabled (the M5 lock).
+    // The lobby tab bar offers all three destinations; Drills is now unlocked (ticket 0067).
     expect(screen.getByTestId('tab-play')).toBeTruthy()
     expect(screen.getByTestId('tab-learn')).toBeTruthy()
     const drills = screen.getByTestId('tab-drills') as HTMLButtonElement
-    expect(drills.disabled).toBe(true)
-    expect(within(drills).getByText('Soon')).toBeTruthy()
+    expect(drills.disabled).toBe(false)
+    expect(within(drills).queryByText('Soon')).toBeNull()
   })
 
   it('switches to Learn and shows the lesson list with all six lessons', () => {
@@ -107,5 +107,34 @@ describe('App — top-level navigation', () => {
     fireEvent.click(screen.getByTestId('resume-cta'))
 
     expect(screen.getByTestId('lesson-player')).toBeTruthy()
+  })
+
+  it('switches to Drills and starts a session from the lobby (ticket 0067)', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    // The Drills tab navigates to the (minimal) drills lobby.
+    fireEvent.click(screen.getByTestId('tab-drills'))
+    expect(screen.getByTestId('drills')).toBeTruthy()
+
+    // Starting a session launches the immersive, tab-less drill loop with a first spot + answers.
+    fireEvent.click(screen.getByTestId('drills-start'))
+    expect(screen.getByTestId('drill-session')).toBeTruthy()
+    expect(screen.getByTestId('answers')).toBeTruthy()
+    // The lobby (and its tab bar) is gone while the session runs.
+    expect(screen.queryByTestId('drills')).toBeNull()
+
+    // Back from the running session returns to the lobby.
+    fireEvent.click(screen.getByTestId('drill-back'))
+    expect(screen.getByTestId('drills')).toBeTruthy()
+  })
+
+  it('returns to Play from the Drills lobby tab bar', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    fireEvent.click(screen.getByTestId('tab-drills'))
+    fireEvent.click(within(screen.getByTestId('drills')).getByTestId('tab-play'))
+
+    expect(screen.queryByTestId('drills')).toBeNull()
+    expect(screen.getByTestId('setup')).toBeTruthy()
   })
 })

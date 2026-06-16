@@ -1,29 +1,28 @@
 /**
  * The top-level bottom tab bar (ticket 0046) — the §5.1 navigation pattern the design locked. Three
  * destinations: **Play** (the free-play session), **Learn** (the Foundations primer), and **Drills**
- * (M5) which ships now as a *visible-but-locked* tab carrying a "Soon" pill, so the information
- * architecture already has its third slot.
+ * (the M5 themed practice loop, unlocked in ticket 0067).
  *
- * Pure presentation over the shell's `activeTab` state: the active tab lights accent, and tapping an
- * unlocked tab calls `onNavigate`. The locked Drills tab is disabled and never navigates. This is
- * rendered only on the **lobby** surfaces (the Play setup screen and the Learn path) — not during a
- * live hand or the lesson player, which are immersive and tab-less by design.
+ * Pure presentation over the shell's `activeTab` state: the active tab lights accent, and tapping a tab
+ * calls `onNavigate`. This is rendered only on the **lobby** surfaces (the Play setup screen, the Learn
+ * path, and the Drills lobby/recap) — not during a live hand, the lesson player, or a running drill
+ * session, which are immersive and tab-less by design.
  */
 
 import { DrillsIcon, LearnIcon, PlayIcon } from './Icons.js'
 
-/** The two reachable top-level destinations. (Drills is locked and not a navigable target yet.) */
-export type Tab = 'play' | 'learn'
+/** The three reachable top-level destinations. */
+export type Tab = 'play' | 'learn' | 'drills'
 
 /** Props for {@link TabBar}. */
 export interface TabBarProps {
   /** Which tab is currently showing (drives the accent highlight). */
   readonly active: Tab
-  /** Navigate to a reachable tab (Play / Learn). Locked tabs never call this. */
+  /** Navigate to a reachable tab (Play / Learn / Drills). */
   readonly onNavigate: (tab: Tab) => void
 }
 
-/** Render the Play / Learn / Drills(locked) bottom tab bar. */
+/** Render the Play / Learn / Drills bottom tab bar. */
 export function TabBar({ active, onNavigate }: TabBarProps): React.JSX.Element {
   return (
     <nav className="tabbar" data-testid="tabbar" aria-label="Primary">
@@ -53,15 +52,14 @@ export function TabBar({ active, onNavigate }: TabBarProps): React.JSX.Element {
         <span className="tab-label">Learn</span>
       </button>
 
-      {/* Drills is the M5 destination: visible so the IA is correct, but locked (disabled + Soon). */}
+      {/* Drills is the M5 destination — unlocked in ticket 0067. */}
       <button
         type="button"
-        className="tab locked"
+        className={'tab' + (active === 'drills' ? ' active' : '')}
         data-testid="tab-drills"
-        disabled
-        aria-disabled="true"
+        aria-current={active === 'drills' ? 'page' : undefined}
+        onClick={() => onNavigate('drills')}
       >
-        <span className="soon">Soon</span>
         <span className="tab-icon">
           <DrillsIcon />
         </span>
