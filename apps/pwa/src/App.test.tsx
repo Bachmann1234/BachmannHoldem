@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parseCards, type Card } from '@holdem/engine'
 import { callingStation, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
 import { App } from './App.js'
+import { InMemoryLiveSessionStore } from './session/store.js'
 
 afterEach(cleanup)
 
@@ -41,7 +42,15 @@ describe('App — setup → deal', () => {
   it('opens on the setup screen and deals the first hand on the CTA', async () => {
     const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
     const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 1)
-    render(<App initial={{ seats: 2 }} decks={[deck]} makeBot={() => opponent} botDelayMs={0} />)
+    render(
+      <App
+        initial={{ seats: 2 }}
+        decks={[deck]}
+        makeBot={() => opponent}
+        botDelayMs={0}
+        sessionStore={new InMemoryLiveSessionStore()}
+      />,
+    )
 
     expect(screen.getByTestId('setup')).toBeTruthy()
     expect(screen.getByTestId('seat-count').textContent).toBe('2')
@@ -63,7 +72,15 @@ describe('App — scripted session', () => {
     // reproducible. We drive until the action bar offers "Deal next hand" (hand-over).
     const deck = buildDeck(2, 0, ['Ks Kd', '7h 2c'], 'Kh 8d 3s 4c 2d')
     const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 7)
-    render(<App initial={{ seats: 2 }} decks={[deck]} makeBot={() => opponent} botDelayMs={0} />)
+    render(
+      <App
+        initial={{ seats: 2 }}
+        decks={[deck]}
+        makeBot={() => opponent}
+        botDelayMs={0}
+        sessionStore={new InMemoryLiveSessionStore()}
+      />,
+    )
 
     await act(async () => {
       screen.getByRole('button', { name: /Deal in/ }).click()
@@ -97,6 +114,7 @@ describe('App — scripted session', () => {
         decks={[deck]}
         makeBot={makeBot}
         botDelayMs={0}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 
@@ -144,6 +162,7 @@ describe('App — scripted session', () => {
         decks={[deck]}
         makeBot={makeBot}
         botDelayMs={0}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 

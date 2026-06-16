@@ -13,6 +13,7 @@ import { parseCards, type Card } from '@holdem/engine'
 import { callingStation, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
 import { App } from './App.js'
 import type { HandHistoryRecord, HandHistoryStore } from './history/index.js'
+import { InMemoryLiveSessionStore } from './session/store.js'
 
 afterEach(cleanup)
 
@@ -82,6 +83,7 @@ describe('App — hand-history recording seam', () => {
         makeBot={() => opponent}
         botDelayMs={0}
         historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 
@@ -113,6 +115,7 @@ describe('App — hand-history recording seam', () => {
           makeBot={() => opponent}
           botDelayMs={0}
           historyStore={store}
+          sessionStore={new InMemoryLiveSessionStore()}
         />
       </StrictMode>,
     )
@@ -141,6 +144,7 @@ describe('App — hand-history recording seam', () => {
         makeBot={() => opponent}
         botDelayMs={0}
         historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 
@@ -179,6 +183,7 @@ describe('App — hand-history recording seam', () => {
         makeBot={() => opponent}
         botDelayMs={0}
         historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 
@@ -200,6 +205,7 @@ describe('App — hand-history recording seam', () => {
         makeBot={makeBot}
         botDelayMs={0}
         historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
 
