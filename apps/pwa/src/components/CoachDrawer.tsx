@@ -398,7 +398,13 @@ function VerdictBody({
           <div className="v" data-testid="metric-potodds">
             {potOdds}
           </div>
-          <div className="sub">{verdict.potOddsThreshold === 0 ? 'free check' : 'to call'}</div>
+          <div className="sub">
+            {verdict.potOddsThreshold === 0
+              ? verdict.heroBet
+                ? 'you bet'
+                : 'free check'
+              : 'to call'}
+          </div>
         </div>
         <div className="metric">
           <div className="k">{ev.label}</div>

@@ -49,11 +49,15 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
  * (outs, draws, board texture) is the optional LLM layer ([[0011-llm-coaching]]), not this.
  *
  * Four cases, mirroring {@link coachDecision}'s own branches:
- * - **Free check** (`potOddsThreshold === 0`): no price, so any equity continues — no EV claim.
- *   When the verdict also carries `missedValueBet` (ticket 0055 — the hero checked an unbet pot
- *   while comfortably ahead), the sentence adds the value-bet nudge ("…but with {equity} equity
- *   you're ahead — bet for value rather than checking."). All clients render this line, so the
- *   nudge surfaces once, here, for the terminal, TUI, and PWA alike.
+ * - **Unbet pot** (`potOddsThreshold === 0`): no price, so any equity continues — no EV claim. Three
+ *   sub-cases, keyed off the verdict's action signals so the sentence matches what the hero *did*:
+ *   - `missedValueBet` (ticket 0055 — the hero *checked* an unbet pot while comfortably ahead): adds
+ *     the value-bet nudge ("…but with {equity} equity you're ahead — bet for value rather than
+ *     checking.").
+ *   - `heroBet` (BUG-0009 — the hero *bet/raised* into the unbet pot): describes the value bet, not a
+ *     free check, so a graded bet is never mis-narrated as "taking the free card for nothing".
+ *   - otherwise (a plain free check): the free-card line.
+ *   All clients render this line, so each surfaces once, here, for the terminal, TUI, and PWA alike.
  * - **Break-even** (`verdict === 'breakEven'`): equity sits on the price; the call is a wash.
  * - **Priced continue** (`correctDecision === 'continue'`): equity beats the price, so calling is +EV.
  * - **Priced fold** (`correctDecision === 'fold'`): equity trails the price, so folding is +EV.
@@ -70,6 +74,11 @@ export function explainDecision(verdict: DecisionVerdict): string {
     // ahead and leaving value by not betting — surfaced here so every client gets it for free.
     if (verdict.missedValueBet) {
       return `Taking the free card is fine, but with ${equity} equity you're ahead — bet for value rather than checking.`
+    }
+    // The hero *did* bet into the unbet pot — describe a value bet, not a free check (BUG-0009): no
+    // one had bet, and with this much equity the hero is ahead, so putting chips in is +EV value.
+    if (verdict.heroBet) {
+      return `No one had bet, so there was no price to call — and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.`
     }
     return `There's no price to call, so taking the free card is automatic — you keep your ${equity} share for nothing.`
   }

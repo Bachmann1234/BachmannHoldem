@@ -247,9 +247,10 @@ describe('coachDecision — missed value bet (over-passivity flag, ticket 0055)'
     const spot = ctx({ holeCards, board, pot: 10, toCall: 0 })
     const v = coachDecision(spot, BET)
 
-    // Same high-equity unbet pot, but the hero bet — there is no value missed.
+    // Same high-equity unbet pot, but the hero bet — there is no value missed, but heroBet is set.
     expect(v.equity).toBeGreaterThanOrEqual(VALUE_BET_THRESHOLD)
     expect(v.missedValueBet).toBe(false)
+    expect(v.heroBet).toBe(true)
   })
 
   it('is never set on a priced spot, even a high-equity one (scoped to the unbet check)', () => {
@@ -258,6 +259,38 @@ describe('coachDecision — missed value bet (over-passivity flag, ticket 0055)'
     const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
     expect(coachDecision(spot, CALL).missedValueBet).toBe(false)
     expect(coachDecision(spot, FOLD).missedValueBet).toBe(false)
+  })
+})
+
+describe('coachDecision — heroBet (bet into an unbet pot, BUG-0009)', () => {
+  const BET: Action = { type: 'bet', amount: 10 }
+  const RAISE: Action = { type: 'raise', amount: 10 }
+
+  it('is set when the hero bets into an unbet pot (and the verdict stays good)', () => {
+    const spot = ctx({ holeCards: hole('TsTd'), board: parseCards('6h 7s 2d'), pot: 10, toCall: 0 })
+    const v = coachDecision(spot, BET)
+    expect(v.heroBet).toBe(true)
+    // It is the mirror of missedValueBet — exactly one of the two fires on an unbet pot.
+    expect(v.missedValueBet).toBe(false)
+    expect(v.verdict).toBe('good')
+  })
+
+  it('is set for a raise into an unbet pot too', () => {
+    const spot = ctx({ holeCards: hole('TsTd'), board: parseCards('6h 7s 2d'), pot: 10, toCall: 0 })
+    expect(coachDecision(spot, RAISE).heroBet).toBe(true)
+  })
+
+  it('is NOT set on a check, a call, or a fold of an unbet pot', () => {
+    const spot = ctx({ holeCards: hole('TsTd'), board: parseCards('6h 7s 2d'), pot: 10, toCall: 0 })
+    expect(coachDecision(spot, CHECK).heroBet).toBe(false)
+    expect(coachDecision(spot, FOLD).heroBet).toBe(false)
+  })
+
+  it('is never set on a priced spot — a bet there is a raise we grade as a continue, not an unbet bet', () => {
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
+    expect(coachDecision(spot, CALL).heroBet).toBe(false)
+    expect(coachDecision(spot, RAISE).heroBet).toBe(false)
+    expect(coachDecision(spot, FOLD).heroBet).toBe(false)
   })
 })
 

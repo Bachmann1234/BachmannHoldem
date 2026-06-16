@@ -67,6 +67,7 @@ describe('explainDecision', () => {
     heroContinued: true,
     verdict: 'good',
     missedValueBet: false,
+    heroBet: false,
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     ...v,
@@ -136,12 +137,35 @@ describe('explainDecision', () => {
         callEv: 62,
         verdict: 'good',
         missedValueBet: true,
+        heroBet: false,
       }),
     )
     expect(s).toContain('62.0%')
     expect(s.toLowerCase()).toContain('ahead')
     expect(s.toLowerCase()).toContain('bet for value')
     // Still no +EV/price claim on a free decision.
+    expect(s).not.toContain('+EV')
+  })
+
+  it('describes a value bet (not a free check) when the hero bet into the unbet pot — BUG-0009', () => {
+    // Same unbet pot (potOddsThreshold 0), but the hero BET rather than checked: the line must
+    // describe the value bet and never claim the hero took a free card for nothing.
+    const s = explainDecision(
+      verdict({
+        equity: 0.529,
+        potOddsThreshold: 0,
+        callEv: 106.8,
+        verdict: 'good',
+        missedValueBet: false,
+        heroBet: true,
+      }),
+    )
+    expect(s).toContain('52.9%')
+    expect(s.toLowerCase()).toContain('value bet')
+    // The bug: a bet was narrated as "taking the free card … for nothing".
+    expect(s.toLowerCase()).not.toContain('free card')
+    expect(s.toLowerCase()).not.toContain('for nothing')
+    // Still a free decision — no break-even %/+EV-of-call framing.
     expect(s).not.toContain('+EV')
   })
 
@@ -153,6 +177,7 @@ describe('explainDecision', () => {
         callEv: 40,
         verdict: 'good',
         missedValueBet: false,
+        heroBet: false,
       }),
     )
     expect(s.toLowerCase()).toContain('free')
@@ -334,6 +359,7 @@ describe('evMetric', () => {
     heroContinued: true,
     verdict: 'good',
     missedValueBet: false,
+    heroBet: false,
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     ...v,
