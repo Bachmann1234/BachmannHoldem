@@ -57,8 +57,10 @@ export function LearnView({
   const currentIdx = Math.min(progress, count - 1)
   const fillTop = medCenter(0)
   const fillTo = allDone ? medCenter(count - 1) : medCenter(currentIdx)
-  // The resume CTA targets the current node (or the last node once everything is done, for review).
-  const resumeIdx = allDone ? count - 1 : currentIdx
+  // The resume CTA targets the current node, or — once everything is done — the FIRST lesson, so the
+  // done-state offers a clean "review from the start" rather than dumping the learner back on the last
+  // lesson they just finished (every node is tappable for reference regardless).
+  const resumeIdx = allDone ? 0 : currentIdx
   const resumeLesson = lessons[resumeIdx]!
 
   return (
@@ -196,7 +198,7 @@ export function LearnView({
           onClick={() => onOpenLesson(resumeIdx)}
         >
           <span>
-            {allDone ? 'Review · ' : progress > 0 ? 'Resume · ' : 'Start · '}
+            {allDone ? 'Review from the start · ' : progress > 0 ? 'Resume · ' : 'Start · '}
             {resumeLesson.lesson.title}
             <span className="rc-sub">
               {' '}

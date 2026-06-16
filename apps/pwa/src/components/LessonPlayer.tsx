@@ -199,6 +199,17 @@ function ReadView({
             {rule}
           </div>
         ) : null}
+        {meta.tiers ? (
+          <ul className="teach-tiers" data-testid="teach-tiers">
+            {meta.tiers.map((t) => (
+              <li className="tier-row" key={t.name}>
+                <span className="tier-name">{t.name}</span>
+                <span className="tier-hands">{t.hands}</span>
+                <span className="tier-why">{t.why}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {showChartBridge ? (
           <button
             type="button"

@@ -96,10 +96,15 @@ describe('App — durable lesson progress', () => {
     expect(screen.getByTestId('learn').textContent).toContain('1 / 6')
   })
 
-  it('lands on the EndOfPrimer hand-off when all six are already persisted', () => {
+  it('reopens a fully-completed primer to the path for review, not the forced hand-off', () => {
     const store = memoryStore(FOUNDATIONS.map((l) => l.id))
     render(<App initial={{ seats: 2 }} botDelayMs={0} progressStore={store} />)
     fireEvent.click(screen.getByTestId('tab-learn'))
-    expect(screen.getByTestId('end-of-primer')).toBeTruthy()
+    // The end-of-primer celebration is a one-time, in-session hand-off — never re-shown on reopen.
+    expect(screen.queryByTestId('end-of-primer')).toBeNull()
+    const learn = screen.getByTestId('learn')
+    expect(learn.textContent).toContain('6 / 6')
+    // The resume CTA offers review-from-the-start, not a jump back to the last lesson.
+    expect(screen.getByTestId('resume-cta').textContent).toContain('Review from the start')
   })
 })

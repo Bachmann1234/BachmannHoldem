@@ -251,9 +251,7 @@ const EV_LESSON: Lesson = {
 /** position spot A: KJo on the button — late position, so opening is correct (open is good). */
 const POSITION_BUTTON_SPOT: PreflopSpot = {
   kind: 'preflop',
-  prompt:
-    "It folds to you on the BUTTON (you act last after the flop) with K♣J♦. It's a marginal hand. " +
-    'Open or fold?',
+  prompt: 'It folds to you on the BUTTON (you act last after the flop) with K♣J♦. Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('Kc Jd'),
   seat: 1,
@@ -303,7 +301,7 @@ const POSITION_LESSON: Lesson = {
 /** ranges spot A: AA, a premium hand — opening is correct, folding is the leak. */
 const RANGES_PREMIUM_SPOT: PreflopSpot = {
   kind: 'preflop',
-  prompt: 'You are dealt A♠A♥, the best starting hand (the premium tier). Open or fold?',
+  prompt: 'You are dealt A♠A♥. Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('As Ah'),
   seat: 1,
@@ -314,7 +312,7 @@ const RANGES_PREMIUM_SPOT: PreflopSpot = {
 /** ranges spot B: 72o, the bottom tier — folding is correct, opening is the leak. */
 const RANGES_TRASH_SPOT: PreflopSpot = {
   kind: 'preflop',
-  prompt: 'You are dealt 7♣2♦, the worst starting hand (the trash tier). Open or fold?',
+  prompt: 'You are dealt 7♣2♦. Open or fold?',
   choices: [OPEN, FOLD],
   holeCards: hole('7c 2d'),
   seat: 0,
@@ -327,13 +325,14 @@ const RANGES_LESSON: Lesson = {
   title: 'Ranges: think in strength tiers',
   concept: 'ranges',
   explanation:
-    "You never know an opponent's exact two cards, so you reason about their RANGE, the whole set of " +
-    'hands they could have. (Poker players call you the "hero" and that opponent the "villain", ' +
-    'neutral names for whose decision is being studied.) The same lens applies to your own starting hands: sort them into ' +
-    'strength tiers. Premium hands (AA, KK, AK) you always play; strong and playable hands you open ' +
-    'in most spots; trash (like 7-2 offsuit) you fold every time. A starting-hand chart is just ' +
-    'those tiers written down. Open it and tap any hand to see why it sits where it does: why A9s ' +
-    'is playable but K9s is trash. Play tiers, not feelings.',
+    "You never know an opponent's exact two cards, so you reason about their RANGE: the whole set of " +
+    'hands they could hold. (Poker calls you the "hero" and the opponent the "villain" — neutral ' +
+    'names for whose decision is being studied.) The same lens sorts your own starting hands. Group ' +
+    'every hand into a strength tier and let the tier, not a hunch about this one hand, decide whether ' +
+    'you play. Three things set the tiers apart: high cards (an ace beats a king), pairs (a made hand ' +
+    'before any community card), and whether your two cards are suited and connected enough to make ' +
+    'flushes and straights. A starting-hand chart is just these tiers written down. The tiers, ' +
+    'strongest first:',
   spots: [RANGES_PREMIUM_SPOT, RANGES_TRASH_SPOT],
 }
 

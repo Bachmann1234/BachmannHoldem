@@ -723,6 +723,47 @@
   font-weight: 500;
   margin-bottom: 5px;
 }
+/* the ranges lesson's strength-tier breakdown — one card per tier, strongest first */
+.teach-tiers {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tier-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 3px 10px;
+  padding: 11px 13px;
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--accent);
+}
+.tier-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent);
+}
+.tier-hands {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.tier-why {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
 
 /* ---- ASK state (the check — the lesson) ---- */
 .spot {

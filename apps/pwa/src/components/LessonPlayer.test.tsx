@@ -53,6 +53,18 @@ describe('LessonPlayer — read state', () => {
     expect(screen.queryByTestId('teach-rule')).toBeNull()
   })
 
+  it('shows the strength-tier breakdown only for the ranges lesson', () => {
+    // Other lessons carry no tier breakdown.
+    renderPlayer(EQUITY)
+    expect(screen.queryByTestId('teach-tiers')).toBeNull()
+    cleanup()
+    // The ranges lesson names each tier (premium → trash) so the read view actually teaches them.
+    renderPlayer(RANGES)
+    const tiers = screen.getByTestId('teach-tiers')
+    expect(tiers.textContent).toContain('Premium')
+    expect(tiers.textContent).toContain('Trash')
+  })
+
   it('bridges only the ranges lesson to the chart, opening it on tap (ticket 0064)', () => {
     // Other lessons have no chart bridge.
     renderPlayer(EQUITY)

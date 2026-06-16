@@ -27,6 +27,23 @@ export interface LessonMeta {
    * so it lives here in the shell rather than in the pure curriculum package.
    */
   readonly rule?: string
+  /**
+   * The strength tiers, strongest first — only the ranges lesson carries them. Rendered as the
+   * `.teach-tiers` breakdown in the read view so the lesson actually *names* each tier, gives example
+   * hands, and says what puts a hand there (the gap the user flagged). Display-only copy, same home as
+   * {@link rule}; the pure curriculum package stays content-only.
+   */
+  readonly tiers?: readonly TierCopy[]
+}
+
+/** One strength tier's display copy for the ranges lesson's read-view breakdown. */
+export interface TierCopy {
+  /** The tier name, e.g. "Premium". */
+  readonly name: string
+  /** A few representative hands, e.g. "AA-QQ, AK". */
+  readonly hands: string
+  /** What puts a hand in this tier and how to play it — one short line. */
+  readonly why: string
 }
 
 /** Per-lesson display copy, keyed by `Lesson.id` (verbatim from the design bundle). */
@@ -55,6 +72,33 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
   'foundations-ranges': {
     subtitle: 'think in strength tiers',
     teaser: 'Sort hands into strength tiers.',
+    tiers: [
+      {
+        name: 'Premium',
+        hands: 'AA, KK, QQ, AK',
+        why: 'The biggest pairs and ace-king. Raise from any seat and play a big pot.',
+      },
+      {
+        name: 'Strong',
+        hands: 'JJ-TT, AQ, AJs, KQs',
+        why: 'High pairs and big broadway cards that flop top pairs and dominate weaker holdings. A clear open from almost anywhere.',
+      },
+      {
+        name: 'Playable',
+        hands: 'small pairs (22-99), suited aces, suited connectors (98s)',
+        why: 'Open in most seats, best in position. They miss often but make the sets, straights, and flushes that win big pots cheaply.',
+      },
+      {
+        name: 'Marginal',
+        hands: 'KJo, QTo, weak suited kings (K9s)',
+        why: 'Playable only from late position, where acting last covers their weakness. Fold them up front.',
+      },
+      {
+        name: 'Trash',
+        hands: '72o, J4o, most offsuit junk',
+        why: 'Too low and too disconnected to win often enough. Fold every time, no matter the seat.',
+      },
+    ],
   },
 }
 

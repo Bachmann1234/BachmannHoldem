@@ -229,10 +229,11 @@ function LearnBranch({
   const progress = progressFromCompleted(completedIds)
   // Which lesson is open (index into `learnLessons`), or null for the path list.
   const [openIndex, setOpenIndex] = useState<number | null>(null)
-  // Whether the end-of-primer hand-off is showing. Seeded from the loaded progress: reopening the app
-  // with all six already persisted lands straight on the hand-off (§5.5), not the path. It is also set
-  // when the last lesson completes in-session, and cleared by the screen's Back (to review the path).
-  const [showEnd, setShowEnd] = useState(() => progress >= total)
+  // Whether the end-of-primer hand-off is showing. It is a one-time, *in-session* celebration: shown
+  // only when the last lesson completes here (set in `completeLesson`), never seeded from persisted
+  // progress. Reopening a finished primer therefore lands on the path — where the learner came for the
+  // reference material and to re-read any lesson — instead of a "you're done" wall they must dismiss.
+  const [showEnd, setShowEnd] = useState(false)
 
   // Finishing a lesson marks that lesson's stable id complete — persisted to the store AND mirrored in
   // state (so the path reflects it immediately) — then returns to the path. Completion only ever adds
