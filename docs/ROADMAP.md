@@ -42,8 +42,24 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   because drilling a skill you have no concept for is just faster confusion — the concepts are the
   dependency the drills rest on, the same way the math (M1) preceded the coach (M3). Its epic is
   [`0042`](../tickets/0042-foundations-primer.md).
+- **M4.6 — Foundations primer v2.** M4.5 shipped six crisp, coach-true lessons, but a beginner-
+  pedagogy review found it teaches how to _evaluate a continue decision_ before teaching most of
+  what _generates_ those decisions: it has no lesson on facing a preflop raise (the most common real
+  decision), no bet-sizing lesson, no board-texture lesson (a documented scope gap in 0042/0045),
+  and no draws/implied-odds lesson — the last of which leaves the flagship continue rule subtly
+  wrong. M4.6 closes those four load-bearing gaps and reorders the primer so preflop foundations
+  (ranges, position) precede postflop evaluation. It extends M4.5's mission rather than starting a
+  track, and like M4.5 it precedes the deeper drills it gives the learner something to drill. Its
+  epic is [`0070`](../tickets/0070-foundations-primer-v2.md).
 - **M5 — Drills & quizzes.** The highest-efficiency learning loop, reusing the M3 coach for
   verdicts. Comes after there's a UI to host it and the M4.5 framework to drill against.
+- **M5.5 — Drills v2.** M5 shipped excellent plumbing (every spot graded by the live coach, genuine
+  interleaving) but a starter set of activities: three themes, binary Call/Fold spots, flop-only
+  boards, and — the biggest gap — the app teaches the math but never makes the player _retrieve it
+  as a number_. M5.5 is a depth pass: calculation/estimation drills, board-reading and turn/river
+  spots, richer feedback that shows the math, and the retention lever M5 deferred — spaced
+  repetition of missed spots (that piece leans on M6 persistence and is tracked there). Its epic is
+  [`0076`](../tickets/0076-drills-v2.md).
 - **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
   feedback built on stored hand history.
 - **M7 — LLM coaching (optional).** Natural-language narration on top of the trustworthy math.
@@ -51,10 +67,13 @@ UI exists — so the foundation is trustworthy before anything is built on top o
 - **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
   last: research-grade effort, and everything else should be solid first.
 
-(The half-steps **M3.5** and **M4.5** are numbered that way deliberately: each slots a step into the
-arc without renumbering the rest. M3.5 puts a terminal UI between the coach and the PWA (epic
-[`0024`](../tickets/0024-tui-ink-client.md)); M4.5 puts a concept primer between the PWA shell and
-the drills that depend on it (epic [`0042`](../tickets/0042-foundations-primer.md)).)
+(The half-steps **M3.5**, **M4.5**, **M4.6**, and **M5.5** are numbered that way deliberately: each
+slots a step into the arc without renumbering the rest. M3.5 puts a terminal UI between the coach and
+the PWA (epic [`0024`](../tickets/0024-tui-ink-client.md)); M4.5 puts a concept primer between the
+PWA shell and the drills that depend on it (epic [`0042`](../tickets/0042-foundations-primer.md)).
+M4.6 ([`0070`](../tickets/0070-foundations-primer-v2.md)) and M5.5
+([`0076`](../tickets/0076-drills-v2.md)) are depth passes that deepen M4.5 and M5 after a pedagogy
+review, slotted next to the steps they extend.)
 
 ## The three ways to get better
 
