@@ -225,6 +225,13 @@ export function CoachDrawer({
     if (shouldClose) onClose()
   }
 
+  // The reveal toggle is rendered once here and slotted under the verdict headline by whichever body
+  // applies (or first, in the pre-action state). Null when there are no live reads to offer.
+  const readsSlot =
+    reads !== undefined && reads.length > 0 ? (
+      <ReadsSection reads={reads} expanded={readsOpen} onToggle={() => setReadsOpen((v) => !v)} />
+    ) : null
+
   return (
     <>
       <div
@@ -271,30 +278,42 @@ export function CoachDrawer({
             ×
           </button>
         </div>
+        {/* The reveal toggle rides directly under the verdict headline (and above the metrics) so it
+            is discoverable without scrolling on a tall postflop verdict (ticket 0063). The drawer is
+            a bottom sheet capped at 80% height and scrollable; at the bottom this toggle could fall
+            below the fold and the hero would never learn the read exists. It stays collapsed by
+            default (re-collapsed per open), so it reads as an offer under the grade, not a
+            cheat-sheet above it. The headline stays the first thing the hero sees. */}
         {coach.kind === 'verdict' ? (
-          <VerdictBody verdict={coach.verdict} ctx={coach.ctx} action={coach.action} />
+          <VerdictBody
+            verdict={coach.verdict}
+            ctx={coach.ctx}
+            action={coach.action}
+            readsSlot={readsSlot}
+          />
         ) : coach.kind === 'preflop' ? (
           <PreflopBody
             verdict={coach.verdict}
             ctx={coach.ctx}
             action={coach.action}
             heroHoleCards={heroHoleCards}
+            readsSlot={readsSlot}
           />
         ) : coach.kind === 'error' ? (
-          <div className="coach-note" data-testid="coach-error">
-            {coach.message}
-          </div>
+          <>
+            <div className="coach-note" data-testid="coach-error">
+              {coach.message}
+            </div>
+            {readsSlot}
+          </>
         ) : (
-          <div className="coach-note" data-testid="coach-none">
-            No decision yet — make your move, then tap the coach to review it.
-          </div>
-        )}
-        {reads !== undefined && reads.length > 0 && (
-          <ReadsSection
-            reads={reads}
-            expanded={readsOpen}
-            onToggle={() => setReadsOpen((v) => !v)}
-          />
+          // No verdict to sit under — offer the read first (this is exactly the pre-action moment).
+          <>
+            {readsSlot}
+            <div className="coach-note" data-testid="coach-none">
+              No decision yet — make your move, then tap the coach to review it.
+            </div>
+          </>
         )}
       </div>
     </>
@@ -363,10 +382,13 @@ function VerdictBody({
   verdict,
   ctx,
   action,
+  readsSlot,
 }: {
   readonly verdict: DecisionVerdict
   readonly ctx: DecisionContext
   readonly action: Action
+  /** The opt-in opponent-read disclosure, slotted directly under the headline (ticket 0063). */
+  readonly readsSlot?: React.ReactNode
 }): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
   // The win/lose bar mirrors the design: a green win fill at `pct(equity)`, the rest is lose.
@@ -385,6 +407,7 @@ function VerdictBody({
           <p>{encouragingCopy(verdict)}</p>
         </div>
       </div>
+      {readsSlot}
       <div className="metrics">
         <div className="metric">
           <div className="k">Your equity</div>
@@ -459,11 +482,14 @@ function PreflopBody({
   ctx,
   action,
   heroHoleCards,
+  readsSlot,
 }: {
   readonly verdict: PreflopVerdict
   readonly ctx: DecisionContext
   readonly action: Action
   readonly heroHoleCards?: readonly [Card, Card]
+  /** The opt-in opponent-read disclosure, slotted directly under the headline (ticket 0063). */
+  readonly readsSlot?: React.ReactNode
 }): React.JSX.Element {
   const tone = verdictTone(verdict.verdict)
   // The chart this verdict came off is viewable on demand — its open state is local UI.
@@ -479,6 +505,7 @@ function PreflopBody({
           <p>{preflopCopy(verdict)}</p>
         </div>
       </div>
+      {readsSlot}
       <div className="coach-note" data-testid="coach-preflop">
         <b>Starting hand:</b> {verdict.rationale}
       </div>

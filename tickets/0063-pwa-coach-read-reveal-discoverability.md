@@ -2,7 +2,7 @@
 id: 0063
 title: Tune the coach table-read reveal — timing and toggle discoverability
 type: task
-status: todo
+status: done
 milestone: M4
 priority: low
 created: 2026-06-15
@@ -24,10 +24,14 @@ The opt-in "Reveal opponent reads" disclosure shipped in
 
 ## Acceptance criteria
 
-- [ ] Decide and implement the reveal-timing policy (always / post-decision / earned-at-showdown).
-- [ ] The toggle is discoverable without scrolling on a tall postflop verdict (or is clearly the
-      intended last item).
-- [ ] Reveal still auto-scrolls the read into view; collapsed-by-default + re-collapse-per-open kept.
+- [x] Decide and implement the reveal-timing policy (always / post-decision / earned-at-showdown).
+      **Decision: keep it always-available.** A deliberate product call (2026-06-16) — the read stays
+      behind a tap and collapsed by default, so it's an offer, not a forced cheat-sheet; gating it
+      added friction without a clear pedagogy win. Discoverability (below) carries the weight instead.
+- [x] The toggle is discoverable without scrolling on a tall postflop verdict (or is clearly the
+      intended last item). Moved the reveal toggle out of the bottom of the sheet to directly under
+      the verdict headline (above the metrics), so it's in view the moment the drawer opens.
+- [x] Reveal still auto-scrolls the read into view; collapsed-by-default + re-collapse-per-open kept.
 
 ## Notes
 

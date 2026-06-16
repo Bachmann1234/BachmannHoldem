@@ -1242,11 +1242,17 @@ body {
   font-weight: 600;
 }
 
-/* The coach's opt-in per-opponent archetype read (the felt hides the style; this is behind a tap). */
+/* The coach's opt-in per-opponent archetype read (the felt hides the style; this is behind a tap).
+   Rides just under the verdict headline, above the metrics (ticket 0063), so the reveal toggle is
+   discoverable without scrolling on a tall postflop verdict. Rules above and below fence it off as a
+   distinct disclosure between the grade and the supporting metrics. */
 .coach-reads {
-  margin-top: 16px;
-  border-top: 1px solid var(--line);
+  margin-top: 14px;
   padding-top: 14px;
+  border-top: 1px solid var(--line);
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 10px;
