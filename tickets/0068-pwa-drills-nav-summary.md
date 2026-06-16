@@ -2,7 +2,7 @@
 id: 0068
 title: PWA drills nav entry + end-of-session summary
 type: feature
-status: todo
+status: done
 milestone: M5
 priority: medium
 created: 2026-06-16
@@ -21,19 +21,19 @@ forward reference now has a real destination.
 
 ## Acceptance criteria
 
-- [ ] A **drills entry point** in the app navigation (alongside the Learn/play entries, matching the
+- [x] A **drills entry point** in the app navigation (alongside the Learn/play entries, matching the
       M4.5 nav idiom from [[0046-pwa-learn-nav]]): a screen to choose theme(s) from the
       [[0066-drills-themed-sets]] catalogue and start a session, launching [[0067-pwa-drills-session]].
-- [ ] An **end-of-session summary**: after the last spot, recap the session — score (how many
+- [x] An **end-of-session summary**: after the last spot, recap the session — score (how many
       coach-correct), and a per-`Concept` breakdown so the player sees which topics they drilled and
       where they slipped. Offer "drill again" (new seed) and a route back to play/learn.
-- [ ] Wire the Foundations primer hand-off: completing the primer can route the player toward drills
+- [x] Wire the Foundations primer hand-off: completing the primer can route the player toward drills
       (honour the existing forward reference from [[0047-pwa-lesson-player]]/[[0048-pwa-lesson-progress]]).
-- [ ] **Honest framing.** Per [../docs/LEARNING-APPROACH.md](../docs/LEARNING-APPROACH.md), drills
+- [x] **Honest framing.** Per [../docs/LEARNING-APPROACH.md](../docs/LEARNING-APPROACH.md), drills
       _complement_ playing volume — they don't replace it. The summary/entry copy must not position
       drilling as a substitute for play, and improvement is framed as decision-quality, not a score to
       grind.
-- [ ] Accessible + tested like the rest of the PWA (`data-testid`s; entry → session → summary flow
+- [x] Accessible + tested like the rest of the PWA (`data-testid`s; entry → session → summary flow
       covered). `pnpm verify` green.
 
 ## Notes

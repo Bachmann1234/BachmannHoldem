@@ -3,10 +3,11 @@
  * the learner finishes the sixth and last lesson, the path is complete and this warm, restrained
  * celebration takes over: a medal, "You've got the fundamentals.", a recap of all six ideas (each
  * checked, with its concept tag), then the hand-off — a primary **Play a hand →** CTA that switches to
- * the Play tab, plus a forward nod to **Drills — coming soon (M5)**.
+ * the Play tab, plus a **live** hand-off into the M5 drills (the M4.5 forward reference now has a real
+ * destination, ticket 0068).
  *
- * Presentational: it takes the zipped {@link LearnLesson}s for the recap and two callbacks (play /
- * back). The §5.5 design is deliberately not loud — no confetti storm; encouraging, not loud.
+ * Presentational: it takes the zipped {@link LearnLesson}s for the recap and three callbacks (play /
+ * drills / back). The §5.5 design is deliberately not loud — no confetti storm; encouraging, not loud.
  */
 
 import type { LearnLesson } from '../learn/lessonMeta.js'
@@ -18,12 +19,19 @@ export interface EndOfPrimerProps {
   readonly lessons: readonly LearnLesson[]
   /** Hand off to free play (switch to the Play tab). */
   readonly onPlay: () => void
+  /** Hand off to the M5 drills (switch to the Drills tab) — sharpen each idea against fresh spots. */
+  readonly onDrills: () => void
   /** Return to the Learn path (e.g. to review a lesson). */
   readonly onBack: () => void
 }
 
-/** Render the completion screen: medal, lede, the six-idea recap, and the Play hand-off CTA. */
-export function EndOfPrimer({ lessons, onPlay, onBack }: EndOfPrimerProps): React.JSX.Element {
+/** Render the completion screen: medal, lede, the six-idea recap, the Play hand-off + Drills CTAs. */
+export function EndOfPrimer({
+  lessons,
+  onPlay,
+  onDrills,
+  onBack,
+}: EndOfPrimerProps): React.JSX.Element {
   return (
     <div className="screen" data-testid="end-of-primer">
       <div className="appbar">
@@ -74,9 +82,14 @@ export function EndOfPrimer({ lessons, onPlay, onBack }: EndOfPrimerProps): Reac
           >
             Play a hand →
           </button>
-          <div className="drills-soon">
-            <span className="ds-tag">Next</span> Drill sets to sharpen each idea — coming soon
-          </div>
+          <button
+            type="button"
+            className="drills-soon"
+            onClick={onDrills}
+            data-testid="endprimer-drills"
+          >
+            <span className="ds-tag">Next</span> Sharpen each idea — start drilling →
+          </button>
         </div>
       </div>
     </div>

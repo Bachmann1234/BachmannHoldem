@@ -266,6 +266,7 @@ function LearnBranch({
       <EndOfPrimer
         lessons={learnLessons}
         onPlay={() => onNavigate('play')}
+        onDrills={() => onNavigate('drills')}
         onBack={() => setShowEnd(false)}
       />
     )

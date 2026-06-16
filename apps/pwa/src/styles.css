@@ -902,6 +902,13 @@ body {
 .preset-pill:hover {
   filter: brightness(1.12);
 }
+/* Toggle variant (drills theme picker, ticket 0068): a deselected pill reads muted; the default
+   (selected) pill keeps the accent fill above. Driven by aria-pressed so it stays one class. */
+.preset-pill[aria-pressed='false'] {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--text-3);
+}
 .setup-cta {
   margin-top: auto;
   width: 100%;
