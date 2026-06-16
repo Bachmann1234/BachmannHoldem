@@ -63,4 +63,23 @@ describe('App — Foundations primer flow', () => {
     expect(screen.queryByTestId('end-of-primer')).toBeNull()
     expect(screen.getByTestId('setup')).toBeTruthy()
   })
+
+  it('the end-of-primer Drills CTA hands off into the Drills tab (ticket 0068)', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+    fireEvent.click(screen.getByTestId('tab-learn'))
+
+    for (let i = 0; i < FOUNDATIONS.length; i++) {
+      fireEvent.click(screen.getByTestId(`lesson-${i}`))
+      finishOpenLesson(FOUNDATIONS[i]!.spots.length)
+    }
+
+    // The completion screen now offers a LIVE drills hand-off (the M4.5 forward reference's destination).
+    expect(screen.getByTestId('end-of-primer')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('endprimer-drills'))
+
+    // It routes to the Drills tab — the theme picker, with its lobby tab bar.
+    expect(screen.queryByTestId('end-of-primer')).toBeNull()
+    expect(screen.getByTestId('drills')).toBeTruthy()
+    expect(screen.getByTestId('drills-start')).toBeTruthy()
+  })
 })

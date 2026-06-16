@@ -32,6 +32,7 @@ export default defineConfig({
         'packages/coach/src/**',
         'packages/session/src/**',
         'packages/curriculum/src/**',
+        'packages/drills/src/**',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
       reporter: ['text', 'html'],

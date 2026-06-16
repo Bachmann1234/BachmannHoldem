@@ -2,7 +2,7 @@
  * The **spot** model — a self-contained, serialisable description of one retrieval check
  * (ticket 0044).
  *
- * A spot is the atom the Foundations primer ([[0042-foundations-primer]]) and the future M5
+ * A spot is the atom the Foundations primer ([[0042-foundations-primer]]) and the M5
  * drills ([[0009-drills-and-quizzes]]) both render: a `prompt`, a small ordered set of answer
  * **choices** the player picks from, and the engine inputs needed to *grade* the pick. It is the
  * curriculum's analogue of a live hand — the UI shells render it, {@link gradeSpot} rules on it —

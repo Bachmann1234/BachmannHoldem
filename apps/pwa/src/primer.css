@@ -1153,6 +1153,17 @@
   color: var(--text-3);
   font-size: 13px;
   font-weight: 600;
+  /* Now a live hand-off into M5 drills (ticket 0068): a full-width, tappable button rather than a
+     dead nod — reset the native button chrome and make the dashed nod read as actionable. */
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: 0.12s;
+}
+.drills-soon:hover {
+  border-color: var(--accent);
+  color: var(--text-2);
 }
 .drills-soon .ds-tag {
   font-family: var(--font-mono);

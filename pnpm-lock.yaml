@@ -81,6 +81,9 @@ importers:
       '@holdem/curriculum':
         specifier: workspace:*
         version: link:../../packages/curriculum
+      '@holdem/drills':
+        specifier: workspace:*
+        version: link:../../packages/drills
       '@holdem/engine':
         specifier: workspace:*
         version: link:../../packages/engine
@@ -194,6 +197,21 @@ importers:
       '@holdem/format':
         specifier: workspace:*
         version: link:../format
+
+  packages/drills:
+    dependencies:
+      '@holdem/coach':
+        specifier: workspace:*
+        version: link:../coach
+      '@holdem/curriculum':
+        specifier: workspace:*
+        version: link:../curriculum
+      '@holdem/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@holdem/odds':
+        specifier: workspace:*
+        version: link:../odds
 
   packages/engine: {}
 

@@ -14,6 +14,7 @@
     "@holdem/bots": "workspace:*",
     "@holdem/coach": "workspace:*",
     "@holdem/curriculum": "workspace:*",
+    "@holdem/drills": "workspace:*",
     "@holdem/engine": "workspace:*",
     "@holdem/format": "workspace:*",
     "@holdem/session": "workspace:*",
