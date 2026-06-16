@@ -2,7 +2,7 @@
 id: 0070
 title: 'Epic: Foundations primer v2 — the load-bearing lessons'
 type: epic
-status: in-progress
+status: done
 milestone: M4.6
 priority: high
 created: 2026-06-16
@@ -30,25 +30,27 @@ never taught is just faster confusion.
 
 ## Acceptance criteria
 
-- [ ] **Reorder so preflop foundations precede postflop evaluation.** The graded lesson order puts
+- [x] **Reorder so preflop foundations precede postflop evaluation.** The graded lesson order puts
       ranges + position (the first decisions in every hand) _before_ equity → pot odds → continue
       rule → EV. Today the order is inverted ([[0075-primer-reorder-and-jargon-gloss]]).
-- [ ] **Lesson: facing a preflop raise** — call / fold / 3-bet against an opener, graded by the
+- [x] **Lesson: facing a preflop raise** — call / fold / 3-bet against an opener, graded by the
       raise-aware coach ([[0071-lesson-facing-a-preflop-raise]]).
-- [ ] **Lesson: bet sizing as the bettor** — how much to bet and why (value vs. protection vs.
+- [x] **Lesson: bet sizing as the bettor** — how much to bet and why (value vs. protection vs.
       bluff sizing), the counterpart to the pot-odds lesson's "responding to a size"
       ([[0072-lesson-bet-sizing]]).
-- [ ] **Lesson: board texture** — wet vs. dry, what the board makes possible; closes the 0042/0045
+- [x] **Lesson: board texture** — wet vs. dry, what the board makes possible; closes the 0042/0045
       scope gap ([[0073-lesson-board-texture]]).
-- [ ] **Lesson: draws & implied odds** — the caveat that makes the continue rule correct; the
+- [x] **Lesson: draws & implied odds** — the caveat that makes the continue rule correct; the
       durable fix for [[BUG-0010-continue-rule-lesson-omits-implied-odds]]
       ([[0074-lesson-draws-implied-odds]]).
-- [ ] **Jargon glossed on first use** in graded prompts — "overcards", "top set", "set / trips",
+- [x] **Jargon glossed on first use** in graded prompts — "overcards", "top set", "set / trips",
       "overbet" currently appear before any definition; add brief parenthetical glosses and a
       strong "read the rules reference first" signpost ([[0075-primer-reorder-and-jargon-gloss]]).
-- [ ] Every new lesson is **coach-true by construction** and graded by the deterministic coach
+- [x] Every new lesson is **coach-true by construction** and graded by the deterministic coach
       math, not hand-authored answer keys wherever the coach can rule — same bar as
-      [[0045-foundations-primer-content]]. Content stays pure data in `@holdem/curriculum`.
+      [[0045-foundations-primer-content]]. Content stays pure data in `@holdem/curriculum`. _(The
+      two lessons the coach cannot rule — bet sizing, and the implied-odds-light draw call — use the
+      flagged `DeclarativeSpot` carve-out, honest about the seam and never contradicting the coach.)_
 
 ## Notes
 
