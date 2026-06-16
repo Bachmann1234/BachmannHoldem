@@ -206,7 +206,7 @@ function ReadView({
             onClick={() => setChartOpen(true)}
             data-testid="lesson-open-chart"
           >
-            ♠ Open the chart — tap a hand to see why
+            ♠ Open the chart: tap a hand to see why
           </button>
         ) : null}
       </div>

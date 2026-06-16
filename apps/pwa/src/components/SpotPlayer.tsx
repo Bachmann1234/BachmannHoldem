@@ -49,14 +49,14 @@ export function encouragingBody(
 ): { headline: string; body: string } {
   if (result.correct) {
     return {
-      headline: "Nice — that's exactly right.",
-      body: 'Keep trusting the math — that is the read the coach would make at the table.',
+      headline: "Nice, that's exactly right.",
+      body: 'Keep trusting the math. That is the read the coach would make at the table.',
     }
   }
   const correctLabel = spot.choices[result.correctIndex]?.label ?? 'the other line'
   return {
-    headline: 'Close one — not quite.',
-    body: `The math points to ${correctLabel} here — you'll catch it next time.`,
+    headline: 'Close one, not quite.',
+    body: `The math points to ${correctLabel} here. You'll catch it next time.`,
   }
 }
 
@@ -309,7 +309,7 @@ export function ResultSheet({
               <div className="metric-inline">
                 <div className="k">Price</div>
                 <div className="v" data-testid="metric-price">
-                  —
+                  n/a
                 </div>
               </div>
               <div className="metric-inline">

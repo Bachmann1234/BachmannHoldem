@@ -318,7 +318,7 @@ function buildCoachPrompt(
     toCall === 0
       ? `It's checked to you (pot ${pot}, ${opp})`
       : `${opp}, pot ${pot}, ${toCall} to call`
-  return `You hold ${formatHole(holeCards)} on ${boardText}. ${price} — call or fold?`
+  return `You hold ${formatHole(holeCards)} on ${boardText}. ${price}. Call or fold?`
 }
 
 /**
@@ -338,5 +338,5 @@ function buildPreflopPrompt(
   const seatsAfterButton = (seat - buttonIndex + numPlayers) % numPlayers
   const where =
     seatsAfterButton === 0 ? 'on the button' : `${seatsAfterButton} seat(s) after the button`
-  return `You're dealt ${formatHole(holeCards)} (${handClass}) ${where} at a ${numPlayers}-handed table — open or fold?`
+  return `You're dealt ${formatHole(holeCards)} (${handClass}) ${where} at a ${numPlayers}-handed table. Open or fold?`
 }

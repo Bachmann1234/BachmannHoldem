@@ -188,8 +188,8 @@ describe('LessonPlayer — free check (equity lesson)', () => {
     } else {
       throw new Error('expected a free-check decision verdict')
     }
-    // The price cell reads the em-dash placeholder, not a percentage.
-    expect(screen.getByTestId('metric-price').textContent).toBe('—')
+    // The price cell reads the "n/a" placeholder, not a percentage.
+    expect(screen.getByTestId('metric-price').textContent).toBe('n/a')
   })
 })
 

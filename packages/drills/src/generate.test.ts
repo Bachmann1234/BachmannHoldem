@@ -314,9 +314,9 @@ describe('generateSpot — prompts state the situation, not the answer', () => {
     for (const seed of SEEDS) {
       const coach = generateSpot(seed)
       expect(coach.prompt.length).toBeGreaterThan(0)
-      expect(coach.prompt).toMatch(/call or fold\?$/)
+      expect(coach.prompt).toMatch(/Call or fold\?$/)
       const pre = generateSpot(seed, { kind: 'preflop' })
-      expect(pre.prompt).toMatch(/open or fold\?$/)
+      expect(pre.prompt).toMatch(/Open or fold\?$/)
     }
   })
 })
