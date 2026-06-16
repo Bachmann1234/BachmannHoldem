@@ -81,6 +81,10 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
     subtitle: 'wet vs dry',
     teaser: 'Read the board — same hand, different strength.',
   },
+  'foundations-bet-sizing': {
+    subtitle: 'how much to bet, and why',
+    teaser: 'The size you pick is the price you offer.',
+  },
   'foundations-ranges': {
     subtitle: 'think in strength tiers',
     teaser: 'Sort hands into strength tiers.',

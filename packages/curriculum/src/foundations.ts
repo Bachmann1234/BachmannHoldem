@@ -642,20 +642,86 @@ const BOARD_TEXTURE_LESSON: Lesson = {
   spots: [TEXTURE_DRY_SPOT, TEXTURE_WET_SPOT],
 }
 
+// ---------------------------------------------------------------------------------------------------
+// 10. bet sizing — how much to bet, and why (concept: pot-odds).
+// ---------------------------------------------------------------------------------------------------
+//
+// The bettor-side counterpart to the pot-odds lesson (ticket 0072). The pot-odds lesson taught the
+// learner to *respond* to a size; this teaches them to *choose* one. The size you pick IS the price
+// you offer — the same pegs read backwards (a third-pot bet lays ~20%, half-pot ~25%, full-pot ~33%) —
+// so a bet is a deliberate choice with three jobs: VALUE (bet big so worse hands pay you off),
+// PROTECTION (bet big on a wet board so draws must pay a steep price to chase), and BLUFF (risk only as
+// much as you need to fold them out).
+//
+// THE DECLARATIVE CARVE-OUT (ticket 0072 / the 0045 escape hatch). Unlike every coach- or chart-graded
+// spot, this one stores its own answer: the coach grades whether to *continue* (call/fold), it does NOT
+// rule on what size to *bet*, so there is no coach verdict to grade a sizing choice against. Rather than
+// bolt a sizing grader onto the coach for a single primer lesson (out of scope, and a real risk of a
+// teaching artifact the live coach could later contradict), this is the sanctioned, flagged declarative
+// spot. The authored explanation is self-contained and never claims or contradicts a coach ruling — it
+// teaches the sizing logic and the size↔price link, the bettor's mirror of the pot-odds lesson. concept
+// 'pot-odds' (the locked reuse — ticket 0070; already covered by the pot-odds lesson, so the coverage
+// invariant is unaffected).
+
+/**
+ * bet-sizing spot — THE DECLARATIVE CARVE-OUT (ticket 0072 / 0045 escape hatch).
+ *
+ * A strong made hand (top set) on a soaking-wet board: the correct play is a *big* bet, for value and
+ * protection at once. The coach cannot rule a sizing choice (it grades continue decisions, not bet
+ * sizes), so this spot stores its own answer. The explanation is honest and self-contained — it teaches
+ * why bigger is better here (charge the draws, get paid) and ties the size back to the price it lays,
+ * never invoking a coach verdict. The sanctioned, flagged exception to the primer's coach-graded default.
+ */
+const BET_SIZING_SPOT: DeclarativeSpot = {
+  kind: 'declarative',
+  concept: 'pot-odds',
+  prompt:
+    'You hold 9♣9♥ on 9♦8♠7♠ — top set (three nines), the best hand right now, but a soaking-WET board: ' +
+    'a spade flush draw and a pile of straight draws are live. It is on you to bet. What size?',
+  choices: [
+    { label: 'Bet small — about a quarter of the pot', correct: false },
+    { label: 'Bet big — about three-quarters of the pot', correct: true },
+    { label: 'Check, to keep the pot small and hide your hand', correct: false },
+  ],
+  explanation:
+    'Bet big. You have the best hand on a board where flush and straight draws are everywhere, so a big ' +
+    'bet does two jobs at once: it gets VALUE — worse hands and draws pay you off — and it PROTECTS, ' +
+    'because the size you pick is the price you offer. A three-quarter-pot bet lays the draws a steep ' +
+    '~30% price, so chasing is a mistake for them. A small quarter-pot bet offers a cheap ~17% price ' +
+    'every draw happily pays, letting them outdraw you for next to nothing; checking hands them the next ' +
+    'card for free. The stronger your hand and the wetter the board, the bigger you bet.',
+}
+
+const BET_SIZING_LESSON: Lesson = {
+  id: 'foundations-bet-sizing',
+  title: 'Bet sizing: how much to bet, and why',
+  concept: 'pot-odds',
+  explanation:
+    'When you are the one betting, the size you choose IS the price you offer — the pot-odds pegs read ' +
+    'backwards: bet a third of the pot and you lay about 20%, half-pot about 25%, full-pot about 33%. So ' +
+    'pick the size on purpose. There are three reasons to bet. For VALUE, bet big with a strong hand so ' +
+    'worse hands pay you off. For PROTECTION on a wet board, bet big so draws must pay a steep price to ' +
+    'chase — a cheap bet just lets them draw out. To BLUFF, bet only as much as you need to make them ' +
+    'fold; there is no reason to risk more. The beginner mistake is one lazy size for every hand. Match ' +
+    'the size to the job: big when you want value or to charge draws, small when a small bet will do.',
+  spots: [BET_SIZING_SPOT],
+}
+
 /**
  * The Foundations primer — the original six concept lessons (equity → pot odds → the continue rule
  * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 lessons appended
- * here: facing-a-raise (ticket 0071), draws & implied odds (ticket 0074), and board texture
- * (ticket 0073). The final canonical ordering is ticket 0075's job; for now we append. The lesson
- * player walks this front-to-back; M5 drills and both shells reuse it.
+ * here: facing-a-raise (ticket 0071), draws & implied odds (ticket 0074), board texture (ticket 0073),
+ * and bet sizing (ticket 0072). The final canonical ordering is ticket 0075's job; for now we append.
+ * The lesson player walks this front-to-back; M5 drills and both shells reuse it.
  *
  * Every spot is coach- or chart-graded — so the primer can never silently disagree with the live
- * coach — with **one sanctioned exception**: the draws lesson's implied-odds spot is the flagged
- * {@link DeclarativeSpot} carve-out (ticket 0074 / the 0045 escape hatch), used precisely because the
- * coach models only immediate equity and genuinely cannot rule on the future-street winnings that make
- * a light draw call correct. Its explanation is honest about that seam (it does not contradict the
- * coach). `foundations.test.ts` proves each coach-graded spot's verdict and that the declarative spot
- * is well-formed.
+ * coach — with **two sanctioned exceptions**, both flagged {@link DeclarativeSpot} carve-outs (the
+ * 0045 escape hatch) used precisely where the coach genuinely cannot rule: the draws lesson's
+ * implied-odds spot (ticket 0074 — the coach models only immediate equity, not the future-street
+ * winnings that make a light draw call correct), and the bet-sizing lesson's spot (ticket 0072 — the
+ * coach grades whether to *continue*, never what *size* to bet). Each authored explanation is honest
+ * about that seam and never contradicts the coach. `foundations.test.ts` proves each coach-graded
+ * spot's verdict and that every declarative spot is well-formed.
  */
 export const FOUNDATIONS: readonly Lesson[] = [
   EQUITY_LESSON,
@@ -667,4 +733,5 @@ export const FOUNDATIONS: readonly Lesson[] = [
   FACING_RAISE_LESSON,
   DRAWS_LESSON,
   BOARD_TEXTURE_LESSON,
+  BET_SIZING_LESSON,
 ]

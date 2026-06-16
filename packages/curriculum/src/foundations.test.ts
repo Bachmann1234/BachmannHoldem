@@ -481,3 +481,33 @@ describe('board-texture lesson — same hand flips by texture, fully coach-grade
     expect(gradeSpot(wet, 0).verdict!.verdict).not.toBe('leak')
   })
 })
+
+describe('bet-sizing lesson — the declarative carve-out (ticket 0072)', () => {
+  // Bet sizing is NOT coach-rulable (the coach grades whether to continue, never what size to bet), so
+  // this lesson uses the flagged DeclarativeSpot carve-out: it stores its own answer, the coach is not
+  // invoked, and the grade reports the authored concept + explanation with no verdict.
+  const l = lesson('foundations-bet-sizing')
+  // Choice 0 = bet small (wrong), 1 = bet big (correct), 2 = check (wrong).
+  const spot = firstSpot('foundations-bet-sizing')
+
+  it('teaches pot-odds via a single well-formed declarative spot', () => {
+    expect(l.concept).toBe('pot-odds')
+    expect(l.spots).toHaveLength(1)
+    expect(spot.kind).toBe('declarative')
+  })
+
+  it('grades the big value-and-protection bet correct, the authored concept + explanation flowing', () => {
+    const res = gradeSpot(spot, 1)
+    expect(res.correct).toBe(true)
+    expect(res.correctIndex).toBe(1)
+    expect(res.concept).toBe('pot-odds')
+    // The declarative carve-out: no coach verdict, the author's own explanation is the teaching.
+    expect(res.verdict).toBeUndefined()
+    expect(res.explanation.length).toBeGreaterThan(0)
+  })
+
+  it('grades the cheap small bet and the check incorrect', () => {
+    expect(gradeSpot(spot, 0).correct).toBe(false)
+    expect(gradeSpot(spot, 2).correct).toBe(false)
+  })
+})
