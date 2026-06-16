@@ -18,12 +18,14 @@ import {
   type HandState,
 } from '@holdem/engine'
 import {
+  BIG_BLIND,
   BOT_TIPS,
   buildSessionPlayers,
   compactSeating,
   countsByKind,
   createInitialModel,
   defaultOpponents,
+  depthBbForStack,
   MAX_SEATS,
   opponentReads,
   OPPONENT_NAMES,
@@ -31,6 +33,8 @@ import {
   rotateButton,
   sessionOver,
   shuffledOpponentNames,
+  stackForDepthBb,
+  STARTING_STACK,
   type SessionPlayer,
 } from './model.js'
 import { reducer } from './reducer.js'
@@ -136,6 +140,25 @@ describe('reducer — setup phase', () => {
     expect(all.setup.opponents).toEqual(['station', 'station', 'station']) // trimmed to 3
     const empty = reducer(model, { type: 'set-opponents', opponents: [] })
     expect(empty.setup.opponents).toEqual(defaultOpponents(4)) // padded from defaults
+  })
+
+  it('defaults the starting stack to the deep 100bb default, and set-stack chooses a shallower depth', () => {
+    let model = createInitialModel({ seats: 2 })
+    expect(model.setup.startingStack).toBe(STARTING_STACK) // 200 chips = 100bb at the 1/2 blinds
+    model = reducer(model, { type: 'set-stack', startingStack: stackForDepthBb(25) })
+    expect(model.setup.startingStack).toBe(50) // 25bb × BIG_BLIND
+    expect(depthBbForStack(model.setup.startingStack!)).toBe(25) // …and reads back as the bb depth
+  })
+
+  it('set-stack clamps to at least one big blind and is a no-op outside setup', () => {
+    const setup = reducer(createInitialModel({ seats: 2 }), { type: 'set-stack', startingStack: 0 })
+    expect(setup.setup.startingStack).toBe(BIG_BLIND) // never a 0-stack table
+    // Once a hand is live the depth is frozen — set-stack does nothing.
+    const playing = reducer(createInitialModel({ seats: 2 }), {
+      type: 'start-hand',
+      deck: makeDeck(),
+    })
+    expect(reducer(playing, { type: 'set-stack', startingStack: 50 })).toBe(playing)
   })
 
   it('ignores session messages while in setup, except start-hand', () => {
@@ -365,6 +388,14 @@ describe('buildSessionPlayers / defaultOpponents', () => {
     expect(players[1]!.botKind).toBe('lag')
     expect(players[2]!.botKind).toBe('rock')
     expect(players.every((p) => p.stack === 200)).toBe(true)
+  })
+
+  it('seats every player on the chosen starting stack (falling back to the deep default)', () => {
+    const shallow = buildSessionPlayers({ seats: 3, opponents: ['lag', 'rock'], startingStack: 50 })
+    expect(shallow.every((p) => p.stack === 50)).toBe(true)
+    // Older literals omit startingStack — they still get the deep default, so nothing breaks.
+    const deep = buildSessionPlayers({ seats: 3, opponents: ['lag', 'rock'] })
+    expect(deep.every((p) => p.stack === STARTING_STACK)).toBe(true)
   })
 
   it('defaults heads-up to TAG and larger tables to a varied spread', () => {

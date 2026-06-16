@@ -61,6 +61,7 @@ import {
   type HandHistoryStore,
   type HeroDecision,
 } from './history/index.js'
+import { LocalStorageLiveSessionStore, type LiveSessionStore } from './session/store.js'
 import './styles.css'
 import './primer.css'
 
@@ -78,6 +79,15 @@ function newRecordId(): string {
 /** Build the per-player bot instance for an opponent — its own randomised PRNG seed per session. */
 function defaultMakeBot(player: SessionPlayer): Opponent {
   return makeBot(player, Math.floor(Math.random() * 0x100000000))
+}
+
+/**
+ * The phases worth persisting / resuming: a hand is live (`'playing'`), between hands (`'hand-over'`),
+ * or showing the busted-out final hand (`'session-over'`). `'setup'` and `'game-over'` are not games in
+ * progress, so reaching either clears the save — which is exactly how "End session" / quit discards it.
+ */
+function isResumablePhase(phase: Model['phase']): boolean {
+  return phase === 'playing' || phase === 'hand-over' || phase === 'session-over'
 }
 
 /** Props for {@link App}. */
@@ -108,6 +118,13 @@ export interface AppProps {
    * Created once (via a ref) and threaded into {@link LearnBranch}.
    */
   readonly progressStore?: LessonProgressStore
+  /**
+   * The store the live game is snapshotted to so closing/reloading mid-game resumes the current hand
+   * (mid-game save/resume). Defaults to the `localStorage`-backed store; tests inject an in-memory /
+   * pre-seeded fake so they never touch (or leak across) the shared jsdom `localStorage`. Created once
+   * (via a ref) and threaded into {@link Session}.
+   */
+  readonly sessionStore?: LiveSessionStore
 }
 
 /**
@@ -144,6 +161,11 @@ export function App(props: AppProps): React.JSX.Element {
   const progressStore =
     props.progressStore ??
     (defaultProgressStoreRef.current ??= new LocalStorageLessonProgressStore())
+  // The live-session store is likewise created lazily ONCE and reused across "New table" remounts so a
+  // mid-game save/resume reads & writes one durable on-device record. Tests inject their own.
+  const defaultSessionStoreRef = useRef<LiveSessionStore | null>(null)
+  const sessionStore =
+    props.sessionStore ?? (defaultSessionStoreRef.current ??= new LocalStorageLiveSessionStore())
   return (
     <div className="room" data-dir="playful" data-deck="four">
       {/* Keep Play mounted across tab switches so a live hand survives a peek at Learn — but hide it
@@ -156,6 +178,7 @@ export function App(props: AppProps): React.JSX.Element {
           key={sessionKey}
           {...props}
           historyStore={historyStore}
+          sessionStore={sessionStore}
           onNavigate={onNavigate}
           onNewTable={() => setSessionKey((k) => k + 1)}
         />
@@ -303,6 +326,8 @@ function seatLabelFor(model: Model, seat: number): string {
 interface SessionProps extends AppProps {
   /** The hand-history store (resolved by {@link App} — always present here). */
   readonly historyStore: HandHistoryStore
+  /** The live-session store (resolved by {@link App} — always present here). */
+  readonly sessionStore: LiveSessionStore
   /** Navigate to another top-level tab — forwarded to the lobby {@link SetupScreen}'s tab bar. */
   readonly onNavigate: (tab: Tab) => void
   /** Start a brand-new session (the parent bumps the remount key). */
@@ -316,10 +341,24 @@ function Session({
   makeBot = defaultMakeBot,
   botDelayMs = DEFAULT_BOT_DELAY_MS,
   historyStore,
+  sessionStore,
   onNavigate,
   onNewTable,
 }: SessionProps): React.JSX.Element {
-  const [model, dispatch] = useReducer(reducer, initial, createInitialModel)
+  // Resume a saved game (mid-game save/resume): load the snapshot ONCE on mount (a side-effecting read,
+  // never re-run per render — `undefined` is the "not yet loaded" sentinel, `null` is "nothing saved").
+  // Only a live phase is resumable; a stale non-live blob (shouldn't exist, since we clear on
+  // setup/game-over) is ignored and a fresh setup screen is built instead.
+  const restoredRef = useRef<ReturnType<LiveSessionStore['load']> | undefined>(undefined)
+  if (restoredRef.current === undefined) restoredRef.current = sessionStore.load()
+  const restored =
+    restoredRef.current && isResumablePhase(restoredRef.current.model.phase)
+      ? restoredRef.current
+      : null
+
+  const [model, dispatch] = useReducer(reducer, initial, (opts) =>
+    restored ? restored.model : createInitialModel(opts),
+  )
 
   // The coach drawer's open/closed state is pure UI — component-local, never in the reducer model.
   // Stable handlers so the drawer's focus-management effect only re-runs on an actual open/close.
@@ -345,8 +384,16 @@ function Session({
   // `decisionsRef` accumulates the hero's voluntary decisions for the CURRENT hand (reset at deal);
   // `recordedRef` is the last hand number we appended, the once-per-hand guard (StrictMode-safe: a
   // double-invoked effect sees the same number and no-ops).
-  const decisionsRef = useRef<HeroDecision[]>([])
-  const recordedRef = useRef<number>(0)
+  // On a resume, restore the in-flight decision buffer so the resumed hand still records faithfully.
+  const decisionsRef = useRef<HeroDecision[]>(restored ? [...restored.decisions] : [])
+  // On a resume into a phase whose hand has already completed (`hand-over`/`session-over`), that hand was
+  // already recorded before the reload — seed the guard with its number so we never double-append it. A
+  // resume mid-hand (`playing`) leaves the guard at 0 so the hand still records when it completes.
+  const recordedRef = useRef<number>(
+    restored && (restored.model.phase === 'hand-over' || restored.model.phase === 'session-over')
+      ? restored.model.handNumber
+      : 0,
+  )
   // A tiny "history open?" UI flag (component-local, like the coach drawer — not poker state).
   const [historyOpen, setHistoryOpen] = useState(false)
 
@@ -439,6 +486,20 @@ function Session({
       console.warn('hand-history: record failed', err)
     }
   }, [handComplete, hand, model, historyStore])
+
+  // --- Mid-game save/resume seam ----------------------------------------------------------------
+  // Snapshot the live game on every model change so a close/reload resumes the exact hand; clear the
+  // save the moment we are no longer in a game (setup or game-over) — which is precisely how the hero
+  // discards it via "End session" / quit. `decisionsRef.current` is current here: the hero's pre-action
+  // push (in `onAction`) runs before the dispatch that triggers this effect. Every store call degrades
+  // gracefully internally, so a persistence failure never blocks or crashes play.
+  useEffect(() => {
+    if (isResumablePhase(phase)) {
+      sessionStore.save({ model, decisions: decisionsRef.current })
+    } else {
+      sessionStore.clear()
+    }
+  }, [model, phase, sessionStore])
 
   // --- Render the current phase ----------------------------------------------------------------
   if (phase === 'setup') {

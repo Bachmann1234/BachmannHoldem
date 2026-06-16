@@ -39,6 +39,25 @@ export const BIG_BLIND = 2
 export const STARTING_STACK = 200
 
 /**
+ * The starting-stack depths the setup screen offers as one-tap presets, expressed in **big blinds**
+ * — the unit the coaching speaks in and the lever that actually changes how long a session runs
+ * (blinds stay fixed at {@link SMALL_BLIND}/{@link BIG_BLIND}). A shallow 25bb is shove-or-fold and
+ * fast; 50bb is a brisk middle; 100bb is the deep cash-game default ({@link STARTING_STACK} chips at
+ * {@link BIG_BLIND}). The hero picks a depth; {@link stackForDepthBb} turns it into chips.
+ */
+export const STACK_DEPTH_PRESETS_BB: readonly number[] = [25, 50, 100]
+
+/** Chips for a starting depth given in big blinds (blinds are fixed, so depth × {@link BIG_BLIND}). */
+export function stackForDepthBb(bigBlinds: number): number {
+  return Math.max(BIG_BLIND, Math.round(bigBlinds) * BIG_BLIND)
+}
+
+/** A starting stack (chips) expressed back in big blinds — the depth label the setup screen shows. */
+export function depthBbForStack(stack: number): number {
+  return Math.round(stack / BIG_BLIND)
+}
+
+/**
  * The four `@holdem/bots` presets the setup screen offers, as the stable keys the model stores
  * for each opponent seat (the shell maps these to a `@holdem/bots` `Personality` when it builds
  * the per-player bot instances). Mirrors the `PERSONALITIES` collection's quadrant keys —
@@ -213,6 +232,13 @@ export interface SetupState {
   readonly seats: number
   /** Preset per opponent seat, length `seats - 1` (heads-up has exactly one). */
   readonly opponents: readonly BotKind[]
+  /**
+   * Starting chips every player is seated with, chosen on the setup screen (one of the
+   * {@link STACK_DEPTH_PRESETS_BB} depths, in chips). Optional so older {@link SetupState} literals
+   * (and the inert curriculum) still type-check; {@link buildSessionPlayers} falls back to
+   * {@link STARTING_STACK} when it is absent. {@link createInitialModel} always sets it.
+   */
+  readonly startingStack?: number
 }
 
 /**
@@ -294,6 +320,8 @@ export interface InitialModelOptions {
   seats?: number
   /** Opponent presets, length `seats - 1`. Defaults to {@link defaultOpponents}. */
   opponents?: readonly BotKind[]
+  /** Initial starting stack (chips). Defaults to {@link STARTING_STACK} (the deep 100bb default). */
+  startingStack?: number
 }
 
 /**
@@ -350,9 +378,10 @@ export function shuffledDeck(): Card[] {
 export function createInitialModel(options: InitialModelOptions = {}): Model {
   const seats = clampSeats(options.seats ?? DEFAULT_SEATS)
   const opponents = (options.opponents ?? defaultOpponents(seats)).slice(0, seats - 1)
+  const startingStack = options.startingStack ?? STARTING_STACK
   return {
     phase: 'setup',
-    setup: { seats, opponents },
+    setup: { seats, opponents, startingStack },
     players: [],
     hand: null,
     seatToId: [],
@@ -378,7 +407,9 @@ export function buildSessionPlayers(
   setup: SetupState,
   names: readonly string[] = OPPONENT_NAMES,
 ): SessionPlayer[] {
-  const players: SessionPlayer[] = [{ id: 0, isHero: true, label: 'You', stack: STARTING_STACK }]
+  // The hero chooses the depth on the setup screen; fall back to the deep default for older literals.
+  const stack = setup.startingStack ?? STARTING_STACK
+  const players: SessionPlayer[] = [{ id: 0, isHero: true, label: 'You', stack }]
   setup.opponents.forEach((botKind, i) => {
     const id = i + 1
     players.push({
@@ -388,7 +419,7 @@ export function buildSessionPlayers(
       // `Bot N` past the pool, though the pool covers every legal opponent seat (MAX_SEATS − 1).
       label: names[i] ?? `Bot ${id}`,
       botKind,
-      stack: STARTING_STACK,
+      stack,
     })
   })
   return players

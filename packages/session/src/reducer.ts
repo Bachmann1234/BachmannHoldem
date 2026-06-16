@@ -30,6 +30,7 @@ import {
   defaultOpponents,
   rotateButton,
   sessionOver,
+  BIG_BLIND,
   BOT_KINDS,
   type BotKind,
   type CoachResult,
@@ -46,6 +47,9 @@ import {
  *   so the mix still totals `seats − 1` (the felt no longer pins a style to a seat, so setup picks
  *   *counts*, not per-seat presets).
  * - `'set-opponents'` — replace the whole mix at once (the shell's "Randomize" reroll).
+ * - `'set-stack'` — choose the starting stack depth (chips); the setup screen offers it as
+ *   {@link STACK_DEPTH_PRESETS_BB} presets. Stored on the setup selection, frozen into every
+ *   player's stack at deal.
  * - `'cycle-opponent'` — cycle one opponent seat through the four presets (the TUI's per-seat
  *   setup editor still drives the mix this way; the PWA uses count-based `adjust-mix` instead).
  *
@@ -65,6 +69,7 @@ export type Msg =
   | { readonly type: 'set-seats'; readonly seats: number }
   | { readonly type: 'adjust-mix'; readonly kind: BotKind; readonly delta: 1 | -1 }
   | { readonly type: 'set-opponents'; readonly opponents: readonly BotKind[] }
+  | { readonly type: 'set-stack'; readonly startingStack: number }
   | { readonly type: 'cycle-opponent'; readonly opponentIndex: number; readonly direction?: 1 | -1 }
   | {
       readonly type: 'start-hand'
@@ -93,6 +98,9 @@ export function reducer(model: Model, msg: Msg): Model {
 
     case 'set-opponents':
       return setOpponents(model, msg.opponents)
+
+    case 'set-stack':
+      return setStack(model, msg.startingStack)
 
     case 'cycle-opponent':
       return cycleOpponent(model, msg.opponentIndex, msg.direction ?? 1)
@@ -179,6 +187,17 @@ function setOpponents(model: Model, opponents: readonly BotKind[]): Model {
   const fill = defaultOpponents(model.setup.seats)
   const fitted = Array.from({ length: model.setup.seats - 1 }, (_, i) => opponents[i] ?? fill[i]!)
   return { ...model, setup: { ...model.setup, opponents: fitted } }
+}
+
+/**
+ * Setup edit: choose the starting stack depth (chips). Clamped to at least one big blind so a
+ * degenerate 0-stack table can never be dealt; the setup screen offers it as the
+ * {@link STACK_DEPTH_PRESETS_BB} presets but any positive depth is accepted. No-op outside `'setup'`.
+ */
+function setStack(model: Model, startingStack: number): Model {
+  if (model.phase !== 'setup') return model
+  const next = Math.max(BIG_BLIND, Math.round(startingStack))
+  return { ...model, setup: { ...model.setup, startingStack: next } }
 }
 
 /**

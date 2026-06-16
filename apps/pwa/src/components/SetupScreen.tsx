@@ -11,13 +11,19 @@
  */
 
 import {
+  BIG_BLIND,
   BOT_BLURBS,
   BOT_KINDS,
   BOT_LABELS,
   countsByKind,
+  depthBbForStack,
   MAX_SEATS,
   MIN_SEATS,
   randomOpponents,
+  SMALL_BLIND,
+  STACK_DEPTH_PRESETS_BB,
+  STARTING_STACK,
+  stackForDepthBb,
   type Msg,
   type SetupState,
 } from '@holdem/session'
@@ -53,6 +59,9 @@ export function SetupScreen({
 
   const counts = countsByKind(setup.opponents)
   const total = setup.seats - 1 // the mix always sums to this (one bot per non-hero seat)
+  // The chosen starting stack (chips). Always set by `createInitialModel`, but `SetupState` keeps it
+  // optional for older literals, so fall back to the deep default when reading it for the UI.
+  const startingStack = setup.startingStack ?? STARTING_STACK
 
   return (
     <div className="app" data-testid="setup">
@@ -100,6 +109,37 @@ export function SetupScreen({
               >
                 +
               </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="setup-card">
+          <div className="setup-row">
+            <div className="setup-label">
+              Stack
+              <span className="hint">
+                {depthBbForStack(startingStack)}bb deep · blinds {SMALL_BLIND}/{BIG_BLIND} · shorter
+                = faster games
+              </span>
+            </div>
+            <div className="sizes" role="group" aria-label="Starting stack depth">
+              {STACK_DEPTH_PRESETS_BB.map((bb) => {
+                const chips = stackForDepthBb(bb)
+                const selected = chips === startingStack
+                return (
+                  <button
+                    key={bb}
+                    type="button"
+                    className={'size-btn' + (selected ? ' active' : '')}
+                    data-testid={`stack-${bb}`}
+                    aria-pressed={selected}
+                    aria-label={`${bb} big blinds deep`}
+                    onClick={() => dispatch({ type: 'set-stack', startingStack: chips })}
+                  >
+                    {bb}bb
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
