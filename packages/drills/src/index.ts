@@ -21,6 +21,11 @@
  *   without a rewrite here. This package builds the generation *primitive*, not the themes.
  * - {@link makeDealer} / {@link Dealer} / {@link BOARD_SIZE} — the seeded dealing primitives the
  *   generator threads, exported so 0066 (and tests) can build reproducible deals directly.
+ * - {@link DRILL_THEMES} / {@link DrillTheme} / {@link SessionItem} / {@link composeSession} — the
+ *   themed drill sets and the **interleaved**, seeded session composer [[0066-drills-themed-sets]]
+ *   builds on the generator: named practice topics tagged with the {@link Concept} they exercise, mixed
+ *   (not blocked by topic — the load-bearing learning-science requirement) into a reproducible session
+ *   the existing `gradeSpot` still grades with no answer key.
  *
  * Purity: zero UI/DOM/Node/network deps, no `Math.random()` — all randomness is the seeded
  * {@link mulberry32} stream from `@holdem/odds`. Imports only `@holdem/*`.
@@ -29,3 +34,4 @@
 export * from './deal.js'
 export * from './config.js'
 export * from './generate.js'
+export * from './themes.js'

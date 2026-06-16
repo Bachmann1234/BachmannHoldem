@@ -2,7 +2,7 @@
 id: 0066
 title: Themed drill sets + interleaved session composer
 type: feature
-status: todo
+status: done
 milestone: M5
 priority: high
 created: 2026-06-16
@@ -25,22 +25,22 @@ the composed session.
 
 ## Acceptance criteria
 
-- [ ] A small catalogue of **themes**, each: a stable id, a human title, the `Concept` it exercises
+- [x] A small catalogue of **themes**, each: a stable id, a human title, the `Concept` it exercises
       (the tag from [[0043-coach-concept-tag]], so it lines up with the coach/primer vocabulary), and
       a generator config that constrains [[0065-drills-spot-generator]] to produce spots of that kind
       (e.g. "preflop ranges" → `PreflopSpot`s; "pot-odds calls" → `CoachSpot`s with a non-trivial
       `toCall`). Cover at least the two the epic names plus one more.
-- [ ] A **session composer**: given a set of themes, a length, and a seed, produce an ordered list of
+- [x] A **session composer**: given a set of themes, a length, and a seed, produce an ordered list of
       generated spots that **interleaves** the themes — consecutive spots should not be blocked by
       topic. Seeded ⇒ reproducible. Document the interleaving policy and _why_ (cite the learning
       approach), and assert in tests that a multi-theme session is actually interleaved (no long
       same-theme runs), not accidentally blocked.
-- [ ] Each composed spot remains graded by the existing `gradeSpot` (no answer keys), and its theme
+- [x] Each composed spot remains graded by the existing `gradeSpot` (no answer keys), and its theme
       `Concept` is recoverable so the UI can show "this drilled <concept>."
-- [ ] Tests: each theme generates only legal spots of its declared kind; the composer interleaves and
+- [x] Tests: each theme generates only legal spots of its declared kind; the composer interleaves and
       is deterministic per seed; an all-one-theme session degrades gracefully (no interleave needed).
       `pnpm verify` green above thresholds.
-- [ ] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
+- [x] Purity: zero UI/DOM/Node/network deps; imports only `@holdem/*`/relative/`vitest`.
 
 ## Notes
 
