@@ -65,6 +65,7 @@ const GOOD: DecisionVerdict = {
   heroContinued: true,
   verdict: 'good',
   missedValueBet: false,
+  heroBet: false,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
@@ -78,6 +79,7 @@ const LEAK: DecisionVerdict = {
   heroContinued: true,
   verdict: 'leak',
   missedValueBet: false,
+  heroBet: false,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75, polarized: null },
 }
@@ -91,6 +93,7 @@ const BREAKEVEN: DecisionVerdict = {
   heroContinued: true,
   verdict: 'breakEven',
   missedValueBet: false,
+  heroBet: false,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
@@ -104,6 +107,7 @@ const FREE_CHECK: DecisionVerdict = {
   heroContinued: true,
   verdict: 'good',
   missedValueBet: false,
+  heroBet: false,
   concept: 'equity',
   trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
 }
@@ -194,9 +198,29 @@ describe('CoachDrawer — verdict state', () => {
       equity: 0.62,
       callEv: 6.2,
       missedValueBet: true,
+      heroBet: false,
     }
     render(<CoachDrawer coach={verdictResult(missed)} open onClose={vi.fn()} />)
     expect(screen.getByTestId('coach-why').textContent?.toLowerCase()).toContain('bet for value')
+  })
+
+  it('describes a value bet (not a free card) when the hero bet into an unbet pot — BUG-0009', () => {
+    // Unbet pot (potOddsThreshold 0) but the hero BET: the why-line must describe the value bet and
+    // the pot-odds card sub must read "you bet", never the "free check"/"free card" framing.
+    const heroBet: DecisionVerdict = {
+      ...FREE_CHECK,
+      equity: 0.529,
+      callEv: 106.8,
+      missedValueBet: false,
+      heroBet: true,
+    }
+    render(<CoachDrawer coach={verdictResult(heroBet)} open onClose={vi.fn()} />)
+    const why = screen.getByTestId('coach-why').textContent?.toLowerCase() ?? ''
+    expect(why).toContain('value bet')
+    expect(why).not.toContain('free card')
+    // The pot-odds card sub-label reflects the bet, not a free check.
+    expect(screen.getByText('you bet')).toBeTruthy()
+    expect(screen.queryByText('free check')).toBeNull()
   })
 
   it('shows no preflop starting-hand line postflop (the chart is preflop only)', () => {

@@ -594,6 +594,21 @@ export interface DecisionVerdict {
    */
   readonly missedValueBet: boolean
   /**
+   * The hero **bet (or raised) into an unbet pot** — voluntarily put chips in when nothing was owed
+   * (`toCall === 0 && action is 'bet' | 'raise'`). The signal that distinguishes a *value/aggression*
+   * line from a free check in the otherwise-identical unbet branch: both grade `'good'` and both have
+   * `potOddsThreshold === 0`, so without this flag the narration cannot tell "you bet 96 for value"
+   * from "you took the free card" and mis-describes the bet as a free check (BUG-0009).
+   *
+   * It is the mirror of {@link missedValueBet}: that flag fires when the hero *checked* an unbet pot
+   * while ahead (leaving value); this one fires when the hero *did* bet. They are mutually exclusive —
+   * a check is not a bet — and both are `false` in every priced (`toCall > 0`) branch, where there is
+   * a price to call and "betting into an unbet pot" is not the situation. Like the grade for any
+   * continue, this does **not** judge the bet *size* (out of scope per ticket 0055); it only records
+   * *that* the hero bet, so {@link explainDecision} can describe a value bet as a value bet.
+   */
+  readonly heroBet: boolean
+  /**
    * The primary mental model this decision turns on — the cross-link to the Foundations primer
    * ([[0042-foundations-primer]]). A single verdict touches equity, pot odds, and EV all at once, so
    * this names the *one* idea the decision hinges on rather than every number it reports:
@@ -707,6 +722,10 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
     // ahead of a typical range leaves value on the table — the hero should be betting. An
     // ADDITIONAL nudge, not a flip to a leak (the free check itself is still graded 'good').
     const missedValueBet = action.type === 'check' && equity >= VALUE_BET_THRESHOLD
+    // The mirror signal: the hero voluntarily bet/raised into the unbet pot (nothing owed) rather
+    // than checking. Lets the narration describe a value bet as a value bet instead of a free check
+    // (BUG-0009). Mutually exclusive with `missedValueBet` (a check is not a bet).
+    const heroBet = action.type === 'bet' || action.type === 'raise'
     return {
       equity,
       potOddsThreshold,
@@ -715,6 +734,7 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       heroContinued,
       verdict: heroContinued ? 'good' : 'leak',
       missedValueBet,
+      heroBet,
       // No price to weigh — the decision is purely reading your share of the pot.
       concept: 'equity',
       trace,
@@ -731,8 +751,10 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
       correctDecision: 'continue',
       heroContinued,
       verdict: 'breakEven',
-      // A priced spot is never a "missed value bet" — that signal is scoped to the unbet check.
+      // A priced spot is never a "missed value bet" / a "bet into an unbet pot" — both signals are
+      // scoped to the unbet branch (there is a price to call here).
       missedValueBet: false,
+      heroBet: false,
       // Facing a price: the continue decision turns on weighing equity against that price.
       concept: 'equity-vs-price',
       trace,
@@ -755,8 +777,10 @@ export function coachDecision(ctx: DecisionContext, action: Action): DecisionVer
     correctDecision,
     heroContinued,
     verdict: heroWasCorrect ? 'good' : 'leak',
-    // A priced spot is never a "missed value bet" — that signal is scoped to the unbet check.
+    // A priced spot is never a "missed value bet" / a "bet into an unbet pot" — both signals are
+    // scoped to the unbet branch (there is a price to call here).
     missedValueBet: false,
+    heroBet: false,
     // Facing a price: the continue decision turns on weighing equity against that price.
     concept: 'equity-vs-price',
     trace,
