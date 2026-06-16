@@ -177,8 +177,11 @@ const CONTINUE_RULE_LESSON: Lesson = {
     'Here is the one rule that drives every call-or-fold decision: continue when your equity beats ' +
     'the price, fold when it does not. Equity is how good your hand is; the price is the pot odds the ' +
     'bet sets. Worth 40% and the price is 30%? Continue. You have more than you are paying for. ' +
-    'Worth 20% and the price is 33%? Fold. Everything else postflop is detail on top of this single ' +
-    'comparison.',
+    'Worth 20% and the price is 33%? Fold. One caveat: this compares your equity RIGHT NOW, which is ' +
+    'the right test for a made hand at showdown value. A draw can continue a little light — at a price ' +
+    'a bit worse than its current equity — because it wins extra bets the times it hits (implied ' +
+    'odds); the draws lesson covers that. For everything else postflop, this single comparison is the ' +
+    'whole game.',
   spots: [CONTINUE_RULE_SPOT],
 }
 

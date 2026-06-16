@@ -2,7 +2,7 @@
 id: BUG-0010
 title: Continue-rule lesson teaches "fold when equity < price" without the implied-odds caveat
 type: bug
-status: open
+status: fixed
 severity: high
 milestone: M4.5
 created: 2026-06-16
