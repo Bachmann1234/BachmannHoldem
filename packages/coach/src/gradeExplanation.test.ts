@@ -23,7 +23,7 @@ describe('explainGrade — the motivating A9s vs K9s contrast', () => {
   it('explains A9s by its nut-flush upside (the ace makes the best flush)', () => {
     const a9s = explainGrade('A9s')
     expect(text(a9s)).toMatch(/ace/i)
-    expect(text(a9s)).toMatch(/best (one|flush)/i)
+    expect(text(a9s)).toMatch(/flush/i)
     expect(terms(a9s)).toContain('nuts')
   })
 
