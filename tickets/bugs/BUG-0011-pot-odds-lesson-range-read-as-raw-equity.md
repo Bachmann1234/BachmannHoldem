@@ -2,7 +2,7 @@
 id: BUG-0011
 title: Pot-odds lesson presents a range-adjusted read (~17%) as raw hand strength
 type: bug
-status: open
+status: fixed
 severity: medium
 milestone: M4.5
 created: 2026-06-16

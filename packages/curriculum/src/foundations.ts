@@ -116,8 +116,9 @@ const POT_ODDS_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
     'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75, ' +
-    'a price of 75 / (100 + 75) ≈ 43% to break even. Against that big a bet your hand is only worth ' +
-    '~17%. Call or fold?',
+    'a price of 75 / (100 + 75) ≈ 43% to break even. Your gutshot and two overcards are worth more ' +
+    'in a vacuum, but a bet this big (a ~3x-pot overbet) usually means a strong, narrow range — and ' +
+    'against that tight a range the coach reads your hand at only ~17%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
     holeCards: hole('Qs Jd'),
