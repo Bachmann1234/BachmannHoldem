@@ -437,7 +437,7 @@ export const EPSILON = 0.02
  * The coach narrates raw numbers (`equity`, `potOddsThreshold`, `callEv`, `verdict`) against a
  * framework it assumes the player already holds; M4.5's Foundations primer
  * ([[0042-foundations-primer]]) teaches that framework, and tagging every verdict with the idea it
- * exercises is what lets the primer, the play coach, and the future M5 drills cross-link a live spot
+ * exercises is what lets the primer, the play coach, and the M5 drills cross-link a live spot
  * to its lesson ("this is the pot-odds idea from Foundations"). The values are exactly the models
  * the coach uses and the primer teaches:
  *
