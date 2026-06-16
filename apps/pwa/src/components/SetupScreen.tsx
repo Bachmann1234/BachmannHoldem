@@ -11,7 +11,6 @@
  */
 
 import {
-  BLIND_PRESETS,
   BOT_BLURBS,
   BOT_KINDS,
   BOT_LABELS,
@@ -65,11 +64,11 @@ export function SetupScreen({
   // The chosen starting stack (chips). Always set by `createInitialModel`, but `SetupState` keeps it
   // optional for older literals, so fall back to the deep default when reading it for the UI.
   const startingStack = setup.startingStack ?? STARTING_STACK
-  // The chosen blind level — same optional-with-default shape as `startingStack`. Stack depth is
-  // denominated in big blinds, so every depth read below uses `blinds.bb`, not a fixed constant.
-  const blinds = setup.blinds ?? DEFAULT_BLIND_LEVEL
-  // Cash (fixed blinds) vs Tournament (escalating) — same optional-with-default shape. In tournament
-  // mode the chosen blinds are the *starting* level the schedule climbs from.
+  // Every session sits on the fixed 1/2 bottom rung — there is no blind-level picker (blinds are
+  // scale-invariant in cash play). Kept as a value so the stack-depth hint can show "blinds 1/2".
+  const blinds = DEFAULT_BLIND_LEVEL
+  // Cash (fixed blinds) vs Tournament (escalating). In tournament mode the blinds climb from the
+  // 1/2 starting rung; cash stays there.
   const mode = setup.mode ?? DEFAULT_MODE
   const isTournament = mode === 'tournament'
 
@@ -180,38 +179,6 @@ export function SetupScreen({
                     onClick={() => dispatch({ type: 'set-mode', mode: m })}
                   >
                     {m === 'cash' ? 'Cash' : 'Tournament'}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="setup-card">
-          <div className="setup-row">
-            <div className="setup-label">
-              {isTournament ? 'Starting blinds' : 'Blinds'}
-              <span className="hint">
-                {blinds.sb}/{blinds.bb} ·{' '}
-                {isTournament
-                  ? 'climbs from here'
-                  : 'fixed for the session · bigger = higher stakes'}
-              </span>
-            </div>
-            <div className="sizes" role="group" aria-label="Blind level">
-              {BLIND_PRESETS.map((level) => {
-                const selected = level.sb === blinds.sb && level.bb === blinds.bb
-                return (
-                  <button
-                    key={`${level.sb}-${level.bb}`}
-                    type="button"
-                    className={'size-btn' + (selected ? ' active' : '')}
-                    data-testid={`blinds-${level.sb}-${level.bb}`}
-                    aria-pressed={selected}
-                    aria-label={`Blinds ${level.sb}/${level.bb}`}
-                    onClick={() => dispatch({ type: 'set-blinds', blinds: level })}
-                  >
-                    {level.sb}/{level.bb}
                   </button>
                 )
               })}

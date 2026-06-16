@@ -2,11 +2,29 @@
 id: 0084
 title: Let the hero pick the blind level on the setup screen
 type: feature
-status: done
+status: reverted
 milestone: M4
 priority: medium
 created: 2026-06-16
 ---
+
+## Decision (reverted 2026-06-16)
+
+The cash blind picker was **removed** after shipping. Blinds are scale-invariant in cash play:
+picking `1/2` vs `5/10` at the same bb depth produces identical stack-to-pot ratios, bet sizing, and
+decisions — the picker changed the on-screen numbers but nothing strategic. The lever that actually
+matters (and stays) is the **bb stack-depth picker** (25/50/100). So the picker was setup friction
+for zero gameplay difference, and we dropped it.
+
+What was removed end-to-end: the picker UI card, the `set-blinds` reducer message + `setBlinds`
+re-chip, the `SetupState.blinds` / `InitialModelOptions.blinds` fields, and the `BLIND_PRESETS`
+export. `DEFAULT_BLIND_LEVEL` now derives from `BLIND_LADDER[0]`.
+
+**Tournament mode ([[0085-tournament-blind-escalation]]) is unaffected** — it simply always starts
+escalation from the bottom rung (`1/2`) instead of a hero-chosen starting rung. `stackForDepthBb` /
+`depthBbForStack` keep their optional `bigBlind` param (default `BIG_BLIND`) as general utilities.
+
+Everything below is the original (now-reverted) feature spec, kept for history.
 
 ## Context
 

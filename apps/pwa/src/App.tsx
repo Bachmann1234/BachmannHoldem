@@ -555,7 +555,7 @@ function Session({
   // renders exactly as before. Derived from the hand number (not stored), matching the reducer.
   const tournament =
     (model.setup.mode ?? DEFAULT_MODE) === 'tournament'
-      ? tournamentLevel(model.setup.blinds ?? DEFAULT_BLIND_LEVEL, model.handNumber)
+      ? tournamentLevel(DEFAULT_BLIND_LEVEL, model.handNumber)
       : undefined
   return (
     <div className="app-stack">
