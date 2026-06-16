@@ -40,7 +40,7 @@ import { ResultSheet, SpotAnswers, SpotView } from './SpotPlayer.js'
 export interface LessonPlayerProps {
   /** The lesson being played. */
   readonly lesson: Lesson
-  /** Its 1-based number on the path (for the "LESSON n OF 6" eyebrow). */
+  /** Its 1-based number on the path (for the "LESSON n OF <total>" eyebrow). */
   readonly n: number
   /** How many lessons there are in total (the eyebrow's denominator). */
   readonly total: number

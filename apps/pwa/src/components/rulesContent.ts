@@ -1,7 +1,7 @@
 /**
  * The **poker rules** reference content (the "go over the rules" section) — the prerequisites the
- * Foundations primer assumes a learner already knows. The six lessons teach the *mental models the
- * coach grades with* (equity, pot odds, EV, position, ranges); they do not teach what a flush beats,
+ * Foundations primer assumes a learner already knows. The primer's lessons teach the *mental models
+ * the coach grades with* (equity, pot odds, EV, position, ranges); they do not teach what a flush beats,
  * how a hand plays from preflop to showdown, what the blinds are, or how you make a hand out of seven
  * cards. This module is that missing ground floor.
  *

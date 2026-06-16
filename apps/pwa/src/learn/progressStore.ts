@@ -39,7 +39,7 @@ export interface ProgressEnvelope {
 }
 
 /**
- * On-device store of primer progress. Synchronous (localStorage is sync — ample for six lessons) and,
+ * On-device store of primer progress. Synchronous (localStorage is sync — ample for a short primer) and,
  * like the history seam, every method degrades gracefully: a read failure returns `[]`, a write
  * failure is swallowed. Defining it as an interface keeps the platform bit injectable so tests pass a
  * fake / throwing fake without touching real `localStorage`.

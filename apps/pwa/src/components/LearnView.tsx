@@ -2,7 +2,7 @@
  * The **Learn the fundamentals** route (ticket 0046) — the §5.2 design: a light, game-like vertical
  * path over the `FOUNDATIONS` sequence. Medallion nodes sit on an accent spine: **done** (filled with
  * a check), **current** (ringed, gently pulsing, carrying the Start/Resume tag), **locked** (dim, a
- * lock glyph). A header progress meter reads `n / 6`, the spine fills with accent up to the current
+ * lock glyph). A header progress meter reads `n / total`, the spine fills with accent up to the current
  * node, and a sticky bottom CTA resumes where you left off. The bottom {@link TabBar} sits beneath it
  * (this is a lobby surface — the tab bar shows here, unlike the immersive lesson player).
  *

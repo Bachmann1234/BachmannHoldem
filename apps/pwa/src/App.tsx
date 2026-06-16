@@ -214,13 +214,13 @@ function progressFromCompleted(completedIds: ReadonlySet<string>): number {
 
 /**
  * The Learn route (tickets 0046 / 0047 / 0048): the Foundations path, the full {@link LessonPlayer}
- * once a lesson is opened, and the {@link EndOfPrimer} hand-off once all six lessons are complete.
+ * once a lesson is opened, and the {@link EndOfPrimer} hand-off once every lesson is complete.
  *
  * Progress is now **durable, on-device** (ticket 0048): the {@link LessonProgressStore} persists the
  * SET of completed lesson ids. On mount we `load()` it into local state; finishing a lesson marks that
  * lesson's stable `id` complete (in the store AND in state) — forward-only, since completion only ever
  * adds an id. The numeric `progress` the {@link LearnView} wants (its done/current/locked nodes, the
- * `n / 6` meter, the resume CTA) is derived from the id set via {@link progressFromCompleted} (the
+ * `n / total` meter, the resume CTA) is derived from the id set via {@link progressFromCompleted} (the
  * leading-completed prefix = the resume point). Reopening the app resumes at the next unfinished lesson
  * because the loaded id set rebuilds that same prefix. This state stays in the shell, never in the
  * `@holdem/session` reducer (it is primer state, not poker state).

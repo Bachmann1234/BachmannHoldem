@@ -25,7 +25,7 @@ export interface SessionHeaderProps {
   readonly onBack: () => void
   /** The back button's `data-testid` (e.g. `lesson-back` / `drill-back`). */
   readonly backTestId: string
-  /** The appbar eyebrow text (e.g. `LESSON 1 OF 6` / `SPOT 2 OF 10`). */
+  /** The appbar eyebrow text (e.g. `LESSON 1 OF 10` / `SPOT 2 OF 10`). */
   readonly eyebrow: string
   /** The eyebrow's optional `data-testid` (e.g. `drill-progress`). */
   readonly eyebrowTestId?: string
