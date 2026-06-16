@@ -84,19 +84,21 @@ export function Summary({
           ))}
         </div>
 
-        <button type="button" className="btn next-cta summary-cta" onClick={onNewTable}>
-          New table →
-        </button>
-        {onShowHistory !== undefined ? (
-          <button
-            type="button"
-            className="btn summary-cta"
-            data-testid="history-open"
-            onClick={onShowHistory}
-          >
-            View hand history
+        <div className="summary-ctas">
+          <button type="button" className="btn next-cta summary-cta" onClick={onNewTable}>
+            New table →
           </button>
-        ) : null}
+          {onShowHistory !== undefined ? (
+            <button
+              type="button"
+              className="btn summary-cta"
+              data-testid="history-open"
+              onClick={onShowHistory}
+            >
+              View hand history
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   )

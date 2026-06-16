@@ -989,8 +989,13 @@ body {
 .standing.busted .standing-stack {
   color: var(--text-3);
 }
-.summary-cta {
+.summary-ctas {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.summary-cta {
   width: 100%;
 }
 
