@@ -73,6 +73,10 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
     subtitle: 'call, fold, or 3-bet',
     teaser: 'Someone raised — call, fold, or 3-bet?',
   },
+  'foundations-draws': {
+    subtitle: 'calling a little light',
+    teaser: 'Draws can call light — implied odds.',
+  },
   'foundations-ranges': {
     subtitle: 'think in strength tiers',
     teaser: 'Sort hands into strength tiers.',

@@ -323,7 +323,14 @@ export function ResultSheet({
           <div className="coach-note" data-testid="result-rationale">
             <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
           </div>
-        ) : null}
+        ) : (
+          // Declarative carve-out (no coach verdict): the author's own explanation is the whole "why".
+          // The draws/implied-odds spot (ticket 0074) is the first such spot in the app; without this
+          // branch its hand-authored explanation — the actual teaching — would never render.
+          <div className="coach-note" data-testid="result-explanation">
+            {result.explanation}
+          </div>
+        )}
 
         {/* The shared deterministic "why" line — the same sentence the live play coach shows, so a
             lesson, a drill, and the table explain a verdict identically. Postflop (priced or free)

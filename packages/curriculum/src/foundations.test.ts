@@ -14,10 +14,18 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { parseCards, type Card } from '@holdem/engine'
 import type { Concept } from '@holdem/coach'
 import { gradeSpot } from './grade.js'
 import { FOUNDATIONS } from './foundations.js'
 import type { Lesson } from './lesson.js'
+import type { Spot } from './spot.js'
+
+/** Parse a two-card string into the `[Card, Card]` tuple a spot context takes (test-local helper). */
+function hole(text: string): readonly [Card, Card] {
+  const cards = parseCards(text)
+  return [cards[0]!, cards[1]!]
+}
 
 /** Look a lesson up by id, failing loudly if the primer reshuffles out from under a test. */
 function lesson(id: string): Lesson {
@@ -73,10 +81,22 @@ describe('FOUNDATIONS — shape & scope discipline', () => {
     }
   })
 
-  it('uses no declarative carve-out — every spot is coach- or chart-graded', () => {
+  it('declarative spots are the flagged exception, and every one is well-formed', () => {
+    // The old blanket "every spot is coach- or chart-graded" no longer holds: the draws lesson
+    // (ticket 0074) authors the primer's first sanctioned DeclarativeSpot, used precisely where the
+    // coach cannot rule (a draw's future-street implied odds). The durable invariant is not "no
+    // declarative spots" but "coach/preflop is the default, and any declarative spot is well-formed":
+    // it carries ≥1 correct choice, a non-empty explanation, and a concept the coach actually emits.
     for (const l of FOUNDATIONS) {
       for (const s of l.spots) {
-        expect(s.kind === 'coach' || s.kind === 'preflop').toBe(true)
+        if (s.kind === 'declarative') {
+          expect(s.choices.some((c) => c.correct)).toBe(true)
+          expect(s.explanation.length).toBeGreaterThan(0)
+          expect(VALID_CONCEPTS.has(s.concept)).toBe(true)
+        } else {
+          // Everything else stays coach- or chart-graded — the preferred, coach-tethered default.
+          expect(s.kind === 'coach' || s.kind === 'preflop').toBe(true)
+        }
       }
     }
   })
@@ -288,5 +308,99 @@ describe('facing-a-raise lesson — call / fold / 3-bet (coach-true via the rais
     // The coach cannot distinguish a 3-bet from a call: both are non-fold continues, so the 3-bet
     // also grades correct (the graded point is continue-vs-fold, per the lesson note).
     expect(gradeSpot(defendSpot, 2).correct).toBe(true)
+  })
+})
+
+describe('draws & implied odds lesson — the coach-graded draw + the declarative carve-out (ticket 0074)', () => {
+  const l = lesson('foundations-draws')
+
+  it('teaches the equity-vs-price concept with a coach-graded spot and a declarative spot', () => {
+    expect(l.concept).toBe('equity-vs-price')
+    expect(l.spots).toHaveLength(2)
+    expect(l.spots[0]!.kind).toBe('coach')
+    expect(l.spots[1]!.kind).toBe('declarative')
+  })
+
+  it('spot A (coach-graded) — a draw with enough immediate equity at a small price: call correct, fold the leak', () => {
+    // Choice 0 = Call (correct: the draw's current equity ~37% beats the 20% price), choice 1 = Fold.
+    // This grades through the REAL coach — the continue rule still holds for a draw with enough equity
+    // right now, no implied odds needed. Proves the tuned equity > price.
+    const coachSpot = l.spots[0]!
+    const call = gradeSpot(coachSpot, 0)
+    expect(call.correct).toBe(true)
+    expect(call.correctIndex).toBe(0)
+    expect(call.concept).toBe('equity-vs-price')
+    const v = call.verdict!
+    expect(v.verdict).not.toBe('leak')
+    if ('potOddsThreshold' in v) {
+      // The draw's immediate equity genuinely beats the price here (the coach can rule the call).
+      expect(v.equity).toBeGreaterThan(v.potOddsThreshold)
+      expect(v.callEv).toBeGreaterThan(0)
+    }
+    // Folding a draw priced in is the leak.
+    const fold = gradeSpot(coachSpot, 1)
+    expect(fold.correct).toBe(false)
+    expect(fold.verdict!.verdict).toBe('leak')
+  })
+
+  it('spot B (declarative) — the implied-odds-light call: graded by the authored flag, with the equity-vs-price concept', () => {
+    // The heart of the lesson: the SAME draw at a steeper price than its immediate equity. The coach
+    // models only current equity, so it would call this a leak — which is exactly why it must be
+    // declarative. The authored answer is "call" (implied odds flip it), and the explanation is honest
+    // that the immediate continue rule alone says fold.
+    const declSpot = l.spots[1]!
+    expect(declSpot.kind).toBe('declarative')
+
+    // Choice 0 = Call (the implied-odds call, authored correct), choice 1 = Fold (authored wrong).
+    const call = gradeSpot(declSpot, 0)
+    expect(call.correct).toBe(true)
+    expect(call.correctIndex).toBe(0)
+    expect(call.concept).toBe('equity-vs-price')
+    // No coach verdict backs a declarative spot — the carve-out reads the authored flags instead.
+    expect(call.verdict).toBeUndefined()
+    // The explanation is the author's (the coach builds none here).
+    if (declSpot.kind === 'declarative') {
+      expect(call.explanation).toBe(declSpot.explanation)
+      // Honesty constraint (ticket 0074): the explanation must NOT contradict the coach — it states
+      // plainly that the immediate rule reads this as a fold, then explains why implied odds flip it.
+      expect(declSpot.explanation.toLowerCase()).toContain('fold')
+      expect(declSpot.explanation.toLowerCase()).toContain('implied odds')
+    }
+
+    // Folding grades wrong by the authored flag.
+    const fold = gradeSpot(declSpot, 1)
+    expect(fold.correct).toBe(false)
+  })
+
+  it('the same draw really is a coach LEAK at the steeper declarative price — proving the coach cannot rule it', () => {
+    // The pedagogical contract: spot B is declarative *because* a coach read of its immediate equity
+    // returns a leak (the coach does not model implied odds). Run the coach over the declarative spot's
+    // own cards/price to prove that — so if a future coach retune ever started blessing this call, this
+    // test fails and the carve-out can be reconsidered rather than silently desyncing.
+    const declSpot = l.spots[1]!
+    if (declSpot.kind !== 'declarative') throw new Error('expected the declarative spot')
+    // Reconstruct the coach-graded form of the SAME spot (cards/board/price) and confirm the leak.
+    const probe: Spot = {
+      kind: 'coach',
+      prompt: declSpot.prompt,
+      choices: [
+        { label: 'Call', action: { type: 'call' } },
+        { label: 'Fold', action: { type: 'fold' } },
+      ],
+      context: {
+        holeCards: hole('Th 9h'),
+        board: parseCards('Ah 7h 2c'),
+        pot: 100,
+        toCall: 75,
+        numActive: 2,
+      },
+    }
+    const coachCall = gradeSpot(probe, 0)
+    expect(coachCall.verdict!.verdict).toBe('leak')
+    const v = coachCall.verdict!
+    if ('potOddsThreshold' in v) {
+      // The coach's immediate-equity read is below the price — a fold by the continue rule alone.
+      expect(v.equity).toBeLessThan(v.potOddsThreshold)
+    }
   })
 })

@@ -24,6 +24,7 @@ const POT_ODDS = FOUNDATIONS.find((l) => l.id === 'foundations-pot-odds')!
 const CONTINUE = FOUNDATIONS.find((l) => l.id === 'foundations-equity-vs-price')!
 const POSITION = FOUNDATIONS.find((l) => l.id === 'foundations-position')!
 const RANGES = FOUNDATIONS.find((l) => l.id === 'foundations-ranges')!
+const DRAWS = FOUNDATIONS.find((l) => l.id === 'foundations-draws')!
 
 /** Render a lesson player with no-op callbacks unless overridden. */
 function renderPlayer(
@@ -202,6 +203,55 @@ describe('LessonPlayer — free check (equity lesson)', () => {
     }
     // The price cell reads the "n/a" placeholder, not a percentage.
     expect(screen.getByTestId('metric-price').textContent).toBe('n/a')
+  })
+})
+
+describe('LessonPlayer — declarative carve-out (draws & implied odds, ticket 0074)', () => {
+  // The draws lesson is the first lesson with a DeclarativeSpot — the LessonPlayer/SpotPlayer had
+  // never rendered one before. These pin that the declarative path renders correctly: the felt-less
+  // stage, the authored choices, and (the latent gap that was fixed) the authored explanation shown
+  // after answering, plus that the authored `correct` flag drives the grade with no coach verdict.
+
+  /** Advance the draws lesson to its second spot (the declarative one). */
+  function startDeclarativeSpot(): void {
+    fireEvent.click(screen.getByTestId('lesson-start'))
+    // Spot A is the coach-graded draw (Call is correct); answer it and advance to spot B.
+    fireEvent.click(screen.getByTestId('answer-0'))
+    fireEvent.click(screen.getByTestId('result-cta'))
+  }
+
+  it('renders the declarative spot with its prompt and choices — no felt or price chip', () => {
+    renderPlayer(DRAWS)
+    startDeclarativeSpot()
+    const declSpot = DRAWS.spots[1]!
+    if (declSpot.kind !== 'declarative') throw new Error('expected the declarative spot')
+    // The declarative stage has no mini-felt price chip (it carries no SpotContext).
+    expect(screen.queryByTestId('price-chip')).toBeNull()
+    expect(screen.queryByTestId('seat-ring')).toBeNull()
+    // The authored choices render as buttons.
+    const answers = screen.getByTestId('answers')
+    expect(within(answers).getByTestId('answer-0').textContent).toBe(declSpot.choices[0]!.label)
+    expect(within(answers).getByTestId('answer-1').textContent).toBe(declSpot.choices[1]!.label)
+  })
+
+  it('grades the declarative spot from the authored flag and shows the authored explanation', () => {
+    renderPlayer(DRAWS)
+    startDeclarativeSpot()
+
+    const declSpot = DRAWS.spots[1]!
+    if (declSpot.kind !== 'declarative') throw new Error('expected the declarative spot')
+    // The engine grade for the authored-correct choice (Call = index 0) — no coach verdict here.
+    const expected = gradeSpot(declSpot, 0)
+    expect(expected.correct).toBe(true)
+    expect(expected.verdict).toBeUndefined()
+
+    fireEvent.click(screen.getByTestId('answer-0'))
+
+    expect(screen.getByTestId('result-verdict').getAttribute('data-verdict')).toBe('good')
+    // No coach metric row / chart rationale for a declarative spot — its authored explanation is the why.
+    expect(screen.queryByTestId('result-metrics')).toBeNull()
+    expect(screen.queryByTestId('result-rationale')).toBeNull()
+    expect(screen.getByTestId('result-explanation').textContent).toBe(declSpot.explanation)
   })
 })
 

@@ -40,7 +40,7 @@
 
 import { parseCards, type Card } from '@holdem/engine'
 import type { Lesson } from './lesson.js'
-import type { CoachSpot, PreflopSpot } from './spot.js'
+import type { CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
 
 /**
  * Tiny authoring helper: parse a two-card string (`"As Ah"`) into the `[Card, Card]` tuple the spot
@@ -192,11 +192,12 @@ const CONTINUE_RULE_LESSON: Lesson = {
     'Here is the one rule that drives every call-or-fold decision: continue when your equity beats ' +
     'the price, fold when it does not. Equity is how good your hand is; the price is the pot odds the ' +
     'bet sets. Worth 40% and the price is 30%? Continue. You have more than you are paying for. ' +
-    'Worth 20% and the price is 33%? Fold. One caveat: this compares your equity RIGHT NOW, which is ' +
-    'the right test for a made hand at showdown value. A draw can continue a little light — at a price ' +
-    'a bit worse than its current equity — because it wins extra bets the times it hits (implied ' +
-    'odds); the draws lesson covers that. For everything else postflop, this single comparison is the ' +
-    'whole game.',
+    'Worth 20% and the price is 33%? Fold. One big caveat: this compares your equity RIGHT NOW, which ' +
+    'is the right test for a made hand at showdown value. A DRAW is the exception — it can continue a ' +
+    'little light, at a price a bit worse than its current equity, because it wins extra bets the ' +
+    'times it hits (implied odds). The very next lesson, on draws and implied odds, covers exactly ' +
+    'that, so do not take this rule as final for a draw until you have read it. For everything else ' +
+    'postflop, this single comparison is the whole game.',
   spots: [CONTINUE_RULE_SPOT],
 }
 
@@ -441,13 +442,130 @@ const FACING_RAISE_LESSON: Lesson = {
   spots: [FACING_RAISE_FOLD_SPOT, FACING_RAISE_DEFEND_SPOT],
 }
 
+// ---------------------------------------------------------------------------------------------------
+// 8. draws & implied odds — why a draw can continue a little light (concept: equity-vs-price).
+// ---------------------------------------------------------------------------------------------------
+//
+// The correctness keystone of the v2 primer (ticket 0074) and the durable fix for BUG-0010: the
+// continue rule ("fold when equity does not beat the price") is exactly right for a MADE hand, but for
+// a DRAW it is incomplete, because a draw wins extra bets the times it completes — implied odds — so a
+// draw is routinely a profitable continue at a price a bit *worse* than its immediate equity. A
+// beginner who took the rule literally would fold profitable draws, which is the very bug this lesson
+// closes (the continue-rule lesson now forward-points here, strengthened above).
+//
+// The lesson teaches at the seam of what the coach can and cannot rule, with TWO spots on the *same*
+// draw (a bare flush draw, Th9h on Ah-7h-2c) at two different prices — so the learner sees the same
+// hand flip from a coach-blessable call to an implied-odds-only call:
+//
+//   - A COACH-GRADED CoachSpot where the coach CAN rule: the flush draw faces a small ~1/4-pot bet
+//     (call 25 into a 100 pot, price 20%). The coach's seeded equity read against its assumed range is
+//     ~37%, comfortably above the 20% price, so coachDecision blesses the call (callEv ≈ +21,
+//     verdict 'good') and folding is the leak. This teaches that the continue rule STILL HOLDS for a
+//     draw with enough immediate equity — no implied odds needed, the call is already correct on
+//     current equity. Tuned + proven in foundations.test.ts (call 'good', fold 'leak').
+//
+//   - THE DECLARATIVE CARVE-OUT (the heart of the lesson — flagged here as the sanctioned exception)
+//     where the coach GENUINELY CANNOT rule: the SAME flush draw faces a steep ~3/4-pot bet (call 75
+//     into a 100 pot, price ~43%). The coach reads the draw's immediate equity at ~40% — *below* the
+//     43% price — so coachDecision would call this a LEAK (callEv ≈ −6, verdict 'leak'). The coach
+//     models ONLY current equity; it does not model the future bets a flush wins when it completes on
+//     the turn or river. With those implied odds the call is profitable, so the correct answer is to
+//     call — which the coach cannot rule, hence a DeclarativeSpot. The explanation is scrupulously
+//     honest: it states plainly that *by the immediate continue rule (what the coach measures) this
+//     looks like a fold*, and that the draw's future winnings flip it to a call — and it states the
+//     limits (you need deep enough stacks to win those bets; clean outs to the best hand, or reverse
+//     implied odds can cost you when you make a second-best hand). This is the documented purpose of
+//     the declarative carve-out: teaching the LIMIT of the immediate-equity lens, never contradicting
+//     the coach. concept 'equity-vs-price' (the locked reuse — ticket 0070), matching the coach tag the
+//     companion coach-graded spot carries for free.
+
+/** draws spot A (coach-graded): a flush draw with enough immediate equity at a small price — call is correct, fold the leak. */
+const DRAWS_COACH_SPOT: CoachSpot = {
+  kind: 'coach',
+  prompt:
+    'You hold T♥9♥ on A♥7♥2♣, a flush draw (any heart makes your flush — those are your "outs", the ' +
+    'cards that complete your hand). Your opponent bets a small amount, bringing the pot to 100, and ' +
+    'you must call just 25, a price of 25 / (100 + 25) = 20%. Your draw is worth well more than that ' +
+    'right now. Call or fold?',
+  choices: [CALL, FOLD],
+  context: {
+    holeCards: hole('Th 9h'),
+    board: parseCards('Ah 7h 2c'),
+    pot: 100,
+    toCall: 25,
+    numActive: 2,
+  },
+}
+
+/**
+ * draws spot B — THE DECLARATIVE CARVE-OUT (ticket 0074 / 0045 escape hatch).
+ *
+ * The same flush draw at a steeper price than its immediate equity: the coach's current-equity read
+ * (~40%) is *below* the ~43% price, so `coachDecision` would rule the call a LEAK. Implied odds — the
+ * extra bets the flush wins when it completes — flip it to a profitable call, which the coach does not
+ * model, so this spot stores its own answer rather than being coach-graded. The explanation never
+ * contradicts the coach: it is explicit that by the immediate continue rule this is a fold, and that
+ * the draw's future winnings are what make calling correct, with the limits spelled out. This is the
+ * sanctioned, flagged exception to the primer's "coach-graded by default" rule.
+ */
+const DRAWS_IMPLIED_ODDS_SPOT: DeclarativeSpot = {
+  kind: 'declarative',
+  concept: 'equity-vs-price',
+  prompt:
+    'Same T♥9♥ flush draw on A♥7♥2♣, but now the bet is big: the pot is 100 and you must call 75, a ' +
+    'price of about 43%. Your draw is worth only about 40% right now, just short of the price. By the ' +
+    'continue rule alone this is a fold — but you still have two cards to come and a hidden flush that ' +
+    'wins more bets when it lands. Call or fold?',
+  choices: [
+    { label: 'Call (you expect to win more when the flush hits)', correct: true },
+    { label: 'Fold (your equity is below the price right now)', correct: false },
+  ],
+  explanation:
+    'Trust the call here. By the immediate continue rule — the only thing the coach measures — this ' +
+    'is a fold: your draw is worth about 40% right now and the price is about 43%, so on current ' +
+    'equity alone you are paying a touch too much. What the coach does not count is the EXTRA chips ' +
+    'you win on the streets to come when your flush completes: a hidden flush often gets paid off by a ' +
+    'strong made hand. Those future winnings are your "implied odds", and they more than cover the ' +
+    'small gap between 40% and 43%, so calling is correct. This is the one place a draw beats the ' +
+    'rule. The limits matter, though: it only works if the stacks are deep enough to actually win ' +
+    'those future bets, and if your outs are clean — cards that give you the BEST hand, not a ' +
+    'second-best one. When a card that "helps" you actually makes someone a bigger hand and costs you ' +
+    'more, that is "reverse implied odds", and it is why you call light with the nut draw, not the ' +
+    'weak one.',
+}
+
+const DRAWS_LESSON: Lesson = {
+  id: 'foundations-draws',
+  title: 'Draws and implied odds: calling a little light',
+  concept: 'equity-vs-price',
+  explanation:
+    'The continue rule is exactly right for a made hand, but a DRAW — a hand not yet made that will ' +
+    'be huge if the right card comes, like four cards to a flush — is the one exception. A draw misses ' +
+    'more often than it hits, so its equity right now is often below a big bet’s price. But when it ' +
+    'does hit it usually wins EXTRA bets on the later streets, because the made hand is hidden and the ' +
+    'opponent keeps paying. Those future winnings are called implied odds, and they let a draw ' +
+    'continue a little light — at a price a bit worse than its current equity — and still turn a ' +
+    'profit. So the rule holds for made hands; draws are the exception. Two limits keep it honest: ' +
+    'stacks must be deep enough to win those later bets, and you want clean outs to the BEST hand. A ' +
+    'card that improves you but makes someone a bigger hand costs you (reverse implied odds) — so ' +
+    'call light with strong draws, not weak ones.',
+  spots: [DRAWS_COACH_SPOT, DRAWS_IMPLIED_ODDS_SPOT],
+}
+
 /**
  * The Foundations primer — the original six concept lessons (equity → pot odds → the continue rule
- * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 facing-a-raise
- * lesson appended here (ticket 0071). The final canonical ordering is ticket 0075's job; for now we
- * append. The lesson player walks this front-to-back; M5 drills and both shells reuse it. Every spot
- * is coach- or chart-graded (no declarative carve-out), so the primer can never silently disagree
- * with the live coach — `foundations.test.ts` proves each spot's verdict.
+ * that combines them → EV (the same rule in chips) → position → ranges) plus the v2 lessons appended
+ * here: facing-a-raise (ticket 0071) and draws & implied odds (ticket 0074). The final canonical
+ * ordering is ticket 0075's job; for now we append. The lesson player walks this front-to-back; M5
+ * drills and both shells reuse it.
+ *
+ * Every spot is coach- or chart-graded — so the primer can never silently disagree with the live
+ * coach — with **one sanctioned exception**: the draws lesson's implied-odds spot is the flagged
+ * {@link DeclarativeSpot} carve-out (ticket 0074 / the 0045 escape hatch), used precisely because the
+ * coach models only immediate equity and genuinely cannot rule on the future-street winnings that make
+ * a light draw call correct. Its explanation is honest about that seam (it does not contradict the
+ * coach). `foundations.test.ts` proves each coach-graded spot's verdict and that the declarative spot
+ * is well-formed.
  */
 export const FOUNDATIONS: readonly Lesson[] = [
   EQUITY_LESSON,
@@ -457,4 +575,5 @@ export const FOUNDATIONS: readonly Lesson[] = [
   POSITION_LESSON,
   RANGES_LESSON,
   FACING_RAISE_LESSON,
+  DRAWS_LESSON,
 ]
