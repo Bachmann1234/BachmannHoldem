@@ -164,7 +164,7 @@ export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Eleme
               {correct} of {total} right
             </h1>
             <p className="ep-lede">
-              That is the decision-quality read, not a score to grind — keep mixing these reps with
+              That is the decision-quality read, not a score to grind. Keep mixing these reps with
               real hands at the table.
             </p>
 
@@ -221,7 +221,7 @@ export function DrillsBranch({ onNavigate }: DrillsBranchProps): React.JSX.Eleme
           <div className="setup-title">Practice the math</div>
           <div className="setup-sub">
             Pick the topic(s) to drill. Fast, interleaved reps that complement your time at the
-            table — they don&apos;t replace it.
+            table. They don&apos;t replace it.
           </div>
         </div>
 

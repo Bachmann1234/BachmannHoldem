@@ -58,7 +58,7 @@ export function EndOfPrimer({
           </div>
           <h1>You&apos;ve got the fundamentals.</h1>
           <p className="ep-lede">
-            All six ideas the coach speaks in. Now the numbers at the table will mean something — go
+            All six ideas the coach speaks in. Now the numbers at the table will mean something. Go
             put them to work.
           </p>
           <div className="recap">
@@ -88,7 +88,7 @@ export function EndOfPrimer({
             onClick={onDrills}
             data-testid="endprimer-drills"
           >
-            <span className="ds-tag">Next</span> Sharpen each idea — start drilling →
+            <span className="ds-tag">Next</span> Sharpen each idea: start drilling →
           </button>
         </div>
       </div>
