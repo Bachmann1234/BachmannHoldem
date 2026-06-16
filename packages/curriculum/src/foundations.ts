@@ -90,8 +90,12 @@ const EQUITY_LESSON: Lesson = {
   explanation:
     'Equity is your share of the pot right now: the fraction of the time your hand wins if every ' +
     'card came out with no more betting. A coin-flip is 50% equity; a monster is 90%+; total air is ' +
-    'near 0%. It says nothing about price yet, just how good your hand is. When continuing is free, ' +
-    'equity is the whole story: any equity beats folding, so you always take the free card.',
+    'near 0%. You estimate it, you do not calculate it: count your outs (cards that make your hand) ' +
+    'and use the rule of 2 and 4. Times 2 for your rough chance to hit on the next card, times 4 ' +
+    'with two cards still to come. Nine flush-draw outs is about 18% by the turn, 36% by the river. ' +
+    'You work it out slowly now so you can recognize it instantly at the table. It says nothing about ' +
+    'price yet, just how good your hand is. When continuing is free, equity is the whole story: any ' +
+    'equity beats folding, so you always take the free card.',
   spots: [EQUITY_SPOT],
 }
 
@@ -130,10 +134,12 @@ const POT_ODDS_LESSON: Lesson = {
   concept: 'pot-odds',
   explanation:
     'Pot odds turn the bet into a price: the equity a call needs just to break even. The rule is ' +
-    'simple. Divide what you must call by the total pot after you call. Call 75 into a pot that ' +
-    'becomes 250 and your price is 75 / 250 ≈ 30%; call 75 when it becomes 175 and the price is ' +
-    '75 / 175 ≈ 43%. The bigger the bet relative to the pot, the higher the price, and the more ' +
-    'equity you need to continue.',
+    'simple. Divide what you must call by the total pot after you call. Face a half-pot bet, call 50 ' +
+    'into a pot that becomes 200, and your price is 50 / 200 = 25%; face a full-pot bet, call 100 ' +
+    'into a pot that becomes 300, and your price is 100 / 300 ≈ 33%. You will not divide for long: ' +
+    'bet sizes cluster, so memorize the pegs. A third-pot bet is about 20%, a half-pot about 25%, a ' +
+    'full-pot about 33%. Recognize the size and the price comes for free. The bigger the bet relative ' +
+    'to the pot, the higher the price, and the more equity you need to continue.',
   spots: [POT_ODDS_SPOT],
 }
 
