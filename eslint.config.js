@@ -8,8 +8,10 @@ import reactHooks from 'eslint-plugin-react-hooks'
 export default [
   // Don't lint build output, deps, coverage, or the vendored design handoff bundles under
   // docs/design (external claude.ai/design prototypes — reference artefacts kept verbatim, not our
-  // source; the real shell lives in apps/pwa).
-  { ignores: ['**/dist/**', '**/build/**', '**/coverage/**', 'docs/design/**'] },
+  // source; the real shell lives in apps/pwa). Also skip `.claude/` — agent worktrees are checked
+  // out there (`.claude/worktrees/<name>/`), each a FULL nested copy of the repo; `eslint .` would
+  // otherwise descend into them and find multiple tsconfig roots, failing to parse every file.
+  { ignores: ['**/dist/**', '**/build/**', '**/coverage/**', 'docs/design/**', '.claude/**'] },
 
   // Base JS + TypeScript recommended rules (syntactic — no type-aware pass yet, keeps it fast).
   js.configs.recommended,

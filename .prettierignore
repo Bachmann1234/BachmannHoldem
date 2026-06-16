@@ -8,3 +8,7 @@ coverage/
 
 # Vendored design handoff bundles (claude.ai/design prototypes) — kept verbatim, not formatted.
 docs/design/
+
+# Agent worktrees live here (`.claude/worktrees/<name>/`), each a full nested copy of the repo;
+# `prettier .` would otherwise descend into them and format/check the copy. (`.claude/` is gitignored.)
+.claude/
