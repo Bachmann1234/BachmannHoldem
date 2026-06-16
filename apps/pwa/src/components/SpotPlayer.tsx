@@ -26,12 +26,21 @@
  * {@link ResultSheetProps.ctaLabel}, {@link ResultSheetProps.ariaLabel}); everything else is shared.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
-import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  explainGrade,
+  handClassLabel,
+  type DecisionVerdict,
+  type GradeTermId,
+  type PreflopVerdict,
+} from '@holdem/coach'
 import { type GradeResult, type Spot, type SpotVerdict } from '@holdem/curriculum'
-import { explainDecision, pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { explainDecision, pct, priceComparison, signedChips, VERDICT_LABEL } from '@holdem/format'
 import { positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
+import { ChartOverlay } from './ChartOverlay.js'
+import { GlossaryOverlay } from './GlossaryOverlay.js'
+import { GlossaryText } from './GlossaryText.js'
 import { SeatRing } from './SeatRing.js'
 
 /** Discriminate a {@link SpotVerdict}: only the postflop {@link DecisionVerdict} carries a pot-odds price. */
@@ -234,6 +243,18 @@ export interface ResultSheetProps {
  * - **Hand-reading** (no `verdict`, a `'hand-reading'` spot — ticket 0078) → the made-hand category as
  *   the headline answer + the `explanation` naming the hand the evaluator derived. No coach verdict.
  * - **Declarative** (no `verdict`, the carve-out) → the authored `explanation` alone.
+ *
+ * **Show-the-math depth + reference cross-links (ticket 0079).** On a priced postflop spot the sheet
+ * adds the scannable {@link priceComparison} line — "you had ~28%, the call needed ~33% — short of the
+ * price, so it's a fold" — built in `@holdem/format` from the verdict's own numbers, so it phrases the
+ * comparison identically to the live table and *distinguishes a break-even coin-flip from a clear leak*
+ * (a wash is never scolded as a mistake). It also reaches into the EXISTING reference overlays — no new
+ * reference UI: a **"See the chart"** button opens {@link ChartOverlay} spotlighting the hero's hand
+ * (preflop), and any explanation rendered in segment form (the preflop / hand-reading "why this hand",
+ * via `@holdem/coach`'s {@link explainGrade}) runs through {@link GlossaryText} so its poker terms tap
+ * through to {@link GlossaryOverlay}. Both overlays' open/close state is owned HERE, so the drill *and*
+ * the lesson get the cross-links from one place (the lesson's own chart bridge lives in its read view,
+ * not the result, so there is no double affordance).
  */
 export function ResultSheet({
   result,
@@ -245,6 +266,20 @@ export function ResultSheet({
   onClose,
 }: ResultSheetProps): React.JSX.Element {
   const advanceRef = useRef<HTMLButtonElement>(null)
+
+  // Cross-link overlay state — owned here so BOTH the drill and the lesson get the affordances from one
+  // place. The overlays portal to <body> themselves (BUG-0006), so opening them from inside the drawer
+  // is safe. `chartOpen` drives the ChartOverlay; `glossaryTerm` (a GradeTermId, or undefined) drives
+  // the GlossaryOverlay scrolled to that entry — set when a learner taps a term in the explanation.
+  const [chartOpen, setChartOpen] = useState(false)
+  const [glossaryTerm, setGlossaryTerm] = useState<GradeTermId | undefined>(undefined)
+  // While an overlay is stacked on top, this drawer's Escape handler must stand down: the overlay's own
+  // Escape closes it, and one keypress must not ALSO advance the loop underneath (the same one-keypress
+  // guard ChartOverlay uses for its nested glossary). A ref, read by the long-lived listener below.
+  const overlayOpen = chartOpen || glossaryTerm !== undefined
+  const overlayOpenRef = useRef(overlayOpen)
+  overlayOpenRef.current = overlayOpen
+
   // Focus management (mirrors CoachDrawer): on open, remember the opener, move focus to the advance
   // CTA, and let Escape advance the loop; on close, restore focus to the opener. The drawer mounts
   // only while a result exists, so "open" is its whole lifetime — this runs once per graded spot.
@@ -252,7 +287,8 @@ export function ResultSheet({
     const opener = document.activeElement as HTMLElement | null
     advanceRef.current?.focus()
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onAdvance()
+      // Ignore Escape while a reference overlay is open on top — it owns the keypress (closing itself).
+      if (e.key === 'Escape' && !overlayOpenRef.current) onAdvance()
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -271,6 +307,24 @@ export function ResultSheet({
   const preflop: PreflopVerdict | null =
     verdict !== undefined && !isDecisionVerdict(verdict) ? verdict : null
   const priced = decision !== null && decision.potOddsThreshold > 0
+
+  // The scannable "show the math" line on a priced spot: equity-had vs equity-needed + the one-word
+  // reason (or the break-even coin-flip phrasing). Built in @holdem/format from the verdict's numbers,
+  // null on a free check (no price to compare). Shared with the live table so the wording can't drift.
+  const mathLine = decision !== null ? priceComparison(decision) : null
+
+  // The hero's starting-hand class label (e.g. "AKs") — the chart cell to spotlight and the hand whose
+  // grade explanation we render as tappable glossary terms. Present on preflop / hand-reading spots
+  // (both carry hole cards); undefined elsewhere. handClassLabel/explainGrade are the SAME pure coach
+  // helpers the CoachDrawer + ChartOverlay use — no parallel logic.
+  const handLabel =
+    spot.kind === 'preflop' || spot.kind === 'hand-reading'
+      ? handClassLabel(spot.holeCards)
+      : undefined
+  // The "why this hand grades as it does" explanation in segment form, so its poker terms (nuts,
+  // kicker, set, …) render as glossary links. Only meaningful where we surface the hand itself.
+  const handSegments = useMemo(() => (handLabel ? explainGrade(handLabel) : []), [handLabel])
+  const hasGlossaryTerms = handSegments.some((seg) => typeof seg !== 'string')
 
   return (
     <>
@@ -328,6 +382,14 @@ export function ResultSheet({
                 <span>win {pct(decision.equity)}</span>
                 <span>lose {pct(1 - decision.equity)}</span>
               </div>
+              {/* Show-the-math (ticket 0079): the scannable "had X, needed Y — that's why" line, which
+                  also calls a break-even spot a coin-flip rather than a leak. From @holdem/format, so it
+                  reads identically to the table; non-null only on a priced spot (its own branch). */}
+              {mathLine !== null ? (
+                <div className="coach-note accent" data-testid="result-math">
+                  {mathLine}
+                </div>
+              ) : null}
             </>
           ) : (
             // Free check (the equity lesson): equity only; price/EV are not in play.
@@ -351,10 +413,19 @@ export function ResultSheet({
             </div>
           )
         ) : preflop !== null ? (
-          // Preflop chart-graded: no metric row — the chart rationale, like the coach drawer's preflop mode.
-          <div className="coach-note" data-testid="result-rationale">
-            <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
-          </div>
+          // Preflop chart-graded: no metric row — the chart rationale, like the coach drawer's preflop
+          // mode, plus (ticket 0079) the "why this hand grades this way" explanation with its poker
+          // terms tappable into the glossary, and a link to spotlight the hand in the chart it came off.
+          <>
+            <div className="coach-note" data-testid="result-rationale">
+              <b>{VERDICT_LABEL[preflop.verdict]}</b> {preflop.rationale}
+            </div>
+            {hasGlossaryTerms ? (
+              <p className="coach-note" data-testid="result-grade-why">
+                <GlossaryText segments={handSegments} onTermClick={setGlossaryTerm} />
+              </p>
+            ) : null}
+          </>
         ) : spot.kind === 'calculation' || spot.kind === 'hand-reading' ? (
           // Calculation (ticket 0077) / hand-reading (ticket 0078): identical layouts — no coach verdict, the
           // retrieved value IS the teaching. Surface the correct bucket / made-hand category as the headline
@@ -375,6 +446,15 @@ export function ResultSheet({
             <div className="coach-note" data-testid="result-why">
               {result.explanation}
             </div>
+            {/* Hand-reading (ticket 0078 + 0079): the made hand the player just read leans on the same
+                hand-strength vocabulary (set, kicker, nuts, …); render the hero's grade explanation so
+                those terms tap into the glossary. Calculation spots have no hand to decode, so this only
+                shows when there are linkable terms (preflop & hand-reading carry holeCards). */}
+            {hasGlossaryTerms ? (
+              <p className="coach-note" data-testid="result-grade-why">
+                <GlossaryText segments={handSegments} onTermClick={setGlossaryTerm} />
+              </p>
+            ) : null}
           </div>
         ) : (
           // Declarative carve-out (no coach verdict): the author's own explanation is the whole "why".
@@ -394,6 +474,21 @@ export function ResultSheet({
           </div>
         ) : null}
 
+        {/* Cross-link into the chart (ticket 0079): preflop spots were graded against the starting-hand
+            chart, so let the player open it spotlit on their actual hand — the SAME ChartOverlay the
+            CoachDrawer's preflop verdict and the ranges lesson use, no new reference UI. (The lesson's
+            own chart bridge lives in its read view, not the result, so this adds no double affordance.) */}
+        {spot.kind === 'preflop' ? (
+          <button
+            type="button"
+            className="chart-link"
+            data-testid="result-open-chart"
+            onClick={() => setChartOpen(true)}
+          >
+            ♠ See the starting-hand chart
+          </button>
+        ) : null}
+
         <button
           type="button"
           className="result-cta"
@@ -404,6 +499,16 @@ export function ResultSheet({
           {ctaLabel}
         </button>
       </div>
+
+      {/* The reference overlays — reused exactly as the CoachDrawer/ChartOverlay wire them. They portal
+          to <body>, so they stack above this drawer correctly. Chart spotlights the hero's hand;
+          glossary opens scrolled to the tapped term. State is owned here so drill + lesson share it. */}
+      {chartOpen ? (
+        <ChartOverlay onClose={() => setChartOpen(false)} highlight={handLabel} />
+      ) : null}
+      {glossaryTerm ? (
+        <GlossaryOverlay focusTerm={glossaryTerm} onClose={() => setGlossaryTerm(undefined)} />
+      ) : null}
     </>
   )
 }

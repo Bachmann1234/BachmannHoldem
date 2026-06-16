@@ -2,7 +2,7 @@
 id: 0079
 title: Deepen drill feedback (show the math) and cross-link chart + glossary
 type: feature
-status: todo
+status: done
 milestone: M5.5
 priority: medium
 created: 2026-06-16
@@ -19,14 +19,14 @@ though they exist and grade against the same data.
 
 ## Acceptance criteria
 
-- [ ] Feedback shows the **math the player should have computed** — e.g. "needed 33%, had ~28% —
+- [x] Feedback shows the **math the player should have computed** — e.g. "needed 33%, had ~28% —
       that's why it's a fold" — not just the verdict label, especially distinguishing close
       (break-even) spots from clear ones.
-- [ ] **Cross-link the result into existing reference tools**: "see the chart" → `ChartOverlay`,
+- [x] **Cross-link the result into existing reference tools**: "see the chart" → `ChartOverlay`,
       "look up this term" → `GlossaryOverlay` (reuse `GlossaryText`), from the drill `ResultSheet`.
-- [ ] Reuses existing `explainCoach` / `explainDecision` output and overlays — no parallel
+- [x] Reuses existing `explainCoach` / `explainDecision` output and overlays — no parallel
       explanation engine, no new reference UI.
-- [ ] Tests cover the enriched feedback shape; works for both choice spots and the new calculation
+- [x] Tests cover the enriched feedback shape; works for both choice spots and the new calculation
       spots ([[0077-drills-calculation-spots]]).
 
 ## Notes

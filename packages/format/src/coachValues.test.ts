@@ -13,6 +13,7 @@ import {
   explainDecision,
   explainPreflop,
   pct,
+  priceComparison,
   signedChips,
   VERDICT_LABEL,
 } from './coachValues.js'
@@ -182,6 +183,63 @@ describe('explainDecision', () => {
     )
     expect(s.toLowerCase()).toContain('free')
     expect(s.toLowerCase()).not.toContain('bet for value')
+  })
+})
+
+describe('priceComparison', () => {
+  /** Reuse the explainDecision fixture shape — only the price/equity/verdict fields matter here. */
+  const verdict = (v: Partial<DecisionVerdict>): DecisionVerdict => ({
+    equity: 0.5,
+    potOddsThreshold: 0.33,
+    callEv: 1,
+    correctDecision: 'continue',
+    heroContinued: true,
+    verdict: 'good',
+    missedValueBet: false,
+    heroBet: false,
+    concept: 'equity-vs-price',
+    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    ...v,
+  })
+
+  it('contrasts had-vs-needed on a clear fold ("short of the price, so it\'s a fold")', () => {
+    const s = priceComparison(
+      verdict({ equity: 0.28, potOddsThreshold: 0.33, correctDecision: 'fold', verdict: 'leak' }),
+    )
+    expect(s).toContain('28.0%')
+    expect(s).toContain('33.0%')
+    expect(s).toContain('short of the price')
+    expect(s).toContain('fold')
+  })
+
+  it('contrasts had-vs-needed on a clear continue ("clear of the price, so continuing")', () => {
+    const s = priceComparison(
+      verdict({ equity: 0.6, potOddsThreshold: 0.3, correctDecision: 'continue', verdict: 'good' }),
+    )
+    expect(s).toContain('60.0%')
+    expect(s).toContain('30.0%')
+    expect(s).toContain('clear of the price')
+    expect(s).toContain('continuing')
+  })
+
+  it('distinguishes a break-even spot as a coin-flip, not a mistake (close vs clear)', () => {
+    const s = priceComparison(
+      verdict({ equity: 0.32, potOddsThreshold: 0.33, callEv: 0, verdict: 'breakEven' }),
+    )
+    expect(s).toContain('32.0%')
+    expect(s).toContain('33.0%')
+    expect(s!.toLowerCase()).toContain('coin-flip')
+    expect(s!.toLowerCase()).toContain('equally fine')
+  })
+
+  it('returns null on a free check — no price to compare equity against', () => {
+    expect(priceComparison(verdict({ potOddsThreshold: 0, verdict: 'good' }))).toBeNull()
+  })
+
+  it('is label-free (no Good/Leak prefix — the client pairs it with its own headline)', () => {
+    const s = priceComparison(verdict({ verdict: 'good' }))
+    expect(s).not.toContain('Good')
+    expect(s).not.toContain('Leak')
   })
 })
 

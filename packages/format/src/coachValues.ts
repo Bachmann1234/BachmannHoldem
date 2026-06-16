@@ -96,6 +96,50 @@ export function explainDecision(verdict: DecisionVerdict): string {
   return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play — ${chips}.`
 }
 
+/**
+ * The **at-a-glance price-comparison line** for a priced postflop decision — the terse "show the math"
+ * counterpart to {@link explainDecision}'s prose: the equity the hero *had* set against the equity the
+ * call *needed*, and the one-word reason that gap makes the play (ticket 0079). Where
+ * {@link explainDecision} narrates a full sentence, this is the scannable "needed 33%, had ~28% —
+ * that's why it's a fold" the drill result surfaces to scaffold the number the player should have
+ * produced.
+ *
+ * It lives here, beside {@link explainDecision}, for the same reason the rest of this module is shared:
+ * a drill and the live table must phrase a verdict's math identically, so the comparison is built once
+ * from the {@link DecisionVerdict}'s own `equity` / `potOddsThreshold` and run through {@link pct} — it
+ * does **no** poker math, recomputes nothing, and is byte-identical wherever it renders.
+ *
+ * **It is the close-vs-clear distinction.** The whole point of the line is that a `breakEven` spot and
+ * an obvious fold are *not* the same teaching moment:
+ * - **Break-even** (`verdict === 'breakEven'`) → equity sits *on* the price; says so plainly ("a
+ *   coin-flip — folding and calling are equally fine"), so a player is never told a wash was a mistake.
+ * - **Clear continue** (`correctDecision === 'continue'`) → "had {equity}, needed {price} — clear of
+ *   the price, so continuing is the play."
+ * - **Clear fold** (`correctDecision === 'fold'`) → "had {equity}, needed {price} — short of the
+ *   price, so it's a fold."
+ *
+ * Returns `null` on a **free check** (`potOddsThreshold === 0`): there is no price to compare equity
+ * against, so there is no comparison to draw — the caller renders {@link explainDecision}'s free-card
+ * line instead. Label-free, like {@link explainDecision}, so a client pairs it with its own headline.
+ */
+export function priceComparison(verdict: DecisionVerdict): string | null {
+  // No price to call ⇒ nothing to compare equity against. The caller's free-check copy covers it.
+  if (verdict.potOddsThreshold === 0) return null
+  const equity = pct(verdict.equity)
+  const price = pct(verdict.potOddsThreshold)
+  // Break-even: equity is within the coach's tolerance band of the price — a wash, not a mistake. The
+  // honest read is "either way is fine", so a close spot is never scolded like a clear leak.
+  if (verdict.verdict === 'breakEven') {
+    return `You had ${equity} equity and the call needed ${price} — they're level, so it's a coin-flip: folding and calling are equally fine.`
+  }
+  // Clear decision: the gap between equity and the price is what decides it. Name which side, so the
+  // line scaffolds the exact "needed X, had Y — that's why" comparison the player should have made.
+  if (verdict.correctDecision === 'continue') {
+    return `You had ${equity} equity and the call needed ${price} — comfortably clear of the price, so continuing is the play.`
+  }
+  return `You had ${equity} equity but the call needed ${price} — short of the price, so it's a fold.`
+}
+
 /** Plain-language phrase for a hero's preflop {@link PreflopVerdict.trace} position, for {@link explainPreflop}. */
 function positionPhrase(position: PreflopVerdict['trace']['position']): string {
   switch (position) {
