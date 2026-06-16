@@ -247,7 +247,95 @@ describe('ActionBar — non-hero / between-hands states', () => {
     )
     screen.getByRole('button', { name: /Deal next hand/ }).click()
     expect(onNext).toHaveBeenCalledOnce()
-    screen.getByRole('button', { name: /End session/ }).click()
+    // The Deal-next CTA is one-tap; End session is guarded by a confirm modal (see below).
+    expect(onQuit).not.toHaveBeenCalled()
+  })
+})
+
+describe('ActionBar — live-session quit confirm (ticket 0082)', () => {
+  /** Render the between-hands bar with a stubbed quit and return the spies. */
+  function renderBetweenHands() {
+    const hand = freshHand()
+    const onQuit = vi.fn()
+    render(
+      <ActionBar
+        hand={hand}
+        legal={null}
+        heroSeat={hand.toAct!}
+        isHeroTurn={false}
+        handOver
+        onAction={() => {}}
+        onNext={() => {}}
+        onQuit={onQuit}
+      />,
+    )
+    return { onQuit }
+  }
+
+  it('opens a confirm modal (instead of quitting) and dispatches quit only on confirm', () => {
+    const { onQuit } = renderBetweenHands()
+
+    // Tapping "End session" does NOT quit — it opens the dialog, and the session is not yet over.
+    act(() => screen.getByRole('button', { name: 'End session' }).click())
+    expect(onQuit).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog', { name: 'End session' })
+    expect(dialog).toBeTruthy()
+
+    // Confirming inside the dialog dispatches the existing quit.
+    act(() => screen.getByTestId('quit-confirm-end').click())
     expect(onQuit).toHaveBeenCalledOnce()
+  })
+
+  it('cancelling the modal leaves the session untouched (still playing)', () => {
+    const { onQuit } = renderBetweenHands()
+
+    act(() => screen.getByRole('button', { name: 'End session' }).click())
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
+    // "Keep playing" dismisses the modal without quitting.
+    act(() => screen.getByTestId('quit-confirm-cancel').click())
+    expect(onQuit).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // The between-hands controls are still live.
+    expect(screen.getByRole('button', { name: 'End session' })).toBeTruthy()
+  })
+
+  it('dismisses on Escape and on scrim click without quitting', () => {
+    const { onQuit } = renderBetweenHands()
+
+    // Escape closes.
+    act(() => screen.getByRole('button', { name: 'End session' }).click())
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onQuit).not.toHaveBeenCalled()
+
+    // Scrim click closes.
+    act(() => screen.getByRole('button', { name: 'End session' }).click())
+    act(() => screen.getByTestId('quit-confirm-scrim').click())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onQuit).not.toHaveBeenCalled()
+  })
+
+  it('the session-over "View summary →" path stays one-tap (no modal)', () => {
+    const hand = freshHand()
+    const onQuit = vi.fn()
+    render(
+      <ActionBar
+        hand={hand}
+        legal={null}
+        heroSeat={hand.toAct!}
+        isHeroTurn={false}
+        handOver
+        sessionOver
+        onAction={() => {}}
+        onNext={() => {}}
+        onQuit={onQuit}
+      />,
+    )
+    act(() => screen.getByRole('button', { name: /View summary/ }).click())
+    expect(onQuit).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

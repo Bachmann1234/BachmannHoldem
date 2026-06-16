@@ -15,7 +15,8 @@
  * size math mirrors the prototype's `applySize` exactly (`hero.bet + toCall + frac·pot`, clamped).
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { potTotal, type Action, type HandState, type LegalActions } from '@holdem/engine'
 
 /** Props for {@link ActionBar}. */
@@ -58,6 +59,92 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 /**
+ * A self-contained confirm dialog for the live-session "End session" quit, mirroring the overlay
+ * conventions of {@link RulesOverlay} / {@link ChartOverlay}: portal to `<body>`, a `chart-scrim` +
+ * `chart-modal`, focus moved into the dialog on open, Escape / scrim-click to dismiss, focus
+ * restored to the opener on unmount. Confirming runs `onConfirm` (the existing `quit`); every cancel
+ * path leaves the session untouched.
+ */
+function QuitConfirm({
+  onConfirm,
+  onCancel,
+}: {
+  readonly onConfirm: () => void
+  readonly onCancel: () => void
+}): React.JSX.Element {
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null
+    confirmRef.current?.focus()
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      opener?.focus?.()
+    }
+  }, [onCancel])
+
+  return createPortal(
+    <>
+      <div
+        className="chart-scrim"
+        onClick={onCancel}
+        aria-hidden="true"
+        data-testid="quit-confirm-scrim"
+      />
+      <div
+        className="chart-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="End session"
+        data-testid="quit-confirm-modal"
+      >
+        <div className="drawer-head">
+          <div className="drawer-title">End this session?</div>
+          <button
+            type="button"
+            className="drawer-close"
+            onClick={onCancel}
+            aria-label="Keep playing"
+            data-testid="quit-confirm-close"
+          >
+            ×
+          </button>
+        </div>
+        <p className="rules-p" style={{ padding: '0 1rem' }}>
+          Your table and progress will be lost.
+        </p>
+        <div style={{ display: 'flex', gap: '8px', padding: '0 1rem 1rem' }}>
+          <button
+            type="button"
+            className="btn"
+            style={{ flex: 1 }}
+            onClick={onCancel}
+            data-testid="quit-confirm-cancel"
+          >
+            Keep playing
+          </button>
+          <button
+            type="button"
+            className="btn quit-cta"
+            style={{ flex: 1 }}
+            ref={confirmRef}
+            onClick={onConfirm}
+            data-testid="quit-confirm-end"
+          >
+            End session
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body,
+  )
+}
+
+/**
  * The action bar. Renders the play-again CTA between hands; a "waiting" placeholder when it is a
  * bot's turn; and the full Fold / Check-Call / Bet-Raise controls (with the bet-size slider + quick
  * buttons) on the hero's turn.
@@ -76,6 +163,8 @@ export function ActionBar({
   // The bet/raise "to" total the slider/quick-buttons select — transient view state.
   const [betTo, setBetTo] = useState(0)
   const [sizeKey, setSizeKey] = useState<SizeKey | null>(null)
+  // Whether the live-session quit-confirm modal is open — local view state, no reducer involvement.
+  const [confirmQuit, setConfirmQuit] = useState(false)
 
   // The aggressive option for this spot: raising (facing a bet) or opening a bet (no bet to call).
   const sizing = legal?.raise ?? legal?.bet ?? null
@@ -125,6 +214,9 @@ export function ActionBar({
   }
 
   // --- Between hands: the play-again CTA + quit -------------------------------------------------
+  // "End session" here is a live-session quit (the save is discarded with no undo), so it opens a
+  // confirm modal rather than quitting on the first tap. The session-over "View summary →" path
+  // above returns earlier and is unaffected — it stays one-tap.
   if (handOver) {
     return (
       <div className="actionbar" data-testid="actionbar">
@@ -132,10 +224,13 @@ export function ActionBar({
           <button type="button" className="btn next-cta" onClick={onNext}>
             Deal next hand →
           </button>
-          <button type="button" className="btn quit-cta" onClick={onQuit}>
+          <button type="button" className="btn quit-cta" onClick={() => setConfirmQuit(true)}>
             End session
           </button>
         </div>
+        {confirmQuit ? (
+          <QuitConfirm onConfirm={onQuit} onCancel={() => setConfirmQuit(false)} />
+        ) : null}
       </div>
     )
   }

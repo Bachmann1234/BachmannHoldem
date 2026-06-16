@@ -77,8 +77,10 @@ describe('App — mid-game save/resume', () => {
     const store = new InMemoryLiveSessionStore({ model: handOver, decisions: [] })
     render(<App botDelayMs={0} sessionStore={store} />)
 
-    // We resumed between hands; "End session" quits to the summary and discards the save.
+    // We resumed between hands; "End session" opens the quit-confirm (ticket 0082), and confirming
+    // quits to the summary and discards the save.
     await act(async () => screen.getByRole('button', { name: /End session/ }).click())
+    await act(async () => screen.getByTestId('quit-confirm-end').click())
 
     expect(screen.getByTestId('summary')).toBeTruthy()
     expect(store.load()).toBeNull()
