@@ -50,7 +50,7 @@ export function parseAction(input: string, legal: LegalActions): ParseResult {
     .trim()
     .toLowerCase()
     .match(/^([a-z]+)\s*(\d+)?$/)
-  if (!m) return { ok: false, error: 'Could not read that — try again.' }
+  if (!m) return { ok: false, error: 'Could not read that. Try again.' }
   const verb = m[1]!
   const amount = m[2] === undefined ? null : Number(m[2])
 

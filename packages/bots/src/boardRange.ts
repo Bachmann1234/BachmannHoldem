@@ -224,7 +224,7 @@ export function polarizedBarrelRange(params: PolarizedBarrelParams): PolarizedBa
   }
 
   if (valueCombos.length === 0) {
-    throw new RangeError('no value combos on this board — cannot build a polarised range')
+    throw new RangeError('no value combos on this board: cannot build a polarised range')
   }
 
   // Strongest air first; deck order (combo[0], then combo[1]) breaks score ties deterministically.

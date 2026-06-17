@@ -38,7 +38,7 @@ export function Result({ hand, heroSeat }: ResultProps): React.JSX.Element {
                 <Text>{seatName(p.seat, heroSeat)}:</Text>
               </Box>
               <Text>
-                <CardPair cards={p.holeCards} reveal={true} /> — {hv ? describeHand(hv) : ''}
+                <CardPair cards={p.holeCards} reveal={true} />, {hv ? describeHand(hv) : ''}
               </Text>
             </Box>
           )

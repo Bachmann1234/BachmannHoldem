@@ -320,7 +320,7 @@ export function GlossaryOverlay({ onClose, focusTerm }: GlossaryOverlayProps): R
             <h3 className="glossary-title">Rule of 2 and 4</h3>
             <p className="glossary-intro">
               Turn your outs into equity: ×4 on the flop (two cards to come), ×2 on the turn (one
-              card). Roughly right — close enough to decide.
+              card). Roughly right, close enough to decide.
             </p>
             <table className="glossary-table">
               <thead>

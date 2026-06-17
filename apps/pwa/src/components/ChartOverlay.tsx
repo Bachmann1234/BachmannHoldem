@@ -152,7 +152,7 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
                     (isSelected ? ' is-selected' : '')
                   }
                   onClick={() => setSelected(cell.label)}
-                  title={`${cell.label} — ${decoded} — ${TIER_LABEL[cell.tier]}${current ? ' (your hand)' : ''}`}
+                  title={`${cell.label}, ${decoded}, ${TIER_LABEL[cell.tier]}${current ? ' (your hand)' : ''}`}
                   aria-label={`${decoded}, ${TIER_LABEL[cell.tier]}${current ? ', your hand' : ''}`}
                   aria-pressed={isSelected}
                   data-testid={current ? 'chart-current' : undefined}
@@ -171,7 +171,7 @@ export function ChartOverlay({ onClose, highlight }: ChartOverlayProps): React.J
           {selected && selectedTier ? (
             <>
               <p className="chart-caption-name">
-                <b className="chart-your-hand">{selected}</b> — {describeHandClass(selected)} —{' '}
+                <b className="chart-your-hand">{selected}</b>, {describeHandClass(selected)},{' '}
                 {TIER_LABEL[selectedTier]}
               </p>
               {explanation.length > 0 ? (

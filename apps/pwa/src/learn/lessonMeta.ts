@@ -71,15 +71,15 @@ const LESSON_META: Readonly<Record<string, LessonMeta>> = {
   },
   'foundations-facing-a-raise': {
     subtitle: 'call, fold, or 3-bet',
-    teaser: 'Someone raised — call, fold, or 3-bet?',
+    teaser: 'Someone raised: call, fold, or 3-bet?',
   },
   'foundations-draws': {
     subtitle: 'calling a little light',
-    teaser: 'Draws can call light — implied odds.',
+    teaser: 'Draws can call light: implied odds.',
   },
   'foundations-board-texture': {
     subtitle: 'wet vs dry',
-    teaser: 'Read the board — same hand, different strength.',
+    teaser: 'Read the board: same hand, different strength.',
   },
   'foundations-bet-sizing': {
     subtitle: 'how much to bet, and why',

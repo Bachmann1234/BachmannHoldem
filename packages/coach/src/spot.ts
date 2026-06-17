@@ -232,7 +232,7 @@ export function parseSpot(json: string): Spot {
     parsed = JSON.parse(json)
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
-    throw new Error(`malformed spot: not valid JSON — ${reason}`, { cause: err })
+    throw new Error(`malformed spot: not valid JSON: ${reason}`, { cause: err })
   }
   const obj = asRecord(parsed, 'the spot')
 

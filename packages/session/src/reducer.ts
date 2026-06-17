@@ -335,7 +335,7 @@ function coachHero(model: Model, action: Action): CoachResult {
     return { kind: 'verdict', verdict: coachDecision(ctx, action, archetype), ctx, action }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
-    return { kind: 'error', message: `Coaching unavailable for this spot — ${reason}` }
+    return { kind: 'error', message: `Coaching unavailable for this spot: ${reason}` }
   }
 }
 

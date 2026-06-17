@@ -251,9 +251,9 @@ function detectOverFoldBigBlind(bb: HeroStats | undefined): DetectedLeak | null 
     sampleThreshold: FOLD_TO_THREE_BET_SAMPLE_THRESHOLD,
     crosses: (v) => v >= OVER_FOLD_BIG_BLIND_THRESHOLD,
     confirmedDescription:
-      'You fold to 3-bets in the big blind a lot. Defending too few of your blinds lets opponents 3-bet you light to steal — look to continue more often.',
+      'You fold to 3-bets in the big blind a lot. Defending too few of your blinds lets opponents 3-bet you light to steal, so look to continue more often.',
     pendingDescription:
-      'You may be over-folding the big blind to 3-bets, but I need more of these spots before I can call it — keep playing.',
+      'You may be over-folding the big blind to 3-bets, but I need more of these spots before I can call it. Keep playing.',
   })
 }
 
@@ -273,9 +273,9 @@ function detectTooPassive(af: AggressionStat): DetectedLeak | null {
     sampleThreshold: AGGRESSION_SAMPLE_THRESHOLD,
     crosses: (v) => v <= TOO_PASSIVE_AF_THRESHOLD,
     confirmedDescription:
-      'You play passively — you call a lot more than you bet or raise. Taking the lead with your strong hands and good draws wins more than calling along.',
+      'You play passively: you call a lot more than you bet or raise. Taking the lead with your strong hands and good draws wins more than calling along.',
     pendingDescription:
-      'Your aggression is looking low, but I need more hands before I can call it a leak — keep playing.',
+      'Your aggression is looking low, but I need more hands before I can call it a leak. Keep playing.',
   })
 }
 
@@ -290,7 +290,7 @@ function detectTooLooseVpip(vpip: RateStat, hands: number): DetectedLeak | null 
     confirmedDescription:
       'You enter too many pots before the flop. Playing a tighter range out of position saves you from tough spots with weak holdings.',
     pendingDescription:
-      'You may be playing too many hands before the flop, but I need more hands before I can call it — keep playing.',
+      'You may be playing too many hands before the flop, but I need more hands before I can call it. Keep playing.',
   })
 }
 
@@ -303,9 +303,9 @@ function detectTooTightVpip(vpip: RateStat, hands: number): DetectedLeak | null 
     sampleThreshold: VPIP_SAMPLE_THRESHOLD,
     crosses: (v) => v <= TOO_TIGHT_VPIP_THRESHOLD,
     confirmedDescription:
-      'You play very few hands before the flop. A range this tight leaves value on the table and is easy for opponents to read — open up a little.',
+      'You play very few hands before the flop. A range this tight leaves value on the table and is easy for opponents to read, so open up a little.',
     pendingDescription:
-      'You may be playing too few hands before the flop, but I need more hands before I can call it — keep playing.',
+      'You may be playing too few hands before the flop, but I need more hands before I can call it. Keep playing.',
   })
 }
 

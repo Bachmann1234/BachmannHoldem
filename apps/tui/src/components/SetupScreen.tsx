@@ -26,7 +26,7 @@ export interface SetupScreenProps {
 export function SetupScreen({ setup, cursor }: SetupScreenProps): React.JSX.Element {
   return (
     <Box flexDirection="column">
-      <Text bold>Bachmann Hold'em — Table setup</Text>
+      <Text bold>Bachmann Hold'em: Table setup</Text>
       <Box marginTop={1} flexDirection="column">
         <Row focused={cursor === 0}>
           <Text>Seats: </Text>

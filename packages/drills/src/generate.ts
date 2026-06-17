@@ -892,9 +892,9 @@ function buildCoachPrompt(
  * for — never hinting at the answer (the buckets are the answer surface; the math rules which is right).
  */
 const CALC_QUESTION: Readonly<Record<CalculationQuantity, string>> = {
-  'pot-odds': 'What pot odds are you getting — what fraction of the final pot does the call cost?',
+  'pot-odds': 'What pot odds are you getting: what fraction of the final pot does the call cost?',
   'required-equity': 'What equity do you need to call profitably?',
-  equity: 'Estimate your equity — your share of the pot if you saw it to showdown.',
+  equity: 'Estimate your equity: your share of the pot if you saw it to showdown.',
 }
 
 /**

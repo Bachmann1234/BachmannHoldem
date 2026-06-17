@@ -36,11 +36,11 @@ import type { PreflopAdvice, PreflopTier } from './preflop.js'
  * grade time by {@link openFoldRationale} / `facingRaiseAdvice`, never asserted as a universal here.
  */
 export const TIER_RATIONALE: Readonly<Record<PreflopTier, string>> = {
-  premium: 'Premium holding — always raise; you want chips in.',
-  strong: 'Strong value hand — open and bet for value.',
-  playable: 'Playable speculative hand — flops well and plays nicely in position.',
-  marginal: 'Marginal hand — the thin edge of the chart: offsuit broadways and suited gappers.',
-  trash: 'Trash — the long tail of unconnected, unsuited hands.',
+  premium: 'Premium holding: always raise; you want chips in.',
+  strong: 'Strong value hand: open and bet for value.',
+  playable: 'Playable speculative hand: flops well and plays nicely in position.',
+  marginal: 'Marginal hand, the thin edge of the chart: offsuit broadways and suited gappers.',
+  trash: 'Trash: the long tail of unconnected, unsuited hands.',
 }
 
 /**
@@ -82,25 +82,25 @@ export function openFoldRationale(
   if (advice === 'open') {
     // A trash open is always the steal-range promotion (the only way trash opens an unraised pot).
     if (tier === 'trash') {
-      return 'A wide steal spot — folded to you in late position / the small blind / the heads-up button; open this profitably and take it down.'
+      return 'A wide steal spot: folded to you in late position / the small blind / the heads-up button; open this profitably and take it down.'
     }
     // Marginal/playable open only from non-early/widening seats — phrase it as the open it is, with no
     // "fold to pressure" absolute (their strength labels carry no advice).
     if (tier === 'marginal') {
-      return 'Marginal hand — open it from late position / the small blind to pick up the blinds.'
+      return 'Marginal hand: open it from late position / the small blind to pick up the blinds.'
     }
     if (tier === 'playable') {
-      return 'Playable speculative hand — open it from here and play it with a plan.'
+      return 'Playable speculative hand: open it from here and play it with a plan.'
     }
     // premium/strong: the strength label already reads as an open from every seat.
     return TIER_RATIONALE[tier]
   }
   // Fold paths: a position-relative fold line that never asserts the hand never makes money.
   if (tier === 'playable' && position === 'early') {
-    return 'Playable speculative hand — too loose to open from early position; fold and wait for a later seat.'
+    return 'Playable speculative hand: too loose to open from early position; fold and wait for a later seat.'
   }
   if (tier === 'marginal') {
-    return 'Marginal hand — open only in late position / the small blind; fold from earlier seats.'
+    return 'Marginal hand: open only in late position / the small blind; fold from earlier seats.'
   }
   if (tier === 'trash') {
     // 0056: never assert a universal — in EITHER direction. A steal-range trash hand (e.g. K7o)
@@ -109,8 +109,8 @@ export function openFoldRationale(
     // later" would be the same false absolute inverted (and there is no "later seat" than the button);
     // it just folds. `canStealLater` distinguishes the two.
     return canStealLater
-      ? 'Trash on the strength chart, but a profitable steal when it is folded to you in a late or blind seat — just not this spot.'
-      : 'Trash — the unconnected bottom of the chart; fold it.'
+      ? 'Trash on the strength chart, but a profitable steal when it is folded to you in a late or blind seat, just not this spot.'
+      : 'Trash: the unconnected bottom of the chart; fold it.'
   }
   // Any other fold (none in normal flow) falls back to the tier's strength label.
   return TIER_RATIONALE[tier]

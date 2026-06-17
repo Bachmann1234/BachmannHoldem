@@ -243,7 +243,7 @@ export function Root({ initial, decks, makeBot = defaultMakeBot }: RootProps): R
       ) : null}
       {phase === 'session-over' ? (
         <Box marginTop={1}>
-          <Text>Final hand over — press q to view the summary.</Text>
+          <Text>Final hand over, press q to view the summary.</Text>
         </Box>
       ) : null}
       <Box marginTop={1}>

@@ -21,10 +21,10 @@ describe('ChartOverlay', () => {
   it('labels and colours the corners from the live coach classifier', () => {
     render(<ChartOverlay onClose={vi.fn()} />)
     // AA is the top-left cell and the strongest tier; 72o is trash.
-    const aa = screen.getByTitle(/^AA —/)
+    const aa = screen.getByTitle(/^AA, /)
     expect(aa.className).toContain('tier-premium')
     expect(aa.textContent).toBe('AA')
-    expect(screen.getByTitle(/^72o —/).className).toContain('tier-trash')
+    expect(screen.getByTitle(/^72o, /).className).toContain('tier-trash')
   })
 
   it('rings the highlighted hand and names it (no highlight by default)', () => {
@@ -55,7 +55,7 @@ describe('ChartOverlay', () => {
     expect(caption.textContent).toMatch(/Tap any hand/i)
 
     // Tapping JTo decodes it in words with its tier.
-    fireEvent.click(screen.getByTitle(/^JTo —/))
+    fireEvent.click(screen.getByTitle(/^JTo, /))
     expect(caption.textContent).toContain('JTo')
     expect(caption.textContent).toContain('Jack-Ten offsuit')
     expect(caption.textContent).toContain('Marginal')
@@ -70,7 +70,7 @@ describe('ChartOverlay', () => {
 
   it('explains why a tapped hand earns its grade (ticket 0064)', () => {
     render(<ChartOverlay onClose={vi.fn()} />)
-    fireEvent.click(screen.getByTitle(/^K9s —/))
+    fireEvent.click(screen.getByTitle(/^K9s, /))
     const why = screen.getByTestId('chart-caption-why')
     // The K9s lesson: a king-high flush is dominated, and the kicker is the term to learn.
     expect(why.textContent).toMatch(/King-high/)
@@ -79,7 +79,7 @@ describe('ChartOverlay', () => {
 
   it('tapping a term in the explanation opens the glossary at that entry', () => {
     render(<ChartOverlay onClose={vi.fn()} />)
-    fireEvent.click(screen.getByTitle(/^K9s —/))
+    fireEvent.click(screen.getByTitle(/^K9s, /))
     // No glossary yet; tapping the "dominated" link opens it focused on that term.
     expect(screen.queryByTestId('glossary-modal')).toBeNull()
     fireEvent.click(screen.getByTestId('glossary-link-dominated'))
@@ -90,7 +90,7 @@ describe('ChartOverlay', () => {
   it('Escape closes only the nested glossary, leaving the chart open', () => {
     const onClose = vi.fn()
     render(<ChartOverlay onClose={onClose} />)
-    fireEvent.click(screen.getByTitle(/^K9s —/))
+    fireEvent.click(screen.getByTitle(/^K9s, /))
     fireEvent.click(screen.getByTestId('glossary-link-dominated'))
     expect(screen.getByTestId('glossary-modal')).toBeTruthy()
 

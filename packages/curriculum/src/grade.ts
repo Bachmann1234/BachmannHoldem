@@ -216,11 +216,11 @@ function explainCalculation(
   const total = pot + toCall
   switch (quantity) {
     case 'pot-odds':
-      return `Pot odds: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v} — that's the price you're getting.`
+      return `Pot odds: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v}. That's the price you're getting.`
     case 'required-equity':
-      return `Required equity: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v} — you need about ${v} equity to break even on the call.`
+      return `Required equity: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v}. You need about ${v} equity to break even on the call.`
     case 'equity':
-      return `Your equity here is about ${v} — your share of the pot at showdown. A rule-of-2-and-4 estimate in the right ballpark is good enough.`
+      return `Your equity here is about ${v}: your share of the pot at showdown. A rule-of-2-and-4 estimate in the right ballpark is good enough.`
   }
 }
 
@@ -253,7 +253,7 @@ function handReadingAnswer(spot: HandReadingSpot): string {
  * the read resolved to (the show-the-cards-spelled-out feedback pairs with ticket 0079).
  */
 function explainHandReading(answer: string): string {
-  return `You have ${answer} here — that's the best five-card hand your cards make on this board.`
+  return `You have ${answer} here. That's the best five-card hand your cards make on this board.`
 }
 
 /**

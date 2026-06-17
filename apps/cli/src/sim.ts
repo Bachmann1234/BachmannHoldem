@@ -212,7 +212,7 @@ function takeHeroAction(state: HandState, script: string[], note: (line: string)
   if (token !== undefined) {
     const parsed = parseAction(token, legal)
     if (parsed.ok) return parsed.action
-    note(`  (scripted "${token}" is not legal here — ${parsed.error} taking the default)`)
+    note(`  (scripted "${token}" is not legal here: ${parsed.error} taking the default)`)
   }
   return cheapestContinue(legal)
 }
@@ -235,7 +235,7 @@ function decideVillain(
     const token = script.shift()!
     const parsed = parseAction(token, legal)
     if (parsed.ok) return parsed.action
-    note(`  (scripted villain ${seat} "${token}" not legal — ${parsed.error} using the bot)`)
+    note(`  (scripted villain ${seat} "${token}" not legal: ${parsed.error} using the bot)`)
   }
   return bots[seat]!.decide(decisionContext(state, seat))
 }
@@ -305,7 +305,7 @@ function coachAndRecord(
     }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
-    emitText(`\n(Coaching unavailable for this spot — ${reason})`)
+    emitText(`\n(Coaching unavailable for this spot: ${reason})`)
     return null
   }
 }
@@ -330,7 +330,7 @@ function regradeSpot(json: string): void {
   }
   try {
     const { ctx, action } = spot
-    emit(`Re-grading captured spot — ${ctx.street}, action "${actionLabel(action)}".`)
+    emit(`Re-grading captured spot: ${ctx.street}, action "${actionLabel(action)}".`)
     if (ctx.street === 'preflop') {
       emit(renderPreflopCoach(gradePreflop(ctx, action)))
     } else {
@@ -464,7 +464,7 @@ function renderSummary(s: SweepSummary): string {
     '',
     `══ Sweep summary ${'═'.repeat(32)}`,
     `  Hands: ${s.hands}   Hero decisions graded: ${s.heroDecisions}`,
-    `  Verdicts — good: ${s.verdicts.good}  leak: ${s.verdicts.leak}  break-even: ${s.verdicts.breakEven}`,
+    `  Verdicts: good: ${s.verdicts.good}  leak: ${s.verdicts.leak}  break-even: ${s.verdicts.breakEven}`,
     `  Coach vs ground truth (priced postflop spots): ${s.misleads}/${s.pricedPostflop} misleading`,
   ].join('\n')
 }
@@ -481,7 +481,7 @@ async function main(): Promise<void> {
   }
 
   if (!args.json) {
-    emit(`Bachmann Hold'em — headless harness.`)
+    emit(`Bachmann Hold'em: headless harness.`)
     const seedLabel =
       args.seeds.length === 1 ? `seed=${args.seeds[0]}` : `seeds=[${args.seeds.join(' ')}]`
     emit(

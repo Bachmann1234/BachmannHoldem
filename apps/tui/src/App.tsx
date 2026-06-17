@@ -35,7 +35,7 @@ export function App({ model }: AppProps): React.JSX.Element {
   }
   return (
     <Box flexDirection="column">
-      <Text bold>{`Bachmann Hold'em — TUI   (hand ${handNumber})`}</Text>
+      <Text bold>{`Bachmann Hold'em: TUI   (hand ${handNumber})`}</Text>
       <Box marginTop={1}>
         <Table hand={hand} heroSeat={heroSeat} />
       </Box>

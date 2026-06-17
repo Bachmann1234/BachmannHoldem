@@ -19,7 +19,7 @@ export default defineConfig({
       manifest: {
         name: "Bachmann Hold'em",
         short_name: "Hold'em",
-        description: "Texas Hold'em training — play vs bots with a deterministic odds coach.",
+        description: "Texas Hold'em training: play vs bots with a deterministic odds coach.",
         // Locked M4 palette (docs/design/m4-pwa/DESIGN-NOTES.md): dark bg, accent green.
         theme_color: '#0d0f13',
         background_color: '#0d0f13',

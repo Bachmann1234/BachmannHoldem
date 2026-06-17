@@ -303,7 +303,7 @@ export function estimateEquity(query: EquityEstimate): HandEquity {
   const villain = pruneColliding(resolved, blocked)
   if (villain.length === 0) {
     throw new Error(
-      'every assumed opponent combo collides with the bot cards or board — ' +
+      'every assumed opponent combo collides with the bot cards or board: ' +
         'no possible villain holding remains',
     )
   }

@@ -71,11 +71,11 @@ function encouragingCopy(verdict: DecisionVerdict): string {
   const target = verdict.correctDecision === 'continue' ? 'staying in' : 'folding'
   switch (verdict.verdict) {
     case 'good':
-      return `Nice — that's exactly right. Keep trusting the odds.`
+      return `Nice! That's exactly right. Keep trusting the odds.`
     case 'leak':
-      return `Close one! The numbers pointed to ${target} here — you'll catch it next time.`
+      return `Close one! The numbers pointed to ${target} here, you'll catch it next time.`
     case 'breakEven':
-      return `Coin-flip spot — either way is fine here. Trust your read.`
+      return `Coin-flip spot: either way is fine here. Trust your read.`
     default:
       return ''
   }
@@ -311,7 +311,7 @@ export function CoachDrawer({
           <>
             {readsSlot}
             <div className="coach-note" data-testid="coach-none">
-              No decision yet — make your move, then tap the coach to review it.
+              No decision yet: make your move, then tap the coach to review it.
             </div>
           </>
         )}
@@ -461,13 +461,13 @@ function preflopCopy(verdict: PreflopVerdict): string {
   const target = verdict.advice === 'open' ? 'playing this hand' : 'folding it'
   switch (verdict.verdict) {
     case 'good':
-      return `Nice — that's exactly right. Keep trusting the chart.`
+      return `Nice! That's exactly right. Keep trusting the chart.`
     case 'leak':
-      return `Close one! The chart pointed to ${target} here — you'll catch it next time.`
+      return `Close one! The chart pointed to ${target} here, you'll catch it next time.`
     default:
       // The only preflop break-even is the optional steal (ticket 0060): the bottom of a steal range
       // is a hand you may open but never have to, so opening and folding both work.
-      return `Either way's fine — the bottom of a steal range is optional, so opening and folding both work.`
+      return `Either way's fine: the bottom of a steal range is optional, so opening and folding both work.`
   }
 }
 

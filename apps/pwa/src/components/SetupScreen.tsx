@@ -174,7 +174,7 @@ export function SetupScreen({
                     data-testid={`mode-${m}`}
                     aria-pressed={selected}
                     aria-label={
-                      m === 'cash' ? 'Cash game — fixed blinds' : 'Tournament — escalating blinds'
+                      m === 'cash' ? 'Cash game, fixed blinds' : 'Tournament, escalating blinds'
                     }
                     onClick={() => dispatch({ type: 'set-mode', mode: m })}
                   >

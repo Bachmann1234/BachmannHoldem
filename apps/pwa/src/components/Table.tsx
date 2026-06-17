@@ -84,7 +84,7 @@ export function Table({
               aria-label={
                 `Level ${tournament.level}, blinds ${tournament.blinds.sb}/${tournament.blinds.bb}, ` +
                 (tournament.atTop
-                  ? 'top level — blinds no longer rise'
+                  ? 'top level, blinds no longer rise'
                   : `next level in ${tournament.handsUntilNext} hand${tournament.handsUntilNext === 1 ? '' : 's'}`)
               }
             >

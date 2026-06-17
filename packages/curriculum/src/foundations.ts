@@ -147,8 +147,8 @@ const POT_ODDS_SPOT: CoachSpot = {
   prompt:
     'You hold Q♠J♦ on A♣K♦5♥. Your opponent bets, bringing the pot to 100, and you must call 75, ' +
     'a price of 75 / (100 + 75) ≈ 43% to break even. Your gutshot and two overcards are worth more ' +
-    'in a vacuum, but a bet this big (a ~3x-pot overbet — a bet larger than the pot itself) usually ' +
-    'means a strong, narrow range — and ' +
+    'in a vacuum, but a bet this big (a ~3x-pot overbet, a bet larger than the pot itself) usually ' +
+    'means a strong, narrow range, and ' +
     'against that tight a range the coach reads your hand at only ~17%. Call or fold?',
   choices: [CALL, FOLD],
   context: {
@@ -211,7 +211,7 @@ const CONTINUE_RULE_LESSON: Lesson = {
     'the price, fold when it does not. Equity is how good your hand is; the price is the pot odds the ' +
     'bet sets. Worth 40% and the price is 30%? Continue. You have more than you are paying for. ' +
     'Worth 20% and the price is 33%? Fold. One big caveat: this compares your equity RIGHT NOW, which ' +
-    'is the right test for a made hand at showdown value. A DRAW is the exception — it can continue a ' +
+    'is the right test for a made hand at showdown value. A DRAW is the exception: it can continue a ' +
     'little light, at a price a bit worse than its current equity, because it wins extra bets the ' +
     'times it hits (implied odds). The very next lesson, on draws and implied odds, covers exactly ' +
     'that, so do not take this rule as final for a draw until you have read it. For everything else ' +
@@ -370,7 +370,7 @@ const RANGES_LESSON: Lesson = {
   concept: 'ranges',
   explanation:
     "You never know an opponent's exact two cards, so you reason about their RANGE: the whole set of " +
-    'hands they could hold. (Poker calls you the "hero" and the opponent the "villain" — neutral ' +
+    'hands they could hold. (Poker calls you the "hero" and the opponent the "villain": neutral ' +
     'names for whose decision is being studied.) The same lens sorts your own starting hands. Group ' +
     'every hand into a strength tier and let the tier, not a hunch about this one hand, decide whether ' +
     'you play. Three things set the tiers apart: high cards (an ace beats a king), pairs (a made hand ' +
@@ -408,7 +408,7 @@ const FACING_RAISE_FOLD_SPOT: PreflopSpot = {
   prompt:
     'You are in EARLY POSITION (out of position, most of the table still to act behind you) with ' +
     '7♥6♥, a suited connector. The player under the gun raises big, to 6 big blinds, before it gets ' +
-    'to you. A raise this large usually means a strong, narrow range — and your speculative hand ' +
+    'to you. A raise this large usually means a strong, narrow range, and your speculative hand ' +
     'plays badly out of position for a steep price. Call or fold?',
   choices: [CALL, FOLD],
   holeCards: hole('7h 6h'),
@@ -447,7 +447,7 @@ const FACING_RAISE_LESSON: Lesson = {
   title: 'Facing a raise: call, fold, or 3-bet',
   concept: 'ranges',
   explanation:
-    'Often you are not first to act — someone has already raised, and your choice is call, fold, or ' +
+    'Often you are not first to act: someone has already raised, and your choice is call, fold, or ' +
     '3-bet (a 3-bet is simply a re-raise: you raise their raise). A raise is a strength signal: it ' +
     'narrows what you should continue with far below the hands you would open yourself, because now ' +
     'you must beat a hand that already wanted chips in. Two things steer the call: the raise size and ' +
@@ -501,7 +501,7 @@ const FACING_RAISE_LESSON: Lesson = {
 const DRAWS_COACH_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'You hold T♥9♥ on A♥7♥2♣, a flush draw (any heart makes your flush — those nine hearts are your ' +
+    'You hold T♥9♥ on A♥7♥2♣, a flush draw (any heart makes your flush: those nine hearts are your ' +
     'outs). Your opponent bets a small amount, bringing the pot to 100, and ' +
     'you must call just 25, a price of 25 / (100 + 25) = 20%. Your draw is worth well more than that ' +
     'right now. Call or fold?',
@@ -532,21 +532,21 @@ const DRAWS_IMPLIED_ODDS_SPOT: DeclarativeSpot = {
   prompt:
     'Same T♥9♥ flush draw on A♥7♥2♣, but now the bet is big: the pot is 100 and you must call 75, a ' +
     'price of about 43%. Your draw is worth only about 40% right now, just short of the price. By the ' +
-    'continue rule alone this is a fold — but you still have two cards to come and a hidden flush that ' +
+    'continue rule alone this is a fold, but you still have two cards to come and a hidden flush that ' +
     'wins more bets when it lands. Call or fold?',
   choices: [
     { label: 'Call (you expect to win more when the flush hits)', correct: true },
     { label: 'Fold (your equity is below the price right now)', correct: false },
   ],
   explanation:
-    'Trust the call here. By the immediate continue rule — the only thing the coach measures — this ' +
+    'Trust the call here. By the immediate continue rule, the only thing the coach measures, this ' +
     'is a fold: your draw is worth about 40% right now and the price is about 43%, so on current ' +
     'equity alone you are paying a touch too much. What the coach does not count is the EXTRA chips ' +
     'you win on the streets to come when your flush completes: a hidden flush often gets paid off by a ' +
     'strong made hand. Those future winnings are your "implied odds", and they more than cover the ' +
     'small gap between 40% and 43%, so calling is correct. This is the one place a draw beats the ' +
     'rule. The limits matter, though: it only works if the stacks are deep enough to actually win ' +
-    'those future bets, and if your outs are clean — cards that give you the BEST hand, not a ' +
+    'those future bets, and if your outs are clean: cards that give you the BEST hand, not a ' +
     'second-best one. When a card that "helps" you actually makes someone a bigger hand and costs you ' +
     'more, that is "reverse implied odds", and it is why you call light with the nut draw, not the ' +
     'weak one.',
@@ -557,15 +557,15 @@ const DRAWS_LESSON: Lesson = {
   title: 'Draws and implied odds: calling a little light',
   concept: 'equity-vs-price',
   explanation:
-    'The continue rule is exactly right for a made hand, but a DRAW — a hand not yet made that will ' +
-    'be huge if the right card comes, like four cards to a flush — is the one exception. A draw misses ' +
+    'The continue rule is exactly right for a made hand, but a DRAW, a hand not yet made that will ' +
+    'be huge if the right card comes, like four cards to a flush, is the one exception. A draw misses ' +
     'more often than it hits, so its equity right now is often below a big bet’s price. But when it ' +
     'does hit it usually wins EXTRA bets on the later streets, because the made hand is hidden and the ' +
     'opponent keeps paying. Those future winnings are called implied odds, and they let a draw ' +
-    'continue a little light — at a price a bit worse than its current equity — and still turn a ' +
+    'continue a little light, at a price a bit worse than its current equity, and still turn a ' +
     'profit. So the rule holds for made hands; draws are the exception. Two limits keep it honest: ' +
     'stacks must be deep enough to win those later bets, and you want clean outs to the BEST hand. A ' +
-    'card that improves you but makes someone a bigger hand costs you (reverse implied odds) — so ' +
+    'card that improves you but makes someone a bigger hand costs you (reverse implied odds), so ' +
     'call light with strong draws, not weak ones.',
   spots: [DRAWS_COACH_SPOT, DRAWS_IMPLIED_ODDS_SPOT],
 }
@@ -609,7 +609,7 @@ const TEXTURE_DRY_SPOT: CoachSpot = {
   prompt:
     'You hold Q♣Q♦ on A♠7♦2♣. This board is DRY: three different suits (a "rainbow", so no flush is ' +
     'possible) and unconnected ranks (no straight is possible). But there is an ACE overhead, so your ' +
-    'queens are an UNDERPAIR — any ace beats you. Your opponent barrels big, bringing the pot to 120, ' +
+    'queens are an UNDERPAIR: any ace beats you. Your opponent barrels big, bringing the pot to 120, ' +
     'and you must call 80 (a price of 80 / (120 + 80) = 40%). A big bet here means a lot of aces. ' +
     'Call or fold?',
   choices: [CALL, FOLD],
@@ -626,12 +626,12 @@ const TEXTURE_DRY_SPOT: CoachSpot = {
 const TEXTURE_WET_SPOT: CoachSpot = {
   kind: 'coach',
   prompt:
-    'Same Q♣Q♦, same big barrel — pot 120, call 80, a 40% price — but now the board is 9♥8♥7♣. This ' +
+    'Same Q♣Q♦, same big barrel (pot 120, call 80, a 40% price), but now the board is 9♥8♥7♣. This ' +
     'board is WET: two hearts (a flush is coming) and three connected cards (straights are everywhere). ' +
-    'It looks scarier, yet your queens are now an OVERPAIR — they beat every top pair the board makes ' +
+    'It looks scarier, yet your queens are now an OVERPAIR: they beat every top pair the board makes ' +
     '(a pair of nines, eights, or sevens), losing only to the straights, sets, and two pairs this ' +
     'coordinated board also brings. That is barely enough: about 52% against a big bettor’s range, just ' +
-    'over the 40% price — a close call, not a comfortable one. Call or fold?',
+    'over the 40% price, a close call, not a comfortable one. Call or fold?',
   choices: [CALL, FOLD],
   context: {
     holeCards: hole('Qc Qd'),
@@ -648,12 +648,12 @@ const BOARD_TEXTURE_LESSON: Lesson = {
   concept: 'equity-vs-price',
   explanation:
     'The community cards have a "texture", and it decides how strong your hand really is. A DRY board ' +
-    'is ragged and safe: unconnected ranks and mixed suits, like A-7-2 with three different suits — no ' +
+    'is ragged and safe: unconnected ranks and mixed suits, like A-7-2 with three different suits: no ' +
     'flush and no straight are possible, so few hands beat a strong pair. A WET board is coordinated ' +
-    'and dangerous: connected ranks or two of the same suit, like 9-8-7 with two hearts — straights and ' +
+    'and dangerous: connected ranks or two of the same suit, like 9-8-7 with two hearts: straights and ' +
     'flushes are live, so many hands are now possible. Texture shifts which hands are strong. The same ' +
     'pair of queens is an underpair on A-7-2 (any ace beats it, so it is weak) but an overpair on 9-8-7 ' +
-    '(it beats every top pair, so it is a call — though a close one), even though 9-8-7 looks scarier. ' +
+    '(it beats every top pair, so it is a call, though a close one), even though 9-8-7 looks scarier. ' +
     'So before you call, ' +
     'read the board: ask what straights, flushes, and pairs it makes possible, then judge your hand ' +
     'against that. A scary-looking board can be the call, and a safe-looking one the fold.',
@@ -694,16 +694,16 @@ const BET_SIZING_SPOT: DeclarativeSpot = {
   kind: 'declarative',
   concept: 'pot-odds',
   prompt:
-    'You hold 9♣9♥ on 9♦8♠7♠ — top set (three nines), the best hand right now, but a soaking-WET board: ' +
+    'You hold 9♣9♥ on 9♦8♠7♠: top set (three nines), the best hand right now, but a soaking-WET board: ' +
     'a spade flush draw and a pile of straight draws are live. It is on you to bet. What size?',
   choices: [
-    { label: 'Bet small — about a quarter of the pot', correct: false },
-    { label: 'Bet big — about three-quarters of the pot', correct: true },
+    { label: 'Bet small, about a quarter of the pot', correct: false },
+    { label: 'Bet big, about three-quarters of the pot', correct: true },
     { label: 'Check, to keep the pot small and hide your hand', correct: false },
   ],
   explanation:
     'Bet big. You have the best hand on a board where flush and straight draws are everywhere, so a big ' +
-    'bet does two jobs at once: it gets VALUE — worse hands and draws pay you off — and it PROTECTS, ' +
+    'bet does two jobs at once: it gets VALUE (worse hands and draws pay you off) and it PROTECTS, ' +
     'because the size you pick is the price you offer. A three-quarter-pot bet lays the draws a steep ' +
     '~30% price, so chasing is a mistake for them. A small quarter-pot bet offers a cheap ~17% price ' +
     'every draw happily pays, letting them outdraw you for next to nothing; checking hands them the next ' +
@@ -715,11 +715,11 @@ const BET_SIZING_LESSON: Lesson = {
   title: 'Bet sizing: how much to bet, and why',
   concept: 'pot-odds',
   explanation:
-    'When you are the one betting, the size you choose IS the price you offer — the pot-odds pegs read ' +
+    'When you are the one betting, the size you choose IS the price you offer: the pot-odds pegs read ' +
     'backwards: bet a third of the pot and you lay about 20%, half-pot about 25%, full-pot about 33%. So ' +
     'pick the size on purpose. There are three reasons to bet. For VALUE, bet big with a strong hand so ' +
     'worse hands pay you off. For PROTECTION on a wet board, bet big so draws must pay a steep price to ' +
-    'chase — a cheap bet just lets them draw out. To BLUFF, bet only as much as you need to make them ' +
+    'chase: a cheap bet just lets them draw out. To BLUFF, bet only as much as you need to make them ' +
     'fold; there is no reason to risk more. The beginner mistake is one lazy size for every hand. Match ' +
     'the size to the job: big when you want value or to charge draws, small when a small bet will do.',
   spots: [BET_SIZING_SPOT],

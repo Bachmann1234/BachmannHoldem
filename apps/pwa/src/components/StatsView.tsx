@@ -280,8 +280,8 @@ export function StatsView({
         <div className="setup-head">
           <div className="setup-title">How am I doing</div>
           <div className="setup-sub">
-            Your play stats, the leaks worth working on, and your drill mastery — all in one place.
-            A thin sample reads as thin, so the numbers come with how many hands they are over.
+            Your play stats, the leaks worth working on, and your drill mastery, all in one place. A
+            thin sample reads as thin, so the numbers come with how many hands they are over.
           </div>
         </div>
 
@@ -396,8 +396,8 @@ function LeaksSection({ state }: { state: PlayState }): React.JSX.Element {
         // Encouraging empty state — NOT a blank. Names the sample so the silence reads as honest.
         <div className="hint" data-testid="leaks-empty">
           {hands === 0
-            ? 'No hands yet — play a few and your leaks will show up here.'
-            : `No clear leaks yet — keep playing. ${hands} ${hands === 1 ? 'hand' : 'hands'} so far.`}
+            ? 'No hands yet: play a few and your leaks will show up here.'
+            : `No clear leaks yet: keep playing. ${hands} ${hands === 1 ? 'hand' : 'hands'} so far.`}
         </div>
       ) : null}
 

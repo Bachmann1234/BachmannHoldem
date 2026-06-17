@@ -107,10 +107,10 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     // The starting-hand chart tier leads, rendered as the self-contained rationale sentence.
     expect(frame).toContain('Starting hand: Premium holding')
-    expect(frame).toContain('Good — your action agreed with the math.')
+    expect(frame).toContain('Good: your action agreed with the math.')
     // The deterministic preflop "why" line surfaces here too (ticket 0060), like the postflop body's
     // explainDecision — so the TUI narrates the chart's reasoning, not just the verdict tag.
-    expect(frame.toLowerCase()).toContain('premium holding — strong enough to open')
+    expect(frame.toLowerCase()).toContain('premium holding: strong enough to open')
     // BUG-0001: preflop is graded off the chart, so NO equity / pot-odds / EV-correct line that
     // would contradict it.
     expect(frame).not.toContain('Equity')
@@ -122,7 +122,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     const model = dealtModel(2, deck)
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'fold' } }])
     expect(frame).toContain('Starting hand: Premium holding')
-    expect(frame).toContain('Leak — the math pointed the other way.')
+    expect(frame).toContain('Leak: the math pointed the other way.')
   })
 
   it('postflop: calling a big bet with trash is a RED leak (EV-correct fold)', () => {
@@ -135,7 +135,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 50 } })
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
     expect(frame).toContain('EV-correct: fold')
-    expect(frame).toContain('Leak — the math pointed the other way.')
+    expect(frame).toContain('Leak: the math pointed the other way.')
     // Postflop has no starting-hand line.
     expect(frame).not.toContain('Starting hand:')
   })
@@ -153,7 +153,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
     model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
     model = reducer(model, { type: 'apply-action', action: { type: 'bet', amount: 23 } })
     const frame = frameAfter(model, [{ type: 'apply-action', action: { type: 'call' } }])
-    expect(frame).toContain('Break-even — a coin-flip spot; either way is fine.')
+    expect(frame).toContain('Break-even: a coin-flip spot; either way is fine.')
     // Near-zero EV renders the bare, unsigned `0` (the bare-0 formatting contract).
     expect(frame).toContain('EV(call) 0')
   })

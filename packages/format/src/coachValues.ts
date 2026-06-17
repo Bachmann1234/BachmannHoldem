@@ -31,9 +31,9 @@ export function signedChips(ev: number): string {
 
 /** The human-readable headline for each {@link DecisionVerdict.verdict} tag. */
 export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>> = {
-  good: 'Good — your action agreed with the math.',
-  leak: 'Leak — the math pointed the other way.',
-  breakEven: 'Break-even — a coin-flip spot; either way is fine.',
+  good: 'Good: your action agreed with the math.',
+  leak: 'Leak: the math pointed the other way.',
+  breakEven: 'Break-even: a coin-flip spot; either way is fine.',
 }
 
 /**
@@ -73,27 +73,27 @@ export function explainDecision(verdict: DecisionVerdict): string {
     // Over-passivity nudge (ticket 0055): the check is fine, but with this much equity the hero is
     // ahead and leaving value by not betting — surfaced here so every client gets it for free.
     if (verdict.missedValueBet) {
-      return `Taking the free card is fine, but with ${equity} equity you're ahead — bet for value rather than checking.`
+      return `Taking the free card is fine, but with ${equity} equity you're ahead: bet for value rather than checking.`
     }
     // The hero *did* bet into the unbet pot — describe a value bet, not a free check (BUG-0009): no
     // one had bet, and with this much equity the hero is ahead, so putting chips in is +EV value.
     if (verdict.heroBet) {
-      return `No one had bet, so there was no price to call — and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.`
+      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.`
     }
-    return `There's no price to call, so taking the free card is automatic — you keep your ${equity} share for nothing.`
+    return `There's no price to call, so taking the free card is automatic: you keep your ${equity} share for nothing.`
   }
   const price = pct(verdict.potOddsThreshold)
   // Break-even: equity is within the tolerance band of the price, so the call is a coin-flip.
   if (verdict.verdict === 'breakEven') {
-    return `Your ${equity} equity sits right on the ${price} the call needs — a coin-flip, so continuing and folding are equal in value.`
+    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.`
   }
   // Clear decision: equity is meaningfully above or below the break-even price. `callEv`'s sign is
   // the EV-correct side; report the chip EV of calling either way so the magnitude teaches too.
   const chips = `calling is worth ${signedChips(verdict.callEv)} chips`
   if (verdict.correctDecision === 'continue') {
-    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play — ${chips}.`
+    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.`
   }
-  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play — ${chips}.`
+  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.`
 }
 
 /**
@@ -130,14 +130,14 @@ export function priceComparison(verdict: DecisionVerdict): string | null {
   // Break-even: equity is within the coach's tolerance band of the price — a wash, not a mistake. The
   // honest read is "either way is fine", so a close spot is never scolded like a clear leak.
   if (verdict.verdict === 'breakEven') {
-    return `You had ${equity} equity and the call needed ${price} — they're level, so it's a coin-flip: folding and calling are equally fine.`
+    return `You had ${equity} equity and the call needed ${price}: they're level, so it's a coin-flip: folding and calling are equally fine.`
   }
   // Clear decision: the gap between equity and the price is what decides it. Name which side, so the
   // line scaffolds the exact "needed X, had Y — that's why" comparison the player should have made.
   if (verdict.correctDecision === 'continue') {
-    return `You had ${equity} equity and the call needed ${price} — comfortably clear of the price, so continuing is the play.`
+    return `You had ${equity} equity and the call needed ${price}: comfortably clear of the price, so continuing is the play.`
   }
-  return `You had ${equity} equity but the call needed ${price} — short of the price, so it's a fold.`
+  return `You had ${equity} equity but the call needed ${price}: short of the price, so it's a fold.`
 }
 
 /** Plain-language phrase for a hero's preflop {@link PreflopVerdict.trace} position, for {@link explainPreflop}. */
@@ -204,7 +204,7 @@ export function explainPreflop(verdict: PreflopVerdict): string {
   // The big blind's free option on an unraised pot — nothing to call, so the open/fold chart does
   // not apply: taking the flop for free is automatic.
   if (trace.mode === 'bb-option') {
-    return `It folded around to your big blind and no one raised, so you have nothing to call — checking and taking the free flop is automatic. There's no reason to give up a hand when seeing the next card costs you nothing.`
+    return `It folded around to your big blind and no one raised, so you have nothing to call: checking and taking the free flop is automatic. There's no reason to give up a hand when seeing the next card costs you nothing.`
   }
 
   // An open (or a fold of one) on an unraised pot — the position-aware opening chart.
@@ -213,27 +213,27 @@ export function explainPreflop(verdict: PreflopVerdict): string {
       // A trash hand opens ONLY via the steal promotion: folded to the hero in a late/blind seat. The
       // bottom of a steal range is optional, so this is the one open whose fold is fine too.
       if (tier === 'trash') {
-        return `It folded around to you in ${where}, so only the blinds are left behind you. From there you can open a wide range — you act last and the blinds fold often, so the position and the steal are the profit, not the cards. This hand is weak but good enough to open here. The bottom of a steal range is optional, though — opening is good, and folding it is fine too.`
+        return `It folded around to you in ${where}, so only the blinds are left behind you. From there you can open a wide range: you act last and the blinds fold often, so the position and the steal are the profit, not the cards. This hand is weak but good enough to open here. The bottom of a steal range is optional, though: opening is good, and folding it is fine too.`
       }
       if (tier === 'premium' || tier === 'strong') {
         const strength = tier === 'premium' ? 'a premium holding' : 'a strong hand'
-        return `This is ${strength} — strong enough to open and play for value from any seat, including ${where}. You want chips in the middle with it.`
+        return `This is ${strength}: strong enough to open and play for value from any seat, including ${where}. You want chips in the middle with it.`
       }
       if (tier === 'playable') {
-        return `From ${where} you can open this playable, speculative hand — it flops well and plays nicely with position, so you enter the pot and play it with a plan.`
+        return `From ${where} you can open this playable, speculative hand: it flops well and plays nicely with position, so you enter the pot and play it with a plan.`
       }
       // marginal
-      return `This is a marginal hand — the thin edge of the chart. From ${where} few players act behind you, so you open it to try to pick up the blinds; from an earlier seat you'd fold it.`
+      return `This is a marginal hand, the thin edge of the chart. From ${where} few players act behind you, so you open it to try to pick up the blinds; from an earlier seat you'd fold it.`
     }
     // A fold on an unraised pot — the chart says this hand is too weak to open from here.
     if (tier === 'playable') {
-      return `From ${where} a speculative hand like this is too loose to open — too many players still act behind you. Fold it and wait for a later seat where it plays better.`
+      return `From ${where} a speculative hand like this is too loose to open: too many players still act behind you. Fold it and wait for a later seat where it plays better.`
     }
     if (tier === 'marginal') {
       return `A marginal hand opens only from late position or the blinds. From ${where} there are too many players left to act behind you, so folding it is right.`
     }
     // trash fold (no steal available here): scoped to THIS spot — never a "makes no money" universal.
-    return `This is the unconnected bottom of the chart, and from ${where} there's no steal or price that makes opening it profitable — so folding it here is right.`
+    return `This is the unconnected bottom of the chart, and from ${where} there's no steal or price that makes opening it profitable, so folding it here is right.`
   }
 
   // Facing a raise: a big-blind defend or a cold-call, tightened by the price faced.
@@ -242,26 +242,26 @@ export function explainPreflop(verdict: PreflopVerdict): string {
     if (advice === 'open') {
       // A small raise → wide defend on the discount; a large raise / 3-bet → only value continues.
       if (trace.band === 'small-raise') {
-        return `You're in the big blind, so you already posted a blind and you close the action — that discount and last word make ${raise} a fine price to defend with a hand this wide.`
+        return `You're in the big blind, so you already posted a blind and you close the action: that discount and last word make ${raise} a fine price to defend with a hand this wide.`
       }
-      return `Facing ${raise} from the big blind, only strong hands continue — and this one is strong enough to defend for value even out of position.`
+      return `Facing ${raise} from the big blind, only strong hands continue, and this one is strong enough to defend for value even out of position.`
     }
     // BB fold: too weak even for the discounted price, or the price is simply too steep.
     if (trace.band === 'small-raise') {
-      return `Even with the big-blind discount, this hand is too weak to defend against ${raise} — fold it.`
+      return `Even with the big-blind discount, this hand is too weak to defend against ${raise}: fold it.`
     }
-    return `Facing ${raise} from the big blind, the price is too steep to defend — only strong, value hands continue here, so fold this one.`
+    return `Facing ${raise} from the big blind, the price is too steep to defend: only strong, value hands continue here, so fold this one.`
   }
   // cold-call (any non-BB seat continuing vs a raise — no chips in the pot yet).
   if (advice === 'open') {
     if (tier === 'playable') {
-      return `In ${where} you're in position against ${raise}, which makes this a fine price for a thin flat — you'll have position on every later street to make up for the speculative hand.`
+      return `In ${where} you're in position against ${raise}, which makes this a fine price for a thin flat: you'll have position on every later street to make up for the speculative hand.`
     }
     const strength = tier === 'premium' ? 'a premium holding' : 'a strong hand'
-    return `This is ${strength} — strong enough to call ${raise} and play the pot for value.`
+    return `This is ${strength}: strong enough to call ${raise} and play the pot for value.`
   }
   // cold-call fold.
-  return `You have no chips in the pot yet, so calling ${raise} would be a cold-call — and this hand is too weak, or too far out of position, to flat a raise. Fold and wait for a better spot.`
+  return `You have no chips in the pot yet, so calling ${raise} would be a cold-call, and this hand is too weak, or too far out of position, to flat a raise. Fold and wait for a better spot.`
 }
 
 /**

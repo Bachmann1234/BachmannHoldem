@@ -186,10 +186,10 @@ export const BOT_LABELS: Readonly<Record<BotKind, string>> = {
  * but the setup screen is where the hero deliberately picks the spread, so it spells them out.)
  */
 export const BOT_BLURBS: Readonly<Record<BotKind, string>> = {
-  tag: 'Tight & aggressive — few hands, played hard.',
-  lag: 'Loose & aggressive — many hands, lots of pressure.',
-  rock: 'Tight & passive — folds often, rarely bluffs.',
-  station: 'Loose & passive — calls down, rarely folds or raises.',
+  tag: 'Tight & aggressive: few hands, played hard.',
+  lag: 'Loose & aggressive: many hands, lots of pressure.',
+  rock: 'Tight & passive: folds often, rarely bluffs.',
+  station: 'Loose & passive: calls down, rarely folds or raises.',
 }
 
 /**
@@ -198,10 +198,10 @@ export const BOT_BLURBS: Readonly<Record<BotKind, string>> = {
  * this is the payoff of having kept {@link SessionPlayer.botKind} after anonymising the names.
  */
 export const BOT_TIPS: Readonly<Record<BotKind, string>> = {
-  tag: 'Solid and aggressive — respect their raises and rarely bluff into them.',
-  lag: 'Wide and aggressive — call down lighter and let them bluff into you.',
-  rock: 'Their bets mean strength — fold more, but steal their blinds relentlessly.',
-  station: 'Calls too much — value-bet thin and bluff less; they rarely fold.',
+  tag: 'Solid and aggressive: respect their raises and rarely bluff into them.',
+  lag: 'Wide and aggressive: call down lighter and let them bluff into you.',
+  rock: 'Their bets mean strength: fold more, but steal their blinds relentlessly.',
+  station: 'Calls too much: value-bet thin and bluff less; they rarely fold.',
 }
 
 /**

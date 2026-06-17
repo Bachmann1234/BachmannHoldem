@@ -57,7 +57,7 @@ export function CoachPanel({ coach }: CoachPanelProps): React.JSX.Element {
       ) : coach.kind === 'error' ? (
         <Text dimColor>{`  ${coach.message}`}</Text>
       ) : (
-        <Text dimColor>{'  No decision yet — act to see the coach read it.'}</Text>
+        <Text dimColor>{'  No decision yet, act to see the coach read it.'}</Text>
       )}
     </Box>
   )

@@ -552,14 +552,14 @@ function facingRaiseAdvice(
     if (tierAtLeast(tier, 'strong')) {
       return {
         advice: 'open',
-        rationale: `Facing ${sizeLabel} — a strong hand: 3-bet or call.`,
+        rationale: `Facing ${sizeLabel}, a strong hand: 3-bet or call.`,
         band,
         mode,
       }
     }
     return {
       advice: 'fold',
-      rationale: `Facing ${sizeLabel} — too steep a price for this hand; fold.`,
+      rationale: `Facing ${sizeLabel}: too steep a price for this hand; fold.`,
       band,
       mode,
     }
@@ -573,14 +573,14 @@ function facingRaiseAdvice(
     if (tierAtLeast(tier, 'strong')) {
       return {
         advice: 'open',
-        rationale: `Facing ${sizeLabel} — a strong hand worth continuing for value.`,
+        rationale: `Facing ${sizeLabel}: a strong hand worth continuing for value.`,
         band,
         mode,
       }
     }
     return {
       advice: 'fold',
-      rationale: `Facing ${sizeLabel} — fold this speculative hand to the raise.`,
+      rationale: `Facing ${sizeLabel}: fold this speculative hand to the raise.`,
       band,
       mode,
     }
@@ -596,7 +596,7 @@ function facingRaiseAdvice(
     if (tierAtLeast(tier, 'marginal')) {
       return {
         advice: 'open',
-        rationale: `Defending the big blind vs ${sizeLabel} — a fine price to continue.`,
+        rationale: `Defending the big blind vs ${sizeLabel}: a fine price to continue.`,
         band,
         mode,
       }
@@ -615,7 +615,7 @@ function facingRaiseAdvice(
   if (tierAtLeast(tier, 'strong')) {
     return {
       advice: 'open',
-      rationale: `Facing ${sizeLabel} — a strong hand worth calling the raise.`,
+      rationale: `Facing ${sizeLabel}: a strong hand worth calling the raise.`,
       band,
       mode,
     }
@@ -624,20 +624,20 @@ function facingRaiseAdvice(
     return inPosition
       ? {
           advice: 'open',
-          rationale: `Facing ${sizeLabel} in position — a fine price for a thin flat.`,
+          rationale: `Facing ${sizeLabel} in position: a fine price for a thin flat.`,
           band,
           mode,
         }
       : {
           advice: 'fold',
-          rationale: `Facing ${sizeLabel} out of position — fold this speculative cold-call.`,
+          rationale: `Facing ${sizeLabel} out of position: fold this speculative cold-call.`,
           band,
           mode,
         }
   }
   return {
     advice: 'fold',
-    rationale: `Facing ${sizeLabel} — fold this marginal hand to the raise.`,
+    rationale: `Facing ${sizeLabel}: fold this marginal hand to the raise.`,
     band,
     mode,
   }
@@ -707,7 +707,7 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
   if (action.type === 'check') {
     return {
       tier,
-      rationale: 'Big-blind option — no raise to call, so check and take the free flop.',
+      rationale: 'Big-blind option: no raise to call, so check and take the free flop.',
       advice: 'open',
       heroContinued: true,
       verdict: 'good',

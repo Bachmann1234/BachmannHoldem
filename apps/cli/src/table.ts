@@ -77,7 +77,7 @@ export function renderResult(state: HandState, heroSeat: number): string {
       if (p.status === 'folded') continue
       const hv = state.showdownHands[p.seat]
       lines.push(
-        `  ${who(p.seat)}: ${p.holeCards.map(formatCard).join(' ')}  — ${hv ? describeHand(hv) : ''}`,
+        `  ${who(p.seat)}: ${p.holeCards.map(formatCard).join(' ')}, ${hv ? describeHand(hv) : ''}`,
       )
     }
   } else {
@@ -150,7 +150,7 @@ export function renderGroundTruth(
   ]
   if (toCall > 0 && verdict.correctDecision !== truth.correct) {
     lines.push(
-      `  ⚠ Coach diverges from ground truth — its "${verdict.correctDecision}" would be a mistake here.`,
+      `  ⚠ Coach diverges from ground truth: its "${verdict.correctDecision}" would be a mistake here.`,
     )
   }
   return lines.join('\n')

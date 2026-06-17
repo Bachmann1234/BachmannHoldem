@@ -120,17 +120,17 @@ export const NUMBER_SENSE_TERMS: readonly NumberSenseTerm[] = [
   {
     term: 'Equity',
     meaning:
-      'Your share of the pot — how often you win it if all the cards came with no more betting. A coin-flip is 50% equity; the best hand has the most.',
+      'Your share of the pot: how often you win it if all the cards came with no more betting. A coin-flip is 50% equity; the best hand has the most.',
   },
   {
     term: 'Pot odds',
     meaning:
-      'The price you are being offered to call: what the call costs as a fraction of the pot you would win. Call 25 to win a pot of 100 and you are getting 4-to-1 — you need 20% equity.',
+      'The price you are being offered to call: what the call costs as a fraction of the pot you would win. Call 25 to win a pot of 100 and you are getting 4-to-1, so you need 20% equity.',
   },
   {
     term: 'Break-even equity',
     meaning:
-      'The least equity a call needs to be worth it — exactly your pot odds. Above it, calling makes money over time; below it, it loses. The quick-reference table is this number for common bet sizes.',
+      'The least equity a call needs to be worth it: exactly your pot odds. Above it, calling makes money over time; below it, it loses. The quick-reference table is this number for common bet sizes.',
   },
   {
     term: 'Outs',
@@ -140,11 +140,11 @@ export const NUMBER_SENSE_TERMS: readonly NumberSenseTerm[] = [
   {
     term: 'Rule of 2 and 4',
     meaning:
-      'The mental shortcut for a draw’s equity from its outs: on the flop multiply outs by 4 (two cards to come), on the turn by 2 (one card). Roughly right — close enough to decide.',
+      'The mental shortcut for a draw’s equity from its outs: on the flop multiply outs by 4 (two cards to come), on the turn by 2 (one card). Roughly right, close enough to decide.',
   },
   {
     term: 'EV',
     meaning:
-      'Expected value — what a decision is worth on average over many times, in chips. A +EV call gains chips in the long run even when it loses this once; a −EV call loses over time.',
+      'Expected value: what a decision is worth on average over many times, in chips. A +EV call gains chips in the long run even when it loses this once; a −EV call loses over time.',
   },
 ]
