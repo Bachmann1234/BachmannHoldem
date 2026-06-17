@@ -72,11 +72,11 @@ function QuitConfirm({
   readonly onConfirm: () => void
   readonly onCancel: () => void
 }): React.JSX.Element {
-  const confirmRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
-    confirmRef.current?.focus()
+    cancelRef.current?.focus()
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onCancel()
     }
@@ -117,11 +117,18 @@ function QuitConfirm({
         <p className="rules-p" style={{ padding: '0 1rem' }}>
           Your table and progress will be lost.
         </p>
-        <div style={{ display: 'flex', gap: '8px', padding: '0 1rem 1rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '0 1rem 1rem',
+          }}
+        >
           <button
             type="button"
             className="btn"
-            style={{ flex: 1 }}
+            ref={cancelRef}
             onClick={onCancel}
             data-testid="quit-confirm-cancel"
           >
@@ -129,9 +136,7 @@ function QuitConfirm({
           </button>
           <button
             type="button"
-            className="btn quit-cta"
-            style={{ flex: 1 }}
-            ref={confirmRef}
+            className="btn danger"
             onClick={onConfirm}
             data-testid="quit-confirm-end"
           >

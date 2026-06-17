@@ -772,6 +772,14 @@ body {
   border-color: var(--bad);
   color: var(--bad);
 }
+.btn.danger {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.btn.danger:hover {
+  background: color-mix(in oklch, var(--bad) 24%, transparent);
+}
 .btn.call:hover {
   border-color: var(--text-2);
 }
