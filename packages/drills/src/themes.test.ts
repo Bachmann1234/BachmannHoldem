@@ -15,8 +15,14 @@ import {
   type SessionItem,
 } from './themes.js'
 
-/** A spread of session seeds to exercise the composer across many distinct draws. */
-const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1)
+/**
+ * A spread of session seeds to exercise the composer across many distinct draws. Kept to 10 because the
+ * structural sweeps compose over the full catalogue — which includes the `equity-estimate` theme that
+ * runs the coach's Monte-Carlo equity read at GENERATION — so each composed session is several equity
+ * sims; 10 distinct seeds proves the (structural, not statistical) interleave/determinism invariants
+ * while keeping these sweeps well under the per-test timeout on CI's contended 2-core runner.
+ */
+const SEEDS = Array.from({ length: 10 }, (_, i) => i + 1)
 
 /** Look a theme up by id — the catalogue is small, so a find is fine and keeps the tests readable. */
 function theme(id: string): DrillTheme {

@@ -25,10 +25,12 @@ const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1)
 
 /**
  * A smaller seed slice for the invariants whose grade runs the coach's Monte-Carlo equity read
- * (`coachDecision`, ~4000 iterations per choice). A handful of distinct deals is plenty to prove the
- * no-answer-key invariant — the property is structural, not statistical — and keeps the suite fast.
+ * (`coachDecision`, ~4000 iterations per choice — and the turn/river + Call/Raise/Fold sweeps run it
+ * several times per spot). A handful of distinct deals is plenty to prove the no-answer-key invariant —
+ * the property is structural, not statistical — and keeping this small is what keeps these sweeps well
+ * under the per-test timeout on CI's contended 2-core runner (they were the M5.5 CI timeouts).
  */
-const COACH_SEEDS = SEEDS.slice(0, 8)
+const COACH_SEEDS = SEEDS.slice(0, 4)
 
 /** Every physical card a spot touches — hole cards plus any board — for the duplicate/legality checks. */
 function allCards(spot: CoachSpot | PreflopSpot): Card[] {

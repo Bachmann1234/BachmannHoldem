@@ -16,8 +16,11 @@ export default defineConfig({
     // instrumentation on a 2-core runner with every test file contending, which is several times
     // slower, so the stock 5s per-test timeout trips them. Raise the global floor well past that;
     // the single heaviest spot (exact preflop enumeration) sets its own larger timeout inline.
-    testTimeout: 60_000,
-    hookTimeout: 60_000,
+    // The M5.5 drill sweeps grade spots through the coach's Monte-Carlo equity read (and the
+    // equity-estimate theme runs one at generation), so their seed sweeps are kept small AND the
+    // floor is 120s — several × the worst observed CI time — so contention can never trip them.
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
     coverage: {
       provider: 'v8',
       // The pure, correctness-critical packages every later milestone trusts — the engine
