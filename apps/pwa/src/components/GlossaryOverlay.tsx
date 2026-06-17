@@ -3,9 +3,10 @@
  * everywhere a learner meets it: the starting-hand chart cells (`JTo`), the coach drawer's "your hand"
  * highlight, the seat tags on the felt (`BTN`/`SB`/`BB`), and the card faces. The chart's tap-to-decode
  * caption answers "what is *this* hand"; this answers "what does the *notation* mean" once, for the
- * whole system. A closing "Talking about hands" section goes past pure notation to the analytical
- * vocabulary a learner meets the moment they read a hand review or the coach's reasoning — hero,
- * villain, range, GTO — so the words are decoded in the same place as the symbols.
+ * whole system. Past pure notation it also defines the spoken poker vocabulary a learner meets in the
+ * lessons but not the rules: a "Draws and the board" section (flush draw, overcard, made hand, …) and
+ * a closing "Talking about hands" section for the analytical words a hand review or the coach leans on
+ * (hero, villain, range, GTO) — so the words are decoded in the same place as the symbols.
  *
  * **The beginner number-sense cheat-sheet (ticket 0081).** Because number sense is the beginner's whole
  * value prop (see [../../docs/LEARNING-APPROACH.md]), the overlay grows past a pure decode into a
@@ -59,27 +60,27 @@ const SECTIONS: readonly GlossarySection[] = [
     title: 'Starting hands',
     intro: 'How two cards are written. The higher rank comes first; T means Ten.',
     entries: [
-      { term: 'AA', meaning: `${describeHandClass('AA')} — two cards of the same rank` },
-      { term: 'AKs', meaning: `${describeHandClass('AKs')} — same suit ("s")` },
-      { term: 'JTo', meaning: `${describeHandClass('JTo')} — different suits ("o")` },
+      { term: 'AA', meaning: `${describeHandClass('AA')}: two cards of the same rank` },
+      { term: 'AKs', meaning: `${describeHandClass('AKs')}, same suit ("s")` },
+      { term: 'JTo', meaning: `${describeHandClass('JTo')}, different suits ("o")` },
     ],
   },
   {
     title: 'Strength tiers',
-    intro: 'The colour buckets on the chart — strongest to weakest.',
+    intro: 'The colour buckets on the chart, strongest to weakest.',
     entries: [
-      { term: 'Premium', meaning: 'The best hands — always raise.' },
-      { term: 'Strong', meaning: 'Clear value — open and bet.' },
-      { term: 'Playable', meaning: 'Speculative — open in position with a plan.' },
-      { term: 'Marginal', meaning: 'Thin — open only late; fold to pressure.' },
+      { term: 'Premium', meaning: 'The best hands; always raise.' },
+      { term: 'Strong', meaning: 'Clear value; open and bet.' },
+      { term: 'Playable', meaning: 'Speculative; open in position with a plan.' },
+      { term: 'Marginal', meaning: 'Thin: open only late; fold to pressure.' },
       // Hedged, not "makes no money over time" — a trash hand like K7o steals fine from the button
       // (the coach's no-false-universal rule, ticket 0056).
-      { term: 'Trash', meaning: 'Usually a fold — though the very bottom can still steal late.' },
+      { term: 'Trash', meaning: 'Usually a fold, though the very bottom can still steal late.' },
     ],
   },
   {
     title: 'Hand strength',
-    intro: 'The words behind a hand’s grade — why two similar hands can rate worlds apart.',
+    intro: 'The words behind a hand’s grade: why two similar hands can rate worlds apart.',
     // Built from the shared term registry so these definitions are byte-for-byte the ones the chart's
     // grade explanation links to (ticket 0064).
     entries: HAND_STRENGTH_TERM_ORDER.map((id) => ({
@@ -89,19 +90,66 @@ const SECTIONS: readonly GlossarySection[] = [
     })),
   },
   {
-    // The beginner number-sense vocabulary (ticket 0081) — the words behind the cheat-sheet tables below.
+    // The beginner number-sense vocabulary (ticket 0081): the words behind the cheat-sheet tables below.
     title: 'Number sense',
     intro:
-      'The math words a beginner lives by — and the cheat-sheet tables that follow put numbers on them.',
+      'The math words a beginner lives by, and the cheat-sheet tables below put numbers on them.',
     entries: NUMBER_SENSE_TERMS.map((t) => ({ term: t.term, meaning: t.meaning })),
+  },
+  {
+    title: 'Draws and the board',
+    intro:
+      'Whether your hand is already complete or still needs a card, and how it ranks against the board.',
+    entries: [
+      {
+        term: 'Made hand',
+        meaning:
+          'A hand that is already complete: a pair or better that can win at showdown with no more help. The opposite of a draw.',
+      },
+      {
+        term: 'Flush draw',
+        meaning:
+          'Four cards of one suit, one short of a flush. With the turn and river still to come you complete it about 35% of the time: a strong, common draw.',
+      },
+      {
+        term: 'Gutshot',
+        meaning:
+          'An inside straight draw: four to a straight, but you need one specific middle rank, like 9-8-7-5 waiting on a 6. Only four cards complete it, so it is the weakest straight draw.',
+      },
+      {
+        term: 'Open-ended',
+        meaning:
+          'A straight draw open at both ends, like 8-7-6-5: a 9 or a 4 makes it. Eight cards complete it, twice as many as a gutshot.',
+      },
+      {
+        term: 'Overcard',
+        meaning:
+          'A card higher than every card on the board. Holding A-Q on a 9-7-2 flop, both your cards are overcards: unpaired, but still live to make the top pair.',
+      },
+      {
+        term: 'Top pair',
+        meaning:
+          'Pairing the highest card on the board with one of your cards: a solid, everyday made hand. Its strength rides on your kicker.',
+      },
+      {
+        term: 'Overpair',
+        meaning:
+          'A pocket pair higher than every board card, like QQ on a 9-7-2 flop. It beats any top pair the board can make.',
+      },
+      {
+        term: 'Underpair',
+        meaning:
+          'A pocket pair lower than the top board card, like 99 on an A-7-2 flop. Anyone holding that ace already has you beat.',
+      },
+    ],
   },
   {
     title: 'Table positions',
     intro: 'The tags beside the seats. Position decides how early you must act.',
     entries: [
-      { term: 'BTN', meaning: 'Button — the dealer; acts last after the flop (best seat).' },
-      { term: 'SB', meaning: 'Small blind — a forced bet to the button’s left.' },
-      { term: 'BB', meaning: 'Big blind — the larger forced bet; acts last preflop.' },
+      { term: 'BTN', meaning: 'Button: the dealer; acts last after the flop (best seat).' },
+      { term: 'SB', meaning: 'Small blind: a forced bet to the button’s left.' },
+      { term: 'BB', meaning: 'Big blind: the larger forced bet; acts last preflop.' },
     ],
   },
   {
@@ -109,23 +157,23 @@ const SECTIONS: readonly GlossarySection[] = [
     intro: 'A card is a rank plus a suit.',
     entries: [
       { term: '♠ ♥ ♦ ♣', meaning: 'Spades, hearts, diamonds, clubs.' },
-      { term: 'A K Q J T', meaning: 'Ace, King, Queen, Jack, Ten — then 9 down to 2.' },
+      { term: 'A K Q J T', meaning: 'Ace, King, Queen, Jack, Ten, then 9 down to 2.' },
       { term: 'A♥', meaning: 'The Ace of hearts (rank, then suit).' },
     ],
   },
   {
     title: 'Talking about hands',
-    intro: 'The words players use to discuss a hand — in reviews, forums, and the coach.',
+    intro: 'The words players use to discuss a hand, in reviews, forums, and the coach.',
     entries: [
       {
         term: 'Hero',
         meaning:
-          'You — the player whose decision is under the microscope. When a hand is reviewed, the hero is the one you follow.',
+          'You: the player whose decision is under the microscope. When a hand is reviewed, the hero is the one you follow.',
       },
       {
         term: 'Villain',
         meaning:
-          'Your opponent. Not an insult — just the neutral name for the player whose hand you have to reason about.',
+          'Your opponent. Not an insult, just the neutral name for the player whose hand you have to reason about.',
       },
       {
         term: 'Range',
@@ -135,7 +183,7 @@ const SECTIONS: readonly GlossarySection[] = [
       {
         term: 'GTO',
         meaning:
-          'Game-theory optimal — a balanced, unexploitable baseline strategy. The "textbook" play to measure yourself against.',
+          'Game-theory optimal: a balanced, unexploitable baseline strategy. The "textbook" play to measure yourself against.',
       },
     ],
   },

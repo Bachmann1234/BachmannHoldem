@@ -29,27 +29,27 @@ export const GLOSSARY_TERMS: Readonly<Record<GradeTermId, GlossaryTerm>> = {
   nuts: {
     term: 'Nuts',
     meaning:
-      'The best possible hand right now — nobody can beat it. An ace-high flush, for instance, is the nut flush: no other flush tops it.',
+      'The best possible hand right now; nobody can beat it. An ace-high flush, for instance, is the nut flush: no other flush tops it.',
   },
   kicker: {
     term: 'Kicker',
     meaning:
-      'Your unused side card. When two players pair the same card, the higher kicker wins — so a weak kicker is what makes a hand like K9 risky.',
+      'Your unused side card. When two players pair the same card, the higher kicker wins, so a weak kicker is what makes a hand like K9 risky.',
   },
   dominated: {
     term: 'Dominated',
     meaning:
-      'A hand that looks similar to a stronger one but loses the big pots. K9 is dominated by A9 — both pair the nine, but K9 is out-kicked every time.',
+      'A hand that looks similar to a stronger one but loses the big pots. K9 is dominated by A9: both pair the nine, but K9 is out-kicked every time.',
   },
   set: {
     term: 'Set',
     meaning:
-      'Three of a kind made with a pocket pair — your two matching cards plus a third on the board. Well disguised and very strong; it is what small pairs chase.',
+      'Three of a kind made with a pocket pair: your two matching cards plus a third on the board. Well disguised and very strong; it is what small pairs chase.',
   },
   'suited-connector': {
     term: 'Suited connector',
     meaning:
-      'Two cards in a row of the same suit, like 9♥8♥. It rarely makes a big pair but makes straights and flushes — speculative hands that can win a large pot.',
+      'Two cards in a row of the same suit, like 9♥8♥. It rarely makes a big pair but makes straights and flushes: speculative hands that can win a large pot.',
   },
 }
 
