@@ -2,7 +2,7 @@
 id: 0087
 title: Play-side stats aggregation (VPIP / PFR / aggression / fold-to-3bet, overall + by position)
 type: feature
-status: todo
+status: done
 milestone: M6
 priority: high
 created: 2026-06-16
@@ -17,23 +17,23 @@ both **overall** and **by position**. This is the read-side projection the Stats
 
 ## Acceptance criteria
 
-- [ ] A pure module (`apps/pwa/src/history/stats.ts`) that projects `HandHistoryRecord[]` →
+- [x] A pure module (`apps/pwa/src/history/stats.ts`) that projects `HandHistoryRecord[]` →
       aggregated stats. **No new store, no second aggregation pass** — a pure function of the records
       the existing `HandHistoryStore.list()` returns, exactly the way `drills/mastery.ts` projects the
       drill store's records.
-- [ ] Computes, **overall** and **broken down by `Position`**: VPIP, PFR, aggression factor
+- [x] Computes, **overall** and **broken down by `Position`**: VPIP, PFR, aggression factor
       ((bets+raises)/calls), and fold-to-3bet. Each stat carries its **sample size** (the count it was
       computed over) alongside the value, so a thin sample is visible as thin (mirrors
       `ConceptMastery.reps`).
-- [ ] Position is derived by **reusing `classifyPosition` / `Position` from `@holdem/coach`** (the
+- [x] Position is derived by **reusing `classifyPosition` / `Position` from `@holdem/coach`** (the
       5-bucket `early`/`middle`/`late`/`small-blind`/`big-blind` model), fed from the record's
       `buttonIndex` + `heroSeat` + `seatCount`. Do **not** reinvent position arithmetic.
-- [ ] Records lacking the v2 fields ([[0086-history-record-position-facing]]) — old v1 records with no
+- [x] Records lacking the v2 fields ([[0086-history-record-position-facing]]) — old v1 records with no
       `buttonIndex` / facing context — are **excluded** from the position and fold-to-3bet aggregates
       (counted only where their data supports it), never crashing the aggregation.
-- [ ] Co-located unit tests (jsdom-free) over hand-crafted record arrays: VPIP/PFR/AF math, the
+- [x] Co-located unit tests (jsdom-free) over hand-crafted record arrays: VPIP/PFR/AF math, the
       fold-to-3bet derivation, the by-position split, empty input, and v1-record tolerance.
-- [ ] `pnpm verify` fully green.
+- [x] `pnpm verify` fully green.
 
 ## Notes
 

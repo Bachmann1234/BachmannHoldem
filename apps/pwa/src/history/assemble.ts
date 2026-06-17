@@ -83,6 +83,9 @@ export function assembleRecord(
     // The dealer button is constant for the hand, so capture it once here from the completed hand
     // (schema v2, ticket 0086) — with heroSeat + seatCount it makes the hero's position derivable.
     buttonIndex: hand.buttonIndex,
+    // The big blind is constant for the hand (schema v2, ticket 0087) — captured so fold-to-3bet can
+    // tell a genuine open (raise into an unraised pot, currentBet === bigBlind) from a cold 3bet.
+    bigBlind: hand.bigBlind,
     decisions: [...decisions],
     outcome: {
       board: [...hand.board],

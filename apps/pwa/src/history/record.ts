@@ -156,6 +156,14 @@ export interface HandHistoryRecord {
    * the aggregation treats a missing `buttonIndex` as "position unknown / not countable".
    */
   readonly buttonIndex?: number
+  /**
+   * The hand's big-blind size (schema v2, ticket 0087). Captured so fold-to-3bet can tell a genuine
+   * *open* (RFI / raise into an unraised pot) apart from a *cold 3bet*: a first preflop raise is the
+   * hero's open only when its faced `currentBet === bigBlind` (an unraised pot — limps keep
+   * `currentBet` at the BB). Optional: v1/v2-without-it records pre-date it, so the aggregation treats
+   * a missing `bigBlind` as "open undeterminable / not countable for fold-to-3bet".
+   */
+  readonly bigBlind?: number
   /** The hero's voluntary decisions, in order — the M6-critical signal. */
   readonly decisions: readonly HeroDecision[]
   /** The settled outcome of the hand. */

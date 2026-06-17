@@ -2,3 +2,4 @@
 export * from './record.js'
 export * from './store.js'
 export * from './assemble.js'
+export * from './stats.js'

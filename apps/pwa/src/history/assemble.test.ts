@@ -67,6 +67,8 @@ describe('assembleRecord', () => {
     expect(rec.heroSeat).toBe(0)
     // Schema v2: the dealer button seat is captured from the completed hand (here, seat 0).
     expect(rec.buttonIndex).toBe(0)
+    // Schema v2 (0087): the big blind is captured so fold-to-3bet can identify a genuine open.
+    expect(rec.bigBlind).toBe(2)
     expect(rec.schemaVersion).toBe(2)
     expect(rec.decisions).toEqual(decisions)
     expect(rec.outcome.endReason).toBe('fold')
