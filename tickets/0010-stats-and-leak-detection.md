@@ -2,7 +2,7 @@
 id: 0010
 title: 'Epic: Stats & leak detection'
 type: epic
-status: in-progress
+status: done
 milestone: M6
 priority: medium
 created: 2026-06-13
@@ -15,9 +15,9 @@ feedback on your own tendencies.
 
 ## Acceptance criteria
 
-- [ ] Aggregate hand history → stats (VPIP, aggression, fold-to-3bet, by position)
-- [ ] Flag recurring leaks ("you over-fold the big blind")
-- [ ] **Sample-size gating:** never surface a leak/stat as actionable below a minimum sample
+- [x] Aggregate hand history → stats (VPIP, aggression, fold-to-3bet, by position)
+- [x] Flag recurring leaks ("you over-fold the big blind")
+- [x] **Sample-size gating:** never surface a leak/stat as actionable below a minimum sample
       (and ideally show a confidence/"need N more hands" cue) — HUD stats are noise on small
       samples
 
