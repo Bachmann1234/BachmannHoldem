@@ -58,6 +58,27 @@ export function DrillsIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
   )
 }
 
+/** A small bar chart — the Stats tab (the M6 "analyze my hands" surface, ticket 0089). */
+export function StatsIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M5 20V11" />
+      <path d="M12 20V4" />
+      <path d="M19 20v-6" />
+    </svg>
+  )
+}
+
 /** A back arrow — the lesson app bar's back affordance. */
 export function BackIcon(props: SVGProps<SVGSVGElement>): React.JSX.Element {
   return (

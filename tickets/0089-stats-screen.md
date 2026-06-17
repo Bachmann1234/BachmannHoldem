@@ -2,7 +2,7 @@
 id: 0089
 title: Stats screen + nav (play stats + leaks + drill mastery readout)
 type: feature
-status: todo
+status: done
 milestone: M6
 priority: medium
 created: 2026-06-16
@@ -18,24 +18,24 @@ exists. The ROADMAP frames "Analyze my hands" as one of the three co-equal ways 
 
 ## Acceptance criteria
 
-- [ ] A `StatsView` (in `apps/pwa/src/components/`) reachable as a new `'stats'` top-level tab: extend
+- [x] A `StatsView` (in `apps/pwa/src/components/`) reachable as a new `'stats'` top-level tab: extend
       `TabBar`'s `Tab` union + the tab list, and add a `StatsBranch` render path in `App.tsx`
       (matching the existing `LearnBranch` / `DrillsBranch` shape), reusing the stores `App` already
       creates (`historyStore` for play stats, `drillProgressStore` for mastery).
-- [ ] **Play-side section:** renders VPIP / PFR / aggression / fold-to-3bet (overall, with the
+- [x] **Play-side section:** renders VPIP / PFR / aggression / fold-to-3bet (overall, with the
       by-position breakdown available), each showing its **sample size** ("over N hands"), reading
       through `HandHistoryStore.list()` → [[0087-play-stats-aggregation]]. Async read degrades to an
       inline notice on failure (never a crash) — mirror `HistoryView`'s load-state handling.
-- [ ] **Leaks section:** renders [[0088-leak-detection]] results — confirmed leaks shown plainly, and
+- [x] **Leaks section:** renders [[0088-leak-detection]] results — confirmed leaks shown plainly, and
       **below-sample candidates shown as a "need N more hands" cue**, never as a confirmed leak. The
       empty / not-enough-data state reads as encouraging ("keep playing — N hands so far"), not blank.
-- [ ] **Drill-side section:** surfaces the existing per-concept mastery readout by **reading
+- [x] **Drill-side section:** surfaces the existing per-concept mastery readout by **reading
       `drills/mastery.ts`** (`masteryByConcept` / `formatMastery`) over the drill store — **no
       re-aggregation**. Read-only here; this is the unified "how am I doing" home, the Drills lobby
       keeps its own inline readout.
-- [ ] Matches the established PWA design idioms (the existing CSS/components, glossary/jargon
+- [x] Matches the established PWA design idioms (the existing CSS/components, glossary/jargon
       affordances where stat names appear) — it should read as part of the same app, not a bolt-on.
-- [ ] Tests (`StatsView.test.tsx` + an `App.nav`-style test) cover: the tab navigates, populated
+- [x] Tests (`StatsView.test.tsx` + an `App.nav`-style test) cover: the tab navigates, populated
       stats render with samples, the below-sample leak cue renders instead of a confirmed leak, and
       the empty state renders. `pnpm verify` fully green.
 

@@ -122,11 +122,11 @@
    §5.1 NAVIGATION
    ============================================================ */
 
-/* ---- A · bottom tab bar (Play / Learn / Drills) ---- */
+/* ---- A · bottom tab bar (Play / Learn / Drills / Stats) ---- */
 .tabbar {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 2px;
   padding: 8px 14px calc(12px + env(safe-area-inset-bottom));
   background: linear-gradient(0deg, var(--bg), var(--bg) 72%, transparent);
