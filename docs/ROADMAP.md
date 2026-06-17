@@ -63,11 +63,20 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   existed, so it was built here as the shared durable store M6 stats will consume. Its epic is
   [`0076`](../tickets/0076-drills-v2.md).
 - **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
-  feedback built on stored hand history.
-- **M7 — LLM coaching (optional).** Natural-language narration on top of the trustworthy math.
-  Last because it's polish and the only thing needing a network boundary.
-- **stretch — GTO.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Deliberately
-  last: research-grade effort, and everything else should be solid first.
+  feedback built on stored hand history. **This is the last committed milestone.**
+
+### Deferred — ideas, not committed
+
+Parked as maybe-someday ideas, deliberately off the committed arc. They only get pulled if they
+clearly earn their cost; until then they're not planned work.
+
+- **LLM coaching (was M7).** Natural-language narration on top of the trustworthy math — the LLM would
+  _explain_ the deterministic numbers, never compute them. **Deprioritized:** it's pure polish and the
+  only thing in the whole app that would need a network boundary (a serverless key-proxy), and that
+  cost isn't worth it just for narration — the deterministic math coach already stands on its own.
+  Parked as an idea ([`0011`](../tickets/0011-llm-coaching.md)).
+- **GTO solver.** Solver-driven play, swapped in behind the M2 `Opponent` seam. Research-grade effort,
+  and everything else should be solid first ([`0012`](../tickets/0012-gto-solver.md)).
 
 (The half-steps **M3.5**, **M4.5**, **M4.6**, and **M5.5** are numbered that way deliberately: each
 slots a step into the arc without renumbering the rest. M3.5 puts a terminal UI between the coach and
@@ -90,8 +99,9 @@ Your "all three eventually" maps onto the arc rather than being separate tracks:
 
 - **The poker brain is the asset; the UI is a swappable shell.** Engine/odds/bots/coach are pure
   TS with no UI or network deps.
-- **Determinism for correctness, LLM only for narration.** Every verdict is math we own; the LLM
-  (M7) just explains it and is always optional / offline-degradable.
+- **Determinism for correctness, LLM only for narration.** Every verdict is math we own; an LLM layer
+  would only explain it and stay optional / offline-degradable — which is exactly why it's a deferred
+  idea, not a committed milestone (a network boundary isn't worth it just for narration).
 - **Front-load the hard, high-value work.** Correctness-critical code ships and is tested before
   any pixels exist.
 
