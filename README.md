@@ -7,8 +7,10 @@ coaching on odds and betting strategy, with the goal of actually getting better 
 
 - **TypeScript**, client-only — no backend. Two frontends share the pure poker packages: an
   **Ink (React-for-the-terminal) TUI** (`pnpm play`) and the installable **React PWA** (`pnpm
-play:pwa`) — play vs bots with an on-demand coach. The PWA also has a **Learn the fundamentals**
-  primer (a short, retrieval-checked concept course graded by the same coach math). Both run offline.
+play:pwa`) — play vs bots with an on-demand coach. The PWA adds three more surfaces: a **Learn the
+  fundamentals** primer (a short, retrieval-checked concept course graded by the same coach math),
+  themed **Drills** with spaced-repetition mastery, and a **Stats** screen that turns your stored
+  hand history into stats and leak detection. Both run offline.
 - **React** for both shells, **Vite** + `vite-plugin-pwa` for the PWA build + service worker.
 - **pnpm** workspace monorepo, **Vitest** for tests.
 - Equity simulations run in a **Web Worker** to keep the UI smooth.
@@ -31,7 +33,7 @@ packages/format      action-input grammar + coach value formatters           (pu
 packages/session     shared MVU model + reducer (session state machine)      (pure TS)
 apps/tui             Ink (React-for-the-terminal) play client — the play UI   (Node)
 apps/cli             headless scriptable engine harness — deterministic smoke-test  (Node)
-apps/pwa             React PWA — Android/web shell; Play + Learn the fundamentals
+apps/pwa             React PWA — Android/web shell; Play / Learn / Drills / Stats (hand-history stats + leak detection)
 ```
 
 Why this layering: the hard, high-value work (rules correctness + equity math) is fully

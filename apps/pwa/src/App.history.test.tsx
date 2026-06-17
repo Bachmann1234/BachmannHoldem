@@ -9,13 +9,36 @@
 import { StrictMode } from 'react'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { parseCards, type Card } from '@holdem/engine'
-import { callingStation, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
+import { parseCards, type Action, type Card } from '@holdem/engine'
+import {
+  callingStation,
+  heuristicOpponent,
+  TIGHT_AGGRESSIVE,
+  type DecisionContext,
+  type Opponent,
+} from '@holdem/bots'
 import { App } from './App.js'
 import type { HandHistoryRecord, HandHistoryStore } from './history/index.js'
 import { InMemoryLiveSessionStore } from './session/store.js'
 
 afterEach(cleanup)
+
+/**
+ * A fully scripted opponent: pops the next action off a fixed queue each time it is asked to decide,
+ * falling back to a passive check/call once the script is exhausted. Lets the facing-context tests pin
+ * the EXACT betting the hero faces each street (open / 3bet) without depending on a heuristic's seed.
+ */
+function scriptedBot(actions: readonly Action[]): Opponent {
+  let i = 0
+  return {
+    decide(ctx: DecisionContext): Action {
+      const scripted = actions[i++]
+      if (scripted !== undefined) return scripted
+      // Exhausted: continue cheaply so the hand can run out without further scripting.
+      return ctx.legalActions.check ? { type: 'check' } : { type: 'call' }
+    },
+  }
+}
 
 /** Build a deck dealing exactly the given hole cards + board (mirrors App.test's helper). */
 function buildDeck(n: number, button: number, holesBySeat: string[], board: string): Card[] {
@@ -100,6 +123,103 @@ describe('App — hand-history recording seam', () => {
     expect(rec.decisions.length).toBeGreaterThan(0)
     for (const d of rec.decisions) {
       expect(['fold', 'check', 'call', 'bet', 'raise']).toContain(d.action.type)
+    }
+  })
+
+  it('captures the dealer buttonIndex on the record (schema v2)', async () => {
+    const store = new FakeStore()
+    // Hand 1 always seats the button on the hero (the reducer opens every session at buttonId 0), so
+    // the captured buttonIndex pins to seat 0 — enough, with heroSeat + seatCount, to derive position.
+    const deck = buildDeck(2, 0, ['Ks Kd', '7h 2c'], 'Kh 8d 3s 4c 2d')
+    const opponent = heuristicOpponent(TIGHT_AGGRESSIVE, 7)
+    render(
+      <App
+        initial={{ seats: 2 }}
+        decks={[deck]}
+        makeBot={() => opponent}
+        botDelayMs={0}
+        historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
+      />,
+    )
+
+    await playOneHandToOver()
+    expect(store.appended).toHaveLength(1)
+    expect(store.appended[0]!.buttonIndex).toBe(0)
+    expect(store.appended[0]!.schemaVersion).toBe(2)
+  })
+
+  it('captures per-decision facing context: unraised, facing an open, facing a 3bet (schema v2)', async () => {
+    const store = new FakeStore()
+    // Heads-up, button (= SB) on the hero (seat 0). Blinds 1/2. The bot 3bets preflop, then we run a
+    // second hand to reach a clean unraised postflop spot — so across the two records we observe all
+    // three facing shapes the M6 fold-to-3bet / position work needs.
+    const decks = [
+      // Hand 1: hero (SB) opens (the default min-raise to 4) → bot (BB) 3bets to 18 → hero folds.
+      // Two preflop hero decisions.
+      buildDeck(2, 0, ['Ah Kh', 'Qs Qd'], 'Kc 8d 3s 4c 2h'),
+      // Hand 2: button rotates to seat 1; the bot (now SB/button) just calls, hero (BB) checks the
+      // option, then both check the flop — giving an unraised (toCall 0, currentBet 0) hero decision.
+      buildDeck(2, 1, ['Ah Kh', 'Qs Qd'], 'Kc 8d 3s 4c 2h'),
+    ]
+    // Hand 1 script: bot is BB and 3bets to 18; hand 2 script: bot is SB/button and limp-calls.
+    const bot = scriptedBot([{ type: 'raise', amount: 18 }])
+    render(
+      <App
+        initial={{ seats: 2 }}
+        decks={decks}
+        makeBot={() => bot}
+        botDelayMs={0}
+        historyStore={store}
+        sessionStore={new InMemoryLiveSessionStore()}
+      />,
+    )
+
+    // --- Hand 1: hero opens (min-raise to 4), faces the 3bet, folds ---
+    await act(async () => screen.getByRole('button', { name: /Deal in/ }).click())
+    await flush()
+    // Hero (SB) is first to act preflop, facing the BB: open the pot (the default min-raise to 4).
+    await act(async () => screen.getByRole('button', { name: /^Raise to/ }).click())
+    // Bot 3bets to 18 (its script); wait for the hero to be back on turn facing it, then fold. Poll
+    // (the bot's dispatch resolves in a delayed microtask) rather than assuming a fixed flush count.
+    const fold = await screen.findByRole('button', { name: /^Fold$/ })
+    await act(async () => fold.click())
+    await flush()
+    expect(screen.getByRole('button', { name: /Deal next hand/ })).toBeTruthy()
+
+    expect(store.appended).toHaveLength(1)
+    const hand1 = store.appended[0]!
+    expect(hand1.decisions).toHaveLength(2)
+    // Decision 0: facing the BB's 2 as the SB who has posted 1 → toCall 1 over a currentBet of 2.
+    expect(hand1.decisions[0]!.action).toEqual({ type: 'raise', amount: 4 })
+    expect(hand1.decisions[0]!.facing).toEqual({ toCall: 1, currentBet: 2 })
+    // Decision 1: facing the 3bet to 18 having already put in 4 → toCall 14 over a currentBet of 18.
+    expect(hand1.decisions[1]!.action).toEqual({ type: 'fold' })
+    expect(hand1.decisions[1]!.facing).toEqual({ toCall: 14, currentBet: 18 })
+
+    // --- Hand 2: reach an unraised hero decision (toCall 0, currentBet 0) ---
+    await act(async () => screen.getByRole('button', { name: /Deal next hand/ }).click())
+    // Drive the hero passively (check/call) until the next play-again CTA: every check the hero makes
+    // facing no bet is an unraised decision we can assert on from the record.
+    for (let i = 0; i < 40; i++) {
+      await flush()
+      if (screen.queryByRole('button', { name: /Deal next hand/ })) break
+      const check = screen.queryByRole('button', { name: /^Check$/ })
+      const call = screen.queryByRole('button', { name: /^Call/ })
+      if (check) await act(async () => check.click())
+      else if (call) await act(async () => call.click())
+    }
+
+    expect(store.appended).toHaveLength(2)
+    const hand2 = store.appended[1]!
+    // At least one hero decision in hand 2 was made facing no bet — an unraised spot.
+    const unraised = hand2.decisions.find((d) => d.facing?.currentBet === 0)
+    expect(unraised).toBeDefined()
+    expect(unraised!.facing).toEqual({ toCall: 0, currentBet: 0 })
+    // Every captured decision carries plain-number facing (round-trips through save/resume as data).
+    for (const d of hand2.decisions) {
+      expect(typeof d.facing?.toCall).toBe('number')
+      expect(typeof d.facing?.currentBet).toBe('number')
     }
   })
 

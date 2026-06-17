@@ -137,4 +137,30 @@ describe('App — top-level navigation', () => {
     expect(screen.queryByTestId('drills')).toBeNull()
     expect(screen.getByTestId('setup')).toBeTruthy()
   })
+
+  it('switches to Stats and shows the play stats / leaks / mastery sections (ticket 0089)', async () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    // The lobby tab bar now offers a Stats destination.
+    expect(screen.getByTestId('tab-stats')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('tab-stats'))
+
+    // The Stats screen renders, with its three read-only sections + the lobby tab bar. The sections
+    // are present immediately (loading state) regardless of the async store read, so no waitFor needed.
+    expect(screen.getByTestId('stats')).toBeTruthy()
+    expect(screen.getByTestId('play-stats')).toBeTruthy()
+    expect(screen.getByTestId('leaks')).toBeTruthy()
+    expect(screen.getByTestId('mastery')).toBeTruthy()
+    expect(within(screen.getByTestId('stats')).getByTestId('tabbar')).toBeTruthy()
+  })
+
+  it('returns to Play from the Stats tab bar (and keeps Play mounted across the switch)', () => {
+    render(<App initial={{ seats: 2 }} botDelayMs={0} />)
+
+    fireEvent.click(screen.getByTestId('tab-stats'))
+    fireEvent.click(within(screen.getByTestId('stats')).getByTestId('tab-play'))
+
+    expect(screen.queryByTestId('stats')).toBeNull()
+    expect(screen.getByTestId('setup')).toBeTruthy()
+  })
 })

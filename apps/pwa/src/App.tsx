@@ -53,6 +53,7 @@ import { EndOfPrimer } from './components/EndOfPrimer.js'
 import { LearnView } from './components/LearnView.js'
 import { LessonPlayer } from './components/LessonPlayer.js'
 import { SetupScreen } from './components/SetupScreen.js'
+import { StatsView } from './components/StatsView.js'
 import { Summary } from './components/Summary.js'
 import { Table } from './components/Table.js'
 import type { Tab } from './components/TabBar.js'
@@ -142,13 +143,16 @@ export interface AppProps {
  * The interactive app. A `sessionKey` keys the inner {@link Session} so "New table" remounts a
  * brand-new session (fresh reducer state + fresh bot/deck refs) without any reset plumbing.
  *
- * **Top-level navigation (ticket 0046, extended for Drills in 0067)** lives here as app-shell state —
- * `activeTab` (`'play'` | `'learn'` | `'drills'`, boot lands on `'play'`), exactly like the coach-drawer
- * open flag: it is UI, NOT poker state, so it deliberately stays out of the `@holdem/session` reducer
- * (keeping the session model unpolluted). The `'play'` branch renders the unchanged {@link Session}; the
- * `'learn'` branch renders the {@link LearnBranch} (the Foundations path + lesson player); the `'drills'`
- * branch renders the {@link DrillsBranch} (the M5 themed drill loop). The bottom tab bar shows only on the
- * lobby surfaces (the Play setup, the Learn path, the Drills lobby) — `onNavigate` is threaded down to all.
+ * **Top-level navigation (ticket 0046, extended for Drills in 0067, Stats in 0089)** lives here as
+ * app-shell state — `activeTab` (`'play'` | `'learn'` | `'drills'` | `'stats'`, boot lands on `'play'`),
+ * exactly like the coach-drawer open flag: it is UI, NOT poker state, so it deliberately stays out of the
+ * `@holdem/session` reducer (keeping the session model unpolluted). The `'play'` branch renders the
+ * unchanged {@link Session}; the `'learn'` branch renders the {@link LearnBranch} (the Foundations path +
+ * lesson player); the `'drills'` branch renders the {@link DrillsBranch} (the M5 themed drill loop); the
+ * `'stats'` branch renders the {@link StatsView} (the M6 play stats + leaks + drill-mastery readout,
+ * reading the SAME `historyStore` + `drillProgressStore`). The bottom tab bar shows only on the lobby
+ * surfaces (the Play setup, the Learn path, the Drills lobby, the Stats screen) — `onNavigate` is threaded
+ * down to all.
  *
  * Crucially the {@link Session} is kept *mounted* across tab switches (rendered hidden when Learn is
  * active) so flipping to Learn and back never tears down a live hand — switching tabs is navigation,
@@ -205,6 +209,13 @@ export function App(props: AppProps): React.JSX.Element {
       ) : null}
       {activeTab === 'drills' ? (
         <DrillsBranch onNavigate={onNavigate} progressStore={drillProgressStore} />
+      ) : null}
+      {activeTab === 'stats' ? (
+        <StatsView
+          onNavigate={onNavigate}
+          historyStore={historyStore}
+          drillProgressStore={drillProgressStore}
+        />
       ) : null}
     </div>
   )
@@ -478,7 +489,16 @@ function Session({
     // the buffer reflects the live hand. `onAction` only fires from the hero's ActionBar; the guard
     // is belt-and-suspenders. Blind posts never come through here, so VPIP/PFR stay correct for M6.
     if (isHeroTurn && hand !== null) {
-      decisionsRef.current.push({ street: hand.street, action })
+      // Schema v2 (ticket 0086): also capture what the hero faced at THIS decision, read from the
+      // live pre-action hand (so the values are correct per street). `currentBet` is the street's
+      // faced bet level; `toCall = currentBet − the hero seat's committed` (clamped at 0 defensively,
+      // matching `legalActions`). Plain numbers, so they ride through the save/resume buffer as data.
+      const committed = hand.players[heroSeat]?.committed ?? 0
+      const facing = {
+        toCall: Math.max(0, hand.currentBet - committed),
+        currentBet: hand.currentBet,
+      }
+      decisionsRef.current.push({ street: hand.street, action, facing })
     }
     dispatch({ type: 'apply-action', action })
   }

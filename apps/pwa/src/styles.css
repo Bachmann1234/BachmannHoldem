@@ -920,6 +920,110 @@ body {
   width: 100%;
 }
 
+/* ============ stats screen (ticket 0089) ============ */
+/* A card's section header — a bold label on the left, the sample/sub note on the right. */
+.stat-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stat-section-head .setup-label {
+  flex: 0 0 auto;
+  font-weight: 750;
+}
+/* The right-hand value column of a stat row: the number above, the sample phrase below it. */
+.stat-value {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.stat-num {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stat-sample {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+/* A collapsible by-position breakdown — the position name + sample as the summary, stats within. */
+.stat-position {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.stat-position-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.stat-position-head::-webkit-details-marker {
+  display: none;
+}
+.stat-position-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+/* A leak row — confirmed is plain/accented; pending is muted with a "need N more hands" cue. */
+.leak-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.leak-confirmed {
+  border-color: var(--bad, var(--accent));
+}
+.leak-confirmed .leak-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--bad, var(--accent));
+}
+.leak-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+.leak-pending {
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0.85;
+}
+.leak-pending .leak-desc {
+  color: var(--text-2);
+}
+.leak-need {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+}
+
 /* ============ session summary (ticket 0035) ============ */
 .summary {
   flex: 1 1 auto;
