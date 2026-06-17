@@ -80,6 +80,9 @@ export function assembleRecord(
     seatCount: hand.players.length,
     players: historyPlayers,
     heroSeat,
+    // The dealer button is constant for the hand, so capture it once here from the completed hand
+    // (schema v2, ticket 0086) — with heroSeat + seatCount it makes the hero's position derivable.
+    buttonIndex: hand.buttonIndex,
     decisions: [...decisions],
     outcome: {
       board: [...hand.board],

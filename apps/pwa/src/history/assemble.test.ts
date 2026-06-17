@@ -65,6 +65,9 @@ describe('assembleRecord', () => {
     expect(rec.handNumber).toBe(1)
     expect(rec.seatCount).toBe(2)
     expect(rec.heroSeat).toBe(0)
+    // Schema v2: the dealer button seat is captured from the completed hand (here, seat 0).
+    expect(rec.buttonIndex).toBe(0)
+    expect(rec.schemaVersion).toBe(2)
     expect(rec.decisions).toEqual(decisions)
     expect(rec.outcome.endReason).toBe('fold')
     // Hero committed 6, won back 6 (uncalled) + 2 (BB) = 8 → net +2 (the big blind).

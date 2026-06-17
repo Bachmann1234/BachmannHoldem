@@ -2,7 +2,7 @@
 id: 0086
 title: Extend hand-history record (schema v2) with button + per-decision facing context
 type: feature
-status: todo
+status: done
 milestone: M6
 priority: high
 created: 2026-06-16
@@ -25,21 +25,21 @@ record-assembly time** and bump the schema to v2. This ticket is the data founda
 
 ## Acceptance criteria
 
-- [ ] `HandHistoryRecord` gains an **optional** `buttonIndex?: number` (the dealer button engine seat
+- [x] `HandHistoryRecord` gains an **optional** `buttonIndex?: number` (the dealer button engine seat
       for the hand) — enough, with `heroSeat` + `seatCount`, to derive the hero's position.
-- [ ] `HeroDecision` gains an **optional** facing context capturing, for each hero decision, the
+- [x] `HeroDecision` gains an **optional** facing context capturing, for each hero decision, the
       betting the hero faced when they acted: at minimum `toCall` (chips to call = `currentBet` −
       hero `committed`) and the street's faced bet level (`currentBet`). This is the signal
       fold-to-3bet is derived from in [[0087-play-stats-aggregation]].
-- [ ] `HAND_HISTORY_SCHEMA_VERSION` bumped to `2`; the new fields are **additive and optional** so
+- [x] `HAND_HISTORY_SCHEMA_VERSION` bumped to `2`; the new fields are **additive and optional** so
       existing v1 records remain valid (a v1 record simply lacks position / facing data).
-- [ ] `assembleRecord` populates `buttonIndex` from the completed hand, and the recording seam in
+- [x] `assembleRecord` populates `buttonIndex` from the completed hand, and the recording seam in
       `apps/pwa/src/App.tsx` captures the facing context **at the moment of each hero decision**
       (from the live pre-action `hand`, alongside the existing `decisionsRef` push), so the per-street
       facing values are correct.
-- [ ] Co-located tests cover: button captured, facing context captured per decision (unraised pot,
+- [x] Co-located tests cover: button captured, facing context captured per decision (unraised pot,
       facing an open, facing a 3bet), and a v1 record (no new fields) still parses without error.
-- [ ] `pnpm verify` fully green.
+- [x] `pnpm verify` fully green.
 
 ## Notes
 

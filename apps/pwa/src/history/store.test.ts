@@ -98,6 +98,43 @@ describe('IndexedDbHandHistoryStore', () => {
     expect(all.map((r) => r.id)).toEqual(['e', 'd', 'c'])
   })
 
+  it('round-trips a legacy v1 record lacking buttonIndex + per-decision facing (schema-v2 tolerance)', async () => {
+    // The store does NOT version-filter reads, so a pre-v2 record (no `buttonIndex`, decisions with
+    // no `facing`) must still parse and come back from `list()` — the new schema-v2 fields are
+    // additive + optional. We construct one explicitly with the v1 shape (schemaVersion 1, no new
+    // fields) to prove an old log entry survives the v2 upgrade unchanged.
+    const v1: HandHistoryRecord = {
+      schemaVersion: 1,
+      id: 'legacy',
+      playedAt: 1000,
+      handNumber: 1,
+      seatCount: 2,
+      players: [
+        { id: 0, label: 'You' },
+        { id: 1, label: 'Seat 1 (TAG)', botKind: 'tag' },
+      ],
+      heroSeat: 0,
+      decisions: [{ street: 'preflop', action: { type: 'fold' } }],
+      outcome: {
+        board: [],
+        endReason: 'fold',
+        payouts: { 0: 0 },
+        players: [
+          { id: 0, label: 'You', seat: 0, finalStack: 199, totalCommitted: 1 },
+          { id: 1, label: 'Seat 1 (TAG)', seat: 1, finalStack: 201, totalCommitted: 2 },
+        ],
+        heroNet: -1,
+      },
+    }
+    await store.append(v1)
+    const all = await store.list()
+    expect(all).toHaveLength(1)
+    expect(all[0]).toEqual(v1)
+    // The optional v2 fields are genuinely absent (not silently materialised) on a v1 record.
+    expect(all[0]!.buttonIndex).toBeUndefined()
+    expect(all[0]!.decisions[0]!.facing).toBeUndefined()
+  })
+
   it('clear() drops every stored hand', async () => {
     await store.append(makeRecord('a', 1000))
     await store.append(makeRecord('b', 2000))
