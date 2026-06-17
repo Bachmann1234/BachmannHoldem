@@ -30,7 +30,7 @@ describe('App — top-level navigation', () => {
     expect(within(drills).queryByText('Soon')).toBeNull()
   })
 
-  it('switches to Learn and shows the lesson list with all six lessons', () => {
+  it('switches to Learn and shows the lesson list with every lesson', () => {
     render(<App initial={{ seats: 2 }} botDelayMs={0} />)
 
     fireEvent.click(screen.getByTestId('tab-learn'))

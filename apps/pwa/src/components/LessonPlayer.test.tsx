@@ -18,7 +18,7 @@ import { LessonPlayer } from './LessonPlayer.js'
 
 afterEach(cleanup)
 
-/** The six lessons by id, for readable test setup. */
+/** A handful of lessons pulled by id, for readable test setup. */
 const EQUITY = FOUNDATIONS.find((l) => l.id === 'foundations-equity')!
 const POT_ODDS = FOUNDATIONS.find((l) => l.id === 'foundations-pot-odds')!
 const CONTINUE = FOUNDATIONS.find((l) => l.id === 'foundations-equity-vs-price')!
