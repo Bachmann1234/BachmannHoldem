@@ -356,8 +356,7 @@ export function DrillsBranch({
         <div className="setup-head">
           <div className="setup-title">Practice the math</div>
           <div className="setup-sub">
-            Pick the topic(s) to drill. Fast, interleaved reps that complement your time at the
-            table. They don&apos;t replace it.
+            Fast, interleaved reps to complement your time at the table, not replace it.
           </div>
         </div>
 
@@ -374,7 +373,7 @@ export function DrillsBranch({
                   <span className="hint" data-testid={`theme-mastery-${theme.id}`}>
                     {readout
                       ? `${conceptWords(theme.concept)} · ${readout.percent} over ${readout.reps}`
-                      : `drills ${conceptWords(theme.concept)} · not drilled yet`}
+                      : `${conceptWords(theme.concept)} · not drilled yet`}
                   </span>
                 </div>
                 <button
@@ -394,10 +393,7 @@ export function DrillsBranch({
 
         <div className="setup-card">
           <div className="setup-row">
-            <div className="setup-label">
-              Length
-              <span className="hint">how many spots this session</span>
-            </div>
+            <div className="setup-label">Length</div>
             <div className="stepper" role="group" aria-label="Session length">
               {LENGTHS.map((len) => (
                 <button
