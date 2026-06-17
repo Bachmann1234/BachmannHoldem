@@ -130,7 +130,7 @@ export const NUMBER_SENSE_TERMS: readonly NumberSenseTerm[] = [
   {
     term: 'Break-even equity',
     meaning:
-      'The least equity a call needs to be worth it: exactly your pot odds. Above it, calling makes money over time; below it, it loses. The quick-reference table is this number for common bet sizes.',
+      'The least equity a call needs to be worth it: exactly your pot odds. Above it, calling makes money over time; below it, it loses. The "Pot odds → equity" table below shows this number for common bet sizes.',
   },
   {
     term: 'Outs',
