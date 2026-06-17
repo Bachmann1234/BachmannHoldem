@@ -355,6 +355,49 @@ describe('gradeSpot — calculation (numeric retrieval, no answer key)', () => {
     expect(res.concept).toBe('equity')
   })
 
+  it("grades an 'equity' spot at the ~1.0 boundary into its ceiling bucket, no throw (the 1.0 edge)", () => {
+    // Pin the 0.0/1.0 equity boundary AT THE GRADE SEAM: a hero holding the effective nuts (top set of
+    // aces) on a dry, low, rainbow board reads ~1.0 equity heads-up. The ceiling bucket must reach a hair
+    // past 1.0 (the half-open [lo, hi) containment rule excludes a `hi` of exactly 1.0), so gradeSpot
+    // computes the coach's seeded equity, finds the CONTAINING bucket, and grades it — never throwing on a
+    // perfectly legal locked-up read. Previously this edge was only covered transitively through the drills
+    // package; this exercises it through gradeSpot directly.
+    const lockContext = {
+      holeCards: hole('As Ah'),
+      board: parseCards('Ac 7d 2c'),
+      pot: 150,
+      toCall: 50,
+      numActive: 2,
+    }
+    const equity = coachDecision(synthesizeContext(lockContext), { type: 'call' }).equity
+    expect(equity).toBeGreaterThanOrEqual(0.96) // a near-lock — the band that brushes the 1.0 ceiling
+
+    // Offer a ceiling bucket whose `hi` is a hair past 1.0 (1.0001) so it CONTAINS a value of exactly 1.0,
+    // plus two lower distractors — the same tiling the generator builds around a high-equity read.
+    const lockSpot: CalculationSpot = {
+      kind: 'calculation',
+      prompt: 'Estimate your equity',
+      quantity: 'equity',
+      concept: 'equity',
+      choices: [
+        { label: '80–88%', lo: 0.8, hi: 0.88 },
+        { label: '88–96%', lo: 0.88, hi: 0.96 },
+        { label: '96–100%', lo: 0.96, hi: 1.0001 },
+      ],
+      context: lockContext,
+    }
+    // The whole point: grading every choice never throws (the ceiling bucket covers the ~1.0 read), and
+    // exactly the containing bucket comes back correct.
+    const expected = lockSpot.choices.findIndex((c) => equity >= c.lo && equity < c.hi)
+    expect(expected).toBeGreaterThanOrEqual(0)
+    lockSpot.choices.forEach((_c, i) => {
+      expect(() => gradeSpot(lockSpot, i)).not.toThrow()
+      const res = gradeSpot(lockSpot, i)
+      expect(res.correct).toBe(i === expected)
+      expect(res.concept).toBe('equity')
+    })
+  })
+
   it('throws RangeError when no offered bucket contains the computed value (ill-posed)', () => {
     const illPosed: CalculationSpot = {
       ...POT_ODDS_SPOT,

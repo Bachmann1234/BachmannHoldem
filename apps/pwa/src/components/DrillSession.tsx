@@ -13,10 +13,13 @@
  * Immersive + tab-less like the lesson player, and fast/keyboard-and-tap friendly: tap an answer to
  * grade, then tap the CTA or press **Escape** to advance (the shared {@link ResultSheet}'s focus bar).
  *
- * Progress is **ephemeral** this milestone — the session lives entirely in component state, nothing is
- * persisted (durable stats are M6). The clean props API ({@link DrillSessionProps}) — selected themes,
- * seed, length, and `onComplete`/`onExit` — is what ticket 0068 wraps with its theme picker and its
- * by-concept end-of-session summary; this ticket keeps the entry/end minimal.
+ * This component holds **no durable state** — it accumulates each spot's outcome in component state and
+ * hands them to the parent via `onComplete`. Persistence lives in the parent ({@link DrillsBranch}),
+ * which records the finished session's per-concept outcomes to the durable `DrillProgressStore`
+ * ([[0080-drills-spaced-repetition]]) — the shared store M6 stats also consume. The clean props API
+ * ({@link DrillSessionProps}) — selected themes, seed, length, and `onComplete`/`onExit` — is what
+ * ticket 0068 wraps with its theme picker and its by-concept end-of-session summary; this ticket keeps
+ * the entry/end minimal.
  */
 
 import { useCallback, useMemo, useState } from 'react'

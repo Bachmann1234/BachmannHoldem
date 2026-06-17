@@ -81,4 +81,35 @@ describe('SpotPlayer — richer actions (Call / Raise / Fold)', () => {
     fireEvent.click(screen.getByTestId('answer-1')) // tap Raise
     expect(screen.getByTestId('result-verdict').getAttribute('data-verdict')).toBe('good')
   })
+
+  it('renders all three buttons and grading a Raise surfaces the result sheet (render-layer parity)', () => {
+    // A second render-layer pin: the three-button spot renders Call/Raise/Fold AND tapping Raise drives the
+    // shared ResultSheet up with the coach's ruling on the player's OWN action — exactly the pick→grade→sheet
+    // round-trip DrillSession runs, so the richer action set is wired through the shared pieces, not special-
+    // cased. The verdict is whatever the live coach rules (no answer key); we assert the sheet appears and
+    // mirrors gradeSpot, not a hardcoded outcome.
+    const spot = raiseSpot(7)
+    const raiseGrade = gradeSpot(spot, 1) // the coach's ruling on the Raise the player will tap
+
+    render(<Harness spot={spot} />)
+    const answers = screen.getByTestId('answers')
+    expect(within(answers).getByTestId('answer-0').textContent).toBe('Call')
+    expect(within(answers).getByTestId('answer-1').textContent).toBe('Raise')
+    expect(within(answers).getByTestId('answer-2').textContent).toBe('Fold')
+    // No sheet before the player answers.
+    expect(screen.queryByTestId('result-sheet')).toBeNull()
+
+    fireEvent.click(within(answers).getByTestId('answer-1')) // tap Raise
+
+    // The sheet is now up, reflecting the live grade of the Raise — verdict straight from gradeSpot, never
+    // authored copy. The coach spot renders its verdict-label headline and the deterministic "why" line
+    // separately, so the gradeSpot explanation (LABEL + why line) ends with the rendered "why".
+    expect(screen.getByTestId('result-sheet')).toBeTruthy()
+    expect(screen.getByTestId('result-verdict').getAttribute('data-verdict')).toBe(
+      raiseGrade.verdict!.verdict,
+    )
+    const why = screen.getByTestId('result-why').textContent!
+    expect(why.length).toBeGreaterThan(0)
+    expect(raiseGrade.explanation).toContain(why) // the rendered why is the tail of gradeSpot's explanation
+  })
 })

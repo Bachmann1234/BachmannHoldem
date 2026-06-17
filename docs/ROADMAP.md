@@ -82,7 +82,8 @@ review, slotted next to the steps they extend.)
 Your "all three eventually" maps onto the arc rather than being separate tracks:
 
 - **Play vs bots** — the spine. M2 (opponents) + the table UI (M3.5 terminal, then M4 PWA).
-- **Drills & quizzes** — fastest reps. M5, reusing the M3 coach for verdicts.
+- **Drills & quizzes** — fastest reps. M5, reusing the M3 coach for verdicts; deepened in M5.5
+  (calculation reps, board reading, spaced repetition, per-concept mastery).
 - **Analyze my hands** — M6, built on the stored hand history.
 
 ## Guiding principles

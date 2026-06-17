@@ -61,6 +61,7 @@ import {
   type SpotContext,
 } from '@holdem/curriculum'
 import { makeDealer, type Dealer } from './deal.js'
+import { scanCumulativeWeights } from './scan.js'
 import {
   resolveConfig,
   type ActionSet,
@@ -229,12 +230,9 @@ function pickByDifficulty<T>(
   const maxRank = Math.max(...items.map(harder))
   const weights = items.map((item) => difficultyWeight(harder(item), maxRank, difficulty))
   const total = weights.reduce((sum, w) => sum + w, 0)
-  let threshold = dealer.nextInt(total)
-  for (let i = 0; i < items.length; i++) {
-    threshold -= weights[i]!
-    if (threshold < 0) return items[i]!
-  }
-  return items[items.length - 1]!
+  // The draw is this caller's own integer `dealer.nextInt(total)`; the scan (and its fallback) is the
+  // shared scanCumulativeWeights — sharing only the scan keeps the seeded draw byte-for-byte unchanged.
+  return items[scanCumulativeWeights(weights, dealer.nextInt(total))]!
 }
 
 /**
@@ -543,6 +541,21 @@ export function buildBuckets(dealer: Dealer, value: number): NumericChoice[] {
 }
 
 /**
+ * The {@link Concept} each {@link CalculationQuantity} drills — the mental model a calculation spot tags
+ * its grade with. A small exhaustive table (not an inline ternary) so the mapping for every quantity lives
+ * in one obvious place and adding a fourth quantity is a compile error here until its concept is declared,
+ * rather than silently falling through to a default. Mirrors the {@link CALC_QUESTION} record. The mapping
+ * is unchanged from the prior `quantity === 'equity' ? 'equity' : 'pot-odds'` ternary: the two price
+ * quantities (`'pot-odds'`, `'required-equity'`) are the pot-odds idea, the equity estimate is the equity
+ * idea — exactly the concept `gradeSpot` derives for each, so a calculation spot's tag agrees with its grade.
+ */
+const CALC_CONCEPT: Readonly<Record<CalculationQuantity, CalculationSpot['concept']>> = {
+  'pot-odds': 'pot-odds',
+  'required-equity': 'pot-odds',
+  equity: 'equity',
+}
+
+/**
  * Generate a numeric-retrieval {@link CalculationSpot} (ticket 0077): deal a coherent *priced* postflop
  * spot, compute the asked {@link CalculationQuantity} from the math the app already owns, and offer the
  * number buckets {@link buildBuckets} tiles around it. The player taps the bucket the math lands in.
@@ -604,15 +617,13 @@ function generateCalculationSpot(
 
   const choices = buildBuckets(dealer, value)
 
-  const concept: CalculationSpot['concept'] = quantity === 'equity' ? 'equity' : 'pot-odds'
-
   return {
     kind: 'calculation',
     prompt: buildCalculationPrompt(quantity, holeCards, board, pot, toCall, numActive),
     choices,
     quantity,
     context,
-    concept,
+    concept: CALC_CONCEPT[quantity],
   }
 }
 
@@ -715,8 +726,7 @@ function generateHandReadingSpot(dealer: Dealer, street: PostflopStreet): HandRe
  * Same seed ⇒ same prompt.
  */
 function buildHandReadingPrompt(holeCards: readonly [Card, Card], board: readonly Card[]): string {
-  const boardText = board.map(formatCard).join(' ')
-  return `You hold ${formatHole(holeCards)} on ${boardText}. What's the best hand you have?`
+  return `${describeSituation(holeCards, board)}. What's the best hand you have?`
 }
 
 /**
@@ -827,6 +837,30 @@ function formatHole(holeCards: readonly [Card, Card]): string {
 }
 
 /**
+ * The shared prompt **lead-in** every postflop builder opens with — `"You hold {hole} on {board}"` — the
+ * one stem the coach, calculation, and hand-reading prompts all recompute identically (hole cards via
+ * {@link formatHole}, the board space-joined through the engine's {@link formatCard}). Factored out so the
+ * stem is spelled in exactly one place; each builder appends its own price/question clause after it. The
+ * returned string is byte-identical to the inline `"You hold ${formatHole(...)} on ${boardText}"` the three
+ * builders used, so every prompt-text test still passes unchanged.
+ */
+function describeSituation(holeCards: readonly [Card, Card], board: readonly Card[]): string {
+  const boardText = board.map(formatCard).join(' ')
+  return `You hold ${formatHole(holeCards)} on ${boardText}`
+}
+
+/**
+ * The opponent-count clause two postflop builders share — `"1 opponent"` for a single villain, else
+ * `"{n} opponents"`. `numActive` counts the hero plus the villains, so the villains are `numActive - 1`.
+ * Named once so the coach and calculation prompts can't drift on the singular/plural wording; the returned
+ * text is byte-identical to the inline pluralization those builders used.
+ */
+function describeOpponents(numActive: number): string {
+  const villains = numActive - 1
+  return villains === 1 ? '1 opponent' : `${villains} opponents`
+}
+
+/**
  * Build the question shown on a postflop {@link CoachSpot}. A plain, deterministic sentence of the
  * spot's public facts — the holding, the board, the table size, and the price (or "checked to you" on
  * a free spot) — so the same seed renders the same prompt. It states the situation only; it never
@@ -840,9 +874,7 @@ function buildCoachPrompt(
   numActive: number,
   actions: ActionSet,
 ): string {
-  const boardText = board.map(formatCard).join(' ')
-  const villains = numActive - 1
-  const opp = villains === 1 ? '1 opponent' : `${villains} opponents`
+  const opp = describeOpponents(numActive)
   const price =
     toCall === 0
       ? `It's checked to you (pot ${pot}, ${opp})`
@@ -850,7 +882,7 @@ function buildCoachPrompt(
   // The closing question names the buttons on offer so it never hints at an answer — "Call or fold?" for
   // the binary, "Call, raise, or fold?" for the richer set (ticket 0078).
   const question = actions === 'call-raise-fold' ? 'Call, raise, or fold?' : 'Call or fold?'
-  return `You hold ${formatHole(holeCards)} on ${boardText}. ${price}. ${question}`
+  return `${describeSituation(holeCards, board)}. ${price}. ${question}`
 }
 
 /**
@@ -880,10 +912,8 @@ function buildCalculationPrompt(
   toCall: number,
   numActive: number,
 ): string {
-  const boardText = board.map(formatCard).join(' ')
-  const villains = numActive - 1
-  const opp = villains === 1 ? '1 opponent' : `${villains} opponents`
-  return `You hold ${formatHole(holeCards)} on ${boardText}. ${opp}, pot ${pot}, ${toCall} to call. ${CALC_QUESTION[quantity]}`
+  const opp = describeOpponents(numActive)
+  return `${describeSituation(holeCards, board)}. ${opp}, pot ${pot}, ${toCall} to call. ${CALC_QUESTION[quantity]}`
 }
 
 /**

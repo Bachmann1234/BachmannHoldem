@@ -35,7 +35,7 @@ import {
   type PreflopVerdict,
 } from '@holdem/coach'
 import { type GradeResult, type Spot, type SpotVerdict } from '@holdem/curriculum'
-import { explainDecision, pct, priceComparison, signedChips, VERDICT_LABEL } from '@holdem/format'
+import { evMetric, explainDecision, pct, priceComparison, VERDICT_LABEL } from '@holdem/format'
 import { positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
 import { ChartOverlay } from './ChartOverlay.js'
@@ -366,12 +366,12 @@ export function ResultSheet({
                   </div>
                 </div>
                 <div className="metric-inline">
-                  <div className="k">EV of call</div>
+                  <div className="k">{evMetric(decision).label}</div>
                   <div
                     className={`v ${decision.callEv >= 0 ? 'good' : 'bad'}`}
                     data-testid="metric-ev"
                   >
-                    {signedChips(decision.callEv)}
+                    {evMetric(decision).value}
                   </div>
                 </div>
               </div>

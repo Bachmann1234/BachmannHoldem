@@ -50,6 +50,7 @@ import { mulberry32 } from '@holdem/odds'
 import type { Concept } from '@holdem/coach'
 import type { Spot } from '@holdem/curriculum'
 import { generateSpot } from './generate.js'
+import { scanCumulativeWeights } from './scan.js'
 import type { DrillConfig } from './config.js'
 
 /**
@@ -317,8 +318,9 @@ function themeWeight(theme: DrillTheme, bias: SessionBias | undefined): number {
  * Weighted pick from `pool` consuming exactly ONE float `r ∈ [0, 1)` — a cumulative-weight scan over
  * `r * totalWeight`. **Crucially, when every weight is `1` this returns the SAME index as the prior
  * `pool[floor(r * pool.length)]` uniform draw** (totalWeight = pool.length; the cumulative scan lands in
- * the same bucket), so an absent/empty bias replays byte-for-byte. The final-element fallback guards the
- * `r → 1` floating-point edge.
+ * the same bucket), so an absent/empty bias replays byte-for-byte. The scan itself — and its `r → 1`
+ * final-element fallback — is the shared {@link scanCumulativeWeights}; the FLOAT draw (`r * total`) stays
+ * here, so this caller's seeded output is unchanged.
  */
 function weightedPick(
   pool: readonly DrillTheme[],
@@ -326,12 +328,8 @@ function weightedPick(
   r: number,
 ): DrillTheme {
   const total = weights.reduce((sum, w) => sum + w, 0)
-  let threshold = r * total
-  for (let i = 0; i < pool.length; i++) {
-    threshold -= weights[i]!
-    if (threshold < 0) return pool[i]!
-  }
-  return pool[pool.length - 1]!
+  // The draw is this caller's own float `r * total`; the scan (and the r → 1 fallback) is shared.
+  return pool[scanCumulativeWeights(weights, r * total)]!
 }
 
 /**
