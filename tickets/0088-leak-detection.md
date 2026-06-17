@@ -2,7 +2,7 @@
 id: 0088
 title: Leak detection with mandatory sample-size gating
 type: feature
-status: todo
+status: done
 milestone: M6
 priority: high
 created: 2026-06-16
@@ -19,25 +19,25 @@ hands is worse than saying nothing_ — HUD stats are noise on small samples.
 
 ## Acceptance criteria
 
-- [ ] A pure module (`apps/pwa/src/history/leaks.ts`) that takes the [[0087-play-stats-aggregation]]
+- [x] A pure module (`apps/pwa/src/history/leaks.ts`) that takes the [[0087-play-stats-aggregation]]
       stats and returns a list of detected leaks, each with: a stable id/key, a human-readable
       description, the offending stat + its value, and the **sample size** it was judged on.
-- [ ] **Sample-size gate (mandatory).** A leak is never returned as _actionable_ unless the specific
+- [x] **Sample-size gate (mandatory).** A leak is never returned as _actionable_ unless the specific
       stat it keys off meets a minimum sample threshold. A named exported constant (the analog of
       `MASTERY_REPS_THRESHOLD` in `drills/mastery.ts`) defines the threshold; mirror that discipline.
-- [ ] **Confidence / "need N more hands" cue.** For a stat that is trending leak-ward but still below
+- [x] **Confidence / "need N more hands" cue.** For a stat that is trending leak-ward but still below
       sample, the module reports it as **pending/insufficient-sample** (with how many more hands are
       needed), distinct from "no leak" and from "confirmed leak" — so the UI can show the cue rather
       than either crying wolf or staying silent.
-- [ ] At least the canonical leaks the epic names are detectable when sample + thresholds are met:
+- [x] At least the canonical leaks the epic names are detectable when sample + thresholds are met:
       over-folding the big blind (fold-heavy BB), and at least one of {too-passive / low aggression,
       too-loose VPIP, too-tight VPIP}. Keep the rule set small and honest, not exhaustive.
-- [ ] The gate applies to **both** play-side leaks here and is consistent with the drill-side
+- [x] The gate applies to **both** play-side leaks here and is consistent with the drill-side
       discipline (`difficultyForMastery` already gates on a minimum rep sample) — don't claim "you've
       mastered X" / "you have a leak in X" on a thin sample on either side.
-- [ ] Co-located unit tests: a leak fires above sample, the same stat **does not** fire below sample
+- [x] Co-located unit tests: a leak fires above sample, the same stat **does not** fire below sample
       (returns pending with the right "N more" count), and the no-leak case.
-- [ ] `pnpm verify` fully green.
+- [x] `pnpm verify` fully green.
 
 ## Notes
 
