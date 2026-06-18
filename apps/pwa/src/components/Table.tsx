@@ -59,7 +59,6 @@ export function Table({
   const complete = isComplete(hand)
   const count = hand.players.length
   const layout = SEAT_LAYOUTS[count] ?? SEAT_LAYOUTS[6]!
-  const heroStack = hand.players[heroSeat]?.stack ?? 0
   // Seats that actually won a pot — used to ring their (revealed) cards green. Reads
   // `handWinners` (not `payouts > 0`) so a returned uncalled bet isn't ringed (BUG-0002).
   const winnerSeats = new Set(handWinners(hand))
@@ -92,9 +91,6 @@ export function Table({
               {tournament.atTop ? ' · TOP' : ` · ↑${tournament.handsUntilNext}`}
             </div>
           ) : null}
-          <div className="chip-counter" data-testid="bank">
-            BANK {heroStack}
-          </div>
         </div>
       </div>
 
