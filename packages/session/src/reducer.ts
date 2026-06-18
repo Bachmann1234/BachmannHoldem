@@ -246,7 +246,7 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
     // chosen level; tournament mode derives the escalated level from the hand number — hand 1 here.
     const blinds = sessionBlinds(model.setup, 1)
     const { hand, seatToId, heroSeat } = dealHand(players, buttonId, deck, blinds)
-    return {
+    return settleIfDealtComplete({
       ...model,
       phase: 'playing',
       players,
@@ -256,7 +256,7 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
       buttonId,
       handNumber: 1,
       coach: { kind: 'none' },
-    }
+    })
   }
 
   if (model.phase === 'hand-over') {
@@ -266,7 +266,7 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
     const nextHandNumber = model.handNumber + 1
     const blinds = sessionBlinds(model.setup, nextHandNumber)
     const { hand, seatToId, heroSeat } = dealHand(model.players, buttonId, deck, blinds)
-    return {
+    return settleIfDealtComplete({
       ...model,
       phase: 'playing',
       hand,
@@ -275,10 +275,30 @@ function startHand(model: Model, deck: readonly Card[], names?: readonly string[
       buttonId,
       handNumber: model.handNumber + 1,
       coach: { kind: 'none' },
-    }
+    })
   }
 
   return model
+}
+
+/**
+ * A hand can be decided the instant it is dealt: a stack shorter than the blind posts all-in, and
+ * heads-up that closes the action with no one left to act — `dealHand`'s `settle()` then runs the
+ * board straight to showdown, so the just-dealt hand arrives already `complete` with a `null` actor.
+ * `startHand` enters `'playing'` for the normal case; this catches the degenerate one. Without it
+ * the model would sit in `'playing'` over a finished hand that no one can act on — a dead end the
+ * shell can never advance (no actor → no `apply-action` ever fires), freezing the table on
+ * "Waiting…" over a settled board (BUG-0012). Escalating-blind tournament mode (every stack
+ * eventually falls below the blind) makes this reachable in ordinary play. Mirror
+ * {@link applyHeroOrBotAction}'s completion arm: settle the per-seat stacks back to the stable
+ * players and step to `'session-over'` (a bust ended the session) or `'hand-over'` (offer
+ * play-again), exactly as a hand that completed via an action does. The coach grade is already the
+ * fresh `'none'` the deal set — no hero decision happened — so it carries through untouched.
+ */
+function settleIfDealtComplete(dealt: Model): Model {
+  if (dealt.hand === null || !isComplete(dealt.hand)) return dealt
+  const players = applyHandResult(dealt.players, dealt.hand, dealt.seatToId)
+  return { ...dealt, players, phase: sessionOver(players) ? 'session-over' : 'hand-over' }
 }
 
 /**

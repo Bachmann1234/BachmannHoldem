@@ -36,6 +36,7 @@ import {
   stackForDepthBb,
   STARTING_STACK,
   TOURNAMENT_LEVEL_LENGTH,
+  type Model,
   type SessionPlayer,
 } from './model.js'
 import { reducer } from './reducer.js'
@@ -277,6 +278,55 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
     const deck2 = buildDeck(2, 1, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
     model = reducer(model, { type: 'start-hand', deck: deck2 })
     expect(model.coach).toEqual({ kind: 'none' })
+  })
+})
+
+describe('reducer — a hand decided at deal time settles instead of freezing (BUG-0012)', () => {
+  // A heads-up hand-over model where the villain (id 1) is shorter than the blind — the screenshot
+  // case: escalating-blind tournament play eventually drops a stack below the big blind. `buttonId`
+  // is 0 so the reducer's `rotateButton` moves the button onto id 1 for the next hand; heads-up the
+  // button is the small blind, so the short villain posts its whole stack all-in for the blind. The
+  // prior `hand` is unread by the play-again branch (it deals fresh), so `null` is fine here.
+  const shortVillainHandOver = (heroStack: number, villainStack: number): Model => ({
+    phase: 'hand-over',
+    setup: { seats: 2, opponents: ['tag'], startingStack: 1000, mode: 'cash' },
+    players: [
+      { id: 0, isHero: true, label: 'You', botKind: undefined, stack: heroStack },
+      { id: 1, isHero: false, label: 'Rae', botKind: 'tag', stack: villainStack },
+    ],
+    hand: null,
+    seatToId: [0, 1],
+    heroSeat: 0,
+    buttonId: 0,
+    handNumber: 10,
+    coach: { kind: 'none' },
+  })
+
+  it('deals a hand already complete (the short blind is all-in, no one can act) and never stays in playing', () => {
+    // Villain (seat 1, the button/SB) has 1 chip and posts all-in for the 1-chip small blind; the hero
+    // (BB) has nothing to act against, so the engine runs the board out to showdown inside `dealHand`.
+    const deck = buildDeck(2, 1, ['Kh Ks', 'Ah Ad'], '2c 7d 9h Tc 3s') // villain's aces win the tiny pot
+    const dealt = reducer(shortVillainHandOver(1000, 1), { type: 'start-hand', deck })
+
+    expect(dealt.hand).not.toBeNull()
+    expect(isComplete(dealt.hand!)).toBe(true) // settled at deal — there is no actor
+    expect(dealt.hand!.toAct).toBeNull()
+    // The bug: the model used to sit in `'playing'` over this finished board with a null actor, so no
+    // `apply-action` ever fired and the table froze on "Waiting…". It must reach a terminal phase.
+    expect(dealt.phase).not.toBe('playing')
+    // Both players survive (the villain won the chip back), so it offers play-again.
+    expect(dealt.phase).toBe('hand-over')
+  })
+
+  it('ends the session when the deal-time all-in busts the short stack', () => {
+    // Same forced all-in, but the hero's aces win — the villain busts to 0, leaving one survivor, so
+    // the completed hand stays on the table for review at `'session-over'` (not stuck in `'playing'`).
+    const deck = buildDeck(2, 1, ['Ah Ad', 'Kh Ks'], '2c 7d 9h Tc 3s')
+    const dealt = reducer(shortVillainHandOver(1000, 1), { type: 'start-hand', deck })
+
+    expect(isComplete(dealt.hand!)).toBe(true)
+    expect(dealt.phase).toBe('session-over')
+    expect(sessionOver(dealt.players)).toBe(true)
   })
 })
 
