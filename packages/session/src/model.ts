@@ -66,18 +66,26 @@ export const DEFAULT_BLIND_LEVEL: BlindLevel = BLIND_LADDER[0]!
 
 /**
  * How a session's blinds behave over time:
- * - `'cash'` — fixed at the chosen {@link BlindLevel} for the whole session (today's behaviour).
+ * - `'cash'` — fixed at the chosen {@link BlindLevel} for the whole session.
  * - `'tournament'` — they **escalate**: starting on the chosen rung, the session climbs one
  *   {@link BLIND_LADDER} rung every {@link TOURNAMENT_LEVEL_LENGTH} hands so the game naturally
  *   accelerates toward an end, the way a real tournament does.
  */
 export type SessionMode = 'cash' | 'tournament'
 
-/** The default session mode — `'cash'` (fixed blinds), preserving pre-tournament behaviour. */
-export const DEFAULT_MODE: SessionMode = 'cash'
+/**
+ * The default session mode — `'tournament'` (escalating blinds). A 100bb session with *fixed* blinds
+ * has no force pushing it toward an end, so it drags; rising blinds compress SPR over time, giving the
+ * full deep→shallow skill arc in one sitting and a guaranteed finish. Cash stays a one-tap option.
+ */
+export const DEFAULT_MODE: SessionMode = 'tournament'
 
-/** Hands played at each tournament level before the blinds step up one {@link BLIND_LADDER} rung. */
-export const TOURNAMENT_LEVEL_LENGTH = 4
+/**
+ * Hands played at each tournament level before the blinds step up one {@link BLIND_LADDER} rung. Tuned
+ * so the deep, postflop-rich early phase (the reason a session starts 100bb deep) gets real room before
+ * the squeeze turns the game into commitment decisions — a higher value is a slower, longer session.
+ */
+export const TOURNAMENT_LEVEL_LENGTH = 8
 
 /** A tournament's current level — what the table indicator shows and {@link tournamentLevel} derives. */
 export interface LevelStatus {
@@ -347,7 +355,7 @@ export interface SetupState {
    * Whether the session's blinds are fixed (`'cash'`) or escalate over time (`'tournament'`) — see
    * {@link SessionMode}. Optional with the same fallback shape as {@link startingStack}: older
    * {@link SetupState} literals (and the inert curriculum) still type-check and fall back to
-   * {@link DEFAULT_MODE} (cash, today's behaviour). {@link createInitialModel} always sets it. Both
+   * {@link DEFAULT_MODE} (tournament — escalating blinds). {@link createInitialModel} always sets it. Both
    * modes start on the bottom rung ({@link DEFAULT_BLIND_LEVEL}, `1/2`); tournament mode climbs from
    * there (see {@link sessionBlinds}) — there is no blind-level picker.
    */
@@ -435,7 +443,7 @@ export interface InitialModelOptions {
   opponents?: readonly BotKind[]
   /** Initial starting stack (chips). Defaults to {@link STARTING_STACK} (the deep 100bb default). */
   startingStack?: number
-  /** Initial session mode. Defaults to {@link DEFAULT_MODE} (cash — fixed blinds). */
+  /** Initial session mode. Defaults to {@link DEFAULT_MODE} (tournament — escalating blinds). */
   mode?: SessionMode
 }
 

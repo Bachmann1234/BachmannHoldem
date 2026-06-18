@@ -36,7 +36,7 @@ describe('tournamentLevel', () => {
 
   it('steps up exactly one rung every level-length hands, starting from the chosen rung', () => {
     const start = DEFAULT_BLIND_LEVEL // 1/2 — the ladder's first rung
-    // Hands 1..4 are level 1; hand 5 is level 2 — the schedule boundary at level-length = 4.
+    // Hands 1..L are level 1; hand L+1 is level 2 — the schedule boundary at one level-length.
     expect(tournamentLevel(start, 1).level).toBe(1)
     expect(tournamentLevel(start, 1).blinds).toEqual({ sb: 1, bb: 2 })
     expect(tournamentLevel(start, TOURNAMENT_LEVEL_LENGTH).level).toBe(1) // hand 4: still level 1
@@ -51,15 +51,16 @@ describe('tournamentLevel', () => {
 
   it('counts down the hands remaining until the next step-up across a level', () => {
     const start = DEFAULT_BLIND_LEVEL
-    expect(tournamentLevel(start, 1).handsUntilNext).toBe(4) // full level ahead
-    expect(tournamentLevel(start, 4).handsUntilNext).toBe(1) // last hand of the level
-    expect(tournamentLevel(start, 5).handsUntilNext).toBe(4) // fresh level, counter resets
+    const L = TOURNAMENT_LEVEL_LENGTH
+    expect(tournamentLevel(start, 1).handsUntilNext).toBe(L) // full level ahead
+    expect(tournamentLevel(start, L).handsUntilNext).toBe(1) // last hand of the level
+    expect(tournamentLevel(start, L + 1).handsUntilNext).toBe(L) // fresh level, counter resets
   })
 
   it('starts the climb from a non-default chosen rung (5/10) and tops out at the ladder ceiling', () => {
     const start = { sb: 5, bb: 10 } // the third rung
     expect(tournamentLevel(start, 1).blinds).toEqual({ sb: 5, bb: 10 })
-    expect(tournamentLevel(start, 5).blinds).toEqual({ sb: 10, bb: 20 }) // one rung up
+    expect(tournamentLevel(start, TOURNAMENT_LEVEL_LENGTH + 1).blinds).toEqual({ sb: 10, bb: 20 }) // one rung up
     // Climb far past the end: the level pins to the ladder's top rung and stops escalating.
     const top = BLIND_LADDER[BLIND_LADDER.length - 1]!
     const wayPast = tournamentLevel(start, 1000)
@@ -77,17 +78,17 @@ describe('tournamentLevel', () => {
 describe('sessionBlinds', () => {
   const base = { seats: 2, opponents: ['tag'] as const, startingStack: 200 }
 
-  it('returns the fixed 1/2 level every hand in cash mode (and as the default)', () => {
+  it('returns the fixed 1/2 level every hand in cash mode', () => {
     const setup = { ...base, mode: 'cash' as const }
     expect(sessionBlinds(setup, 1)).toEqual({ sb: 1, bb: 2 })
     expect(sessionBlinds(setup, 50)).toEqual({ sb: 1, bb: 2 }) // never escalates
-    // Mode absent → cash by default, still fixed at 1/2.
-    expect(sessionBlinds(base, 50)).toEqual({ sb: 1, bb: 2 })
   })
 
-  it('escalates each hand in tournament mode, tracking the level schedule', () => {
+  it('escalates each hand in tournament mode (the default), tracking the level schedule', () => {
     const setup = { ...base, mode: 'tournament' as const }
     expect(sessionBlinds(setup, 1)).toEqual({ sb: 1, bb: 2 })
     expect(sessionBlinds(setup, TOURNAMENT_LEVEL_LENGTH + 1)).toEqual({ sb: 2, bb: 5 })
+    // Mode absent → tournament by default, so it escalates too.
+    expect(sessionBlinds(base, TOURNAMENT_LEVEL_LENGTH + 1)).toEqual({ sb: 2, bb: 5 })
   })
 })

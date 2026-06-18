@@ -168,11 +168,11 @@ describe('reducer — setup phase', () => {
     expect(stackForDepthBb(25, 10)).toBe(250)
   })
 
-  it('defaults to cash mode, and set-mode chooses tournament (leaving the stack untouched)', () => {
+  it('defaults to tournament mode, and set-mode chooses cash (leaving the stack untouched)', () => {
     let model = createInitialModel({ seats: 2, startingStack: 100 })
-    expect(model.setup.mode).toBe('cash')
-    model = reducer(model, { type: 'set-mode', mode: 'tournament' })
     expect(model.setup.mode).toBe('tournament')
+    model = reducer(model, { type: 'set-mode', mode: 'cash' })
+    expect(model.setup.mode).toBe('cash')
     // The chips are untouched — only the escalation rule changed; both modes start on the 1/2 rung.
     expect(model.setup.startingStack).toBe(100)
   })
@@ -215,7 +215,7 @@ describe('reducer — dealing a hand (start-hand injects the shell deck)', () =>
 
   it('keeps the 1/2 blinds across play-again hands (cash, no escalation)', () => {
     const deck1 = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
-    let model = reducer(createInitialModel({ seats: 2 }), {
+    let model = reducer(createInitialModel({ seats: 2, mode: 'cash' }), {
       type: 'start-hand',
       deck: deck1,
     })

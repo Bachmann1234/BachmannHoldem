@@ -101,19 +101,19 @@ describe('SetupScreen', () => {
     expect(onStart).toHaveBeenCalledOnce()
   })
 
-  it('defaults to cash mode and toggles to tournament, surfacing the escalation hint', () => {
+  it('defaults to tournament mode and toggles to cash, surfacing each format hint', () => {
     render(<Harness seats={2} />)
     const cash = screen.getByTestId('mode-cash')
     const tourney = screen.getByTestId('mode-tournament')
-    expect(cash.className).toContain('active')
-    expect(tourney.getAttribute('aria-pressed')).toBe('false')
-    // Cash: the format hint says the blinds stay fixed all session.
-    expect(screen.getByText(/blinds stay fixed all session/)).toBeTruthy()
-
-    act(() => tourney.click())
     expect(tourney.className).toContain('active')
     expect(cash.getAttribute('aria-pressed')).toBe('false')
     // Tournament: the format hint mentions the escalation cadence.
     expect(screen.getByText(/blinds rise every \d+ hands/)).toBeTruthy()
+
+    act(() => cash.click())
+    expect(cash.className).toContain('active')
+    expect(tourney.getAttribute('aria-pressed')).toBe('false')
+    // Cash: the format hint says the blinds stay fixed all session.
+    expect(screen.getByText(/blinds stay fixed all session/)).toBeTruthy()
   })
 })
