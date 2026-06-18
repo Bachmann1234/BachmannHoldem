@@ -461,8 +461,8 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   /* Above the seats (`.pseat` is z-index 2): a bet sits IN FRONT of the player box, like a real
-     chip pushed toward the pot. On a narrow phone the wide seat pills reach far enough toward centre
-     to overlap the wager's spot, so painting it under the seat would hide the bet entirely. */
+     chip pushed toward the pot. Flank chips are placed clear of (below) their pill in wagerXY, so
+     this layering is only a safety net for the tight gap, not a cover-up for an overlap. */
   z-index: 3;
   display: flex;
   align-items: center;

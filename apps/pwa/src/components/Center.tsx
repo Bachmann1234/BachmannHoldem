@@ -28,12 +28,19 @@ function streetLabel(street: string): string {
 
 /**
  * How far (in felt %) to lift the centre block when the result banner appears (see {@link Center}),
- * by seat count. The banner stacks below the board, so lifting keeps it off the bottom seats; a
- * 6-max table seats opponents higher (less head-room), so it lifts less than a 5-max. Counts with no
- * *bottom* seats (≤ 4: opponents flank or sit above the board) just get the 5-max value cosmetically.
+ * by seat count. The banner stacks below the board, so lifting keeps it off the *bottom* seats — the
+ * 5/6-max lower wings (y≈63–65), whose cards the un-lifted banner clips on a narrow phone. A 6-max
+ * table seats those wings slightly lower AND its top seats slightly higher (tighter head-room), so
+ * it lifts a touch less than a 5-max to avoid driving the board up into the top row. Counts with no
+ * bottom seats (≤ 4: opponents flank or sit above the board) just get the 5-max value cosmetically.
+ *
+ * Note: on the shortest phones (~320×680) the pot+board+banner block is tall enough that no lift
+ * fully clears the wings without crowding the top seats; these values clear the common small sizes
+ * (≥360-wide) and reduce — not eliminate — the overlap at 320. A fuller fix needs a more compact
+ * showdown banner.
  */
 function completeRise(seatCount: number): number {
-  return seatCount >= 6 ? 2 : 4
+  return seatCount >= 6 ? 4 : 6
 }
 
 /** Render the pot, board (or a pre-flop street tag), and the result banner once complete. */

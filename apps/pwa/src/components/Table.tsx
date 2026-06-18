@@ -19,7 +19,7 @@ import { handWinners, isComplete, type HandState } from '@holdem/engine'
 import type { LevelStatus } from '@holdem/session'
 import { Center } from './Center.js'
 import { Seat } from './Seat.js'
-import { CENTER, lerp, SEAT_LAYOUTS } from './layout.js'
+import { CENTER, SEAT_LAYOUTS, wagerStyle } from './layout.js'
 
 /** A label provider for an engine seat — the table is decoupled from the session model shape. */
 export type SeatLabel = (seat: number) => string
@@ -105,15 +105,12 @@ export function Table({
           {/* wager chips — the current-street bet, placed part-way toward the centre */}
           {hand.players.map((p) => {
             if (p.committed <= 0) return null
-            const [sx, sy] = layout[p.seat] ?? CENTER
-            const wx = lerp(sx, CENTER[0], 0.34)
-            const wy = lerp(sy, CENTER[1], 0.34)
             return (
               <div
                 className="wager"
                 key={`w${p.seat}`}
                 data-testid={`wager-${p.seat}`}
-                style={{ left: `${wx}%`, top: `${wy}%` }}
+                style={wagerStyle(layout[p.seat] ?? CENTER)}
               >
                 <span className="disc" />
                 {p.committed}

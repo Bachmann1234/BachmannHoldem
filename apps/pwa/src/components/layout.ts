@@ -57,6 +57,34 @@ export function lerp(a: number, b: number, t: number): number {
 }
 
 /**
+ * How far below an upper seat's coordinate to drop its wager chip, in CSS pixels.
+ *
+ * A seat's coordinate is its *container* centre, and a seat stacks its (fixed-px) cards ABOVE its
+ * pill — so the pill bottom sits a roughly CONSTANT ~43px below the coordinate, independent of
+ * viewport. For an upper seat that pill is on the pot side of the coordinate, so a chip floated a
+ * fixed *percentage* toward the pot lands on it (the garbled "225" overlap) — and worse, the needed
+ * percentage grows as the felt shrinks, so no single % clears it on every screen. Pixels do: 56px
+ * clears the ~43px pill drop plus the chip's ~11px half-height with a small margin, at any size.
+ */
+const WAGER_DROP_PX = 56
+
+/**
+ * The CSS `left`/`top` for a seat's wager chip. The chip reads as money pushed toward the pot.
+ *
+ * UPPER seats drop their chip a fixed pixel distance past the pill (see {@link WAGER_DROP_PX}).
+ * LOWER seats (the hero and the 5/6-max wings) carry their pill on the *far* side of the coordinate
+ * from the pot, so a gentle float toward {@link CENTER} already clears it — they keep the original
+ * percentage interpolation. The horizontal nudge toward centre is cosmetic and also keeps flank
+ * chips off the screen edge.
+ */
+export function wagerStyle(seat: readonly [number, number]): { left: string; top: string } {
+  const [sx, sy] = seat
+  const left = `${lerp(sx, CENTER[0], 0.34)}%`
+  if (sy < CENTER[1]) return { left, top: `calc(${sy}% + ${WAGER_DROP_PX}px)` }
+  return { left, top: `${lerp(sy, CENTER[1], 0.34)}%` }
+}
+
+/**
  * The BTN/SB/BB tag for an engine seat, derived from the button index and seat count using the
  * same rule the engine uses: heads-up → the button is the small blind and the other seat the big
  * blind; 3+ → SB sits one left of the button, BB two left (wrapping). Returns `null` for any other
