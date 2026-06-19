@@ -126,7 +126,7 @@ describe('App — hand-history recording seam', () => {
     }
   })
 
-  it('captures the dealer buttonIndex on the record (schema v2)', async () => {
+  it('captures the dealer buttonIndex, hero hole cards, and a session id on the record (schema v2/v3)', async () => {
     const store = new FakeStore()
     // Hand 1 always seats the button on the hero (the reducer opens every session at buttonId 0), so
     // the captured buttonIndex pins to seat 0 — enough, with heroSeat + seatCount, to derive position.
@@ -145,8 +145,13 @@ describe('App — hand-history recording seam', () => {
 
     await playOneHandToOver()
     expect(store.appended).toHaveLength(1)
-    expect(store.appended[0]!.buttonIndex).toBe(0)
-    expect(store.appended[0]!.schemaVersion).toBe(2)
+    const rec = store.appended[0]!
+    expect(rec.buttonIndex).toBe(0)
+    expect(rec.schemaVersion).toBe(3)
+    // Schema v3: the hero (seat 0) was dealt Ks Kd, and the record is stamped with a session id.
+    expect(rec.holeCards).toEqual(parseCards('Ks Kd'))
+    expect(typeof rec.sessionId).toBe('string')
+    expect(rec.sessionId!.length).toBeGreaterThan(0)
   })
 
   it('captures per-decision facing context: unraised, facing an open, facing a 3bet (schema v2)', async () => {
@@ -289,6 +294,10 @@ describe('App — hand-history recording seam', () => {
 
     expect(store.appended).toHaveLength(2)
     expect(store.appended.map((r) => r.handNumber)).toEqual([1, 2])
+    // Schema v3: both hands of the one sitting share a single session id (grouping the export).
+    const sessionIds = store.appended.map((r) => r.sessionId)
+    expect(sessionIds[0]).toBeTruthy()
+    expect(new Set(sessionIds).size).toBe(1)
   })
 
   it('degrades gracefully when the store append rejects (play not blocked)', async () => {

@@ -9,7 +9,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { HandHistoryRecord, HandHistoryStore } from '../history/index.js'
+import {
+  downloadHistoryExport,
+  type HandHistoryRecord,
+  type HandHistoryStore,
+} from '../history/index.js'
 
 /** How many recent hands the view loads. */
 const RECENT_LIMIT = 50
@@ -70,6 +74,23 @@ export function HistoryView({ store, onClose }: HistoryViewProps): React.JSX.Ele
     }
   }, [store])
 
+  // Export the WHOLE log as JSON (not just the recent slice rendered) so every session is in the file —
+  // each record carries its `sessionId`, so the dump is sliceable per sitting downstream. A fresh
+  // `store.list()` read on click; `Date.now()` is the export timestamp (shell-supplied). Wrapped so a
+  // read/download failure degrades to a warning, matching the seam's never-crash contract.
+  const onExport = (): void => {
+    Promise.resolve(store.list())
+      .then((records) => {
+        if (records.length === 0) return
+        downloadHistoryExport(records, Date.now())
+      })
+      .catch((err: unknown) => {
+        console.warn('hand-history: export failed', err)
+      })
+  }
+  // Only offer export once a non-empty read has resolved (nothing to download otherwise).
+  const canExport = state.kind === 'ready' && state.records.length > 0
+
   return (
     <div
       className="history-overlay"
@@ -83,16 +104,28 @@ export function HistoryView({ store, onClose }: HistoryViewProps): React.JSX.Ele
       <div className="history-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="history-head">
           <div className="history-title">Recent hands</div>
-          <button
-            type="button"
-            className="btn history-close"
-            data-testid="history-close"
-            onClick={onClose}
-            ref={closeRef}
-            aria-label="Close hand history"
-          >
-            Close
-          </button>
+          <div className="history-head-actions">
+            <button
+              type="button"
+              className="btn history-export"
+              data-testid="history-export"
+              onClick={onExport}
+              disabled={!canExport}
+              aria-label="Export hand history as JSON"
+            >
+              Export
+            </button>
+            <button
+              type="button"
+              className="btn history-close"
+              data-testid="history-close"
+              onClick={onClose}
+              ref={closeRef}
+              aria-label="Close hand history"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         {state.kind === 'loading' ? (

@@ -1545,6 +1545,15 @@ body {
   font-weight: 800;
   letter-spacing: 0.04em;
 }
+.history-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-export[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .history-list {
   list-style: none;
   margin: 0;

@@ -58,7 +58,11 @@ describe('assembleRecord', () => {
     hand = applyAction(hand, { type: 'fold' })
     expect(isComplete(hand)).toBe(true)
 
-    const rec = assembleRecord(modelFor(hand), hand, decisions, { id: 'rec-1', playedAt: 1234 })
+    const rec = assembleRecord(modelFor(hand), hand, decisions, {
+      id: 'rec-1',
+      playedAt: 1234,
+      sessionId: 'sess-1',
+    })
 
     expect(rec.id).toBe('rec-1')
     expect(rec.playedAt).toBe(1234)
@@ -69,7 +73,10 @@ describe('assembleRecord', () => {
     expect(rec.buttonIndex).toBe(0)
     // Schema v2 (0087): the big blind is captured so fold-to-3bet can identify a genuine open.
     expect(rec.bigBlind).toBe(2)
-    expect(rec.schemaVersion).toBe(2)
+    // Schema v3: the hero's hole cards (seat 0 was dealt As Ad) and the session id are captured.
+    expect(rec.holeCards).toEqual(parseCards('As Ad'))
+    expect(rec.sessionId).toBe('sess-1')
+    expect(rec.schemaVersion).toBe(3)
     expect(rec.decisions).toEqual(decisions)
     expect(rec.outcome.endReason).toBe('fold')
     // Hero committed 6, won back 6 (uncalled) + 2 (BB) = 8 → net +2 (the big blind).
@@ -95,6 +102,11 @@ describe('assembleRecord', () => {
     const rec = assembleRecord(modelFor(hand), hand, decisions, { id: 'rec-2', playedAt: 1 })
     expect(rec.outcome.heroNet).toBe(-1)
     expect(rec.decisions).toEqual(decisions)
+    // Schema v3: hole cards are still captured (seat 0 held 7h 2c)…
+    expect(rec.holeCards).toEqual(parseCards('7h 2c'))
+    // …but with no sessionId in the context, the key is omitted entirely (not `undefined`), matching
+    // the pre-v3 shape readers tolerate.
+    expect('sessionId' in rec).toBe(false)
   })
 
   it('throws if the hand is not complete (a seam bug)', () => {

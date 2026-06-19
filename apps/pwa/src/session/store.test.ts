@@ -79,6 +79,12 @@ describe('LocalStorageLiveSessionStore', () => {
     expect(parsed.model.phase).toBe('playing')
   })
 
+  it('round-trips the session id (schema v3) when present', () => {
+    const store = new LocalStorageLiveSessionStore(fakeStorage())
+    store.save({ ...liveSnapshot(), sessionId: 'sess-xyz' })
+    expect(store.load()?.sessionId).toBe('sess-xyz')
+  })
+
   it('a throwing storage degrades gracefully (load → null, save/clear → no throw)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const store = new LocalStorageLiveSessionStore(throwingStorage())
@@ -107,6 +113,15 @@ describe('parseSnapshot', () => {
       JSON.stringify({ v: SESSION_ENVELOPE_VERSION, model: { phase: 'playing' } }),
     )
     expect(snap?.decisions).toEqual([])
+  })
+
+  it('reads a string sessionId and drops a non-string/absent one (pre-v3 saves)', () => {
+    const base = { v: SESSION_ENVELOPE_VERSION, model: { phase: 'playing' } }
+    expect(parseSnapshot(JSON.stringify({ ...base, sessionId: 'sess-1' }))?.sessionId).toBe(
+      'sess-1',
+    )
+    expect(parseSnapshot(JSON.stringify(base))?.sessionId).toBeUndefined()
+    expect(parseSnapshot(JSON.stringify({ ...base, sessionId: 42 }))?.sessionId).toBeUndefined()
   })
 })
 

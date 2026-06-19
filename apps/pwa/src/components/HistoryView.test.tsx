@@ -73,6 +73,31 @@ describe('HistoryView', () => {
     expect(onClose).toHaveBeenCalledTimes(3)
   })
 
+  it('disables Export until a non-empty log has loaded, then downloads the full log on click', async () => {
+    // Stub the platform download bits jsdom lacks, so downloadHistoryExport runs without throwing.
+    const createUrl = vi.fn(() => 'blob:fake')
+    const revokeUrl = vi.fn()
+    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: revokeUrl })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    const store = fakeStore([record('a', 12)])
+    render(<HistoryView store={store} onClose={vi.fn()} />)
+
+    // Before the read resolves, there is nothing to export.
+    expect(screen.getByTestId('history-export').hasAttribute('disabled')).toBe(true)
+    await waitFor(() => expect(screen.getByTestId('history-list')).toBeTruthy())
+    expect(screen.getByTestId('history-export').hasAttribute('disabled')).toBe(false)
+
+    fireEvent.click(screen.getByTestId('history-export'))
+    // Export reads the FULL log via list() (not the recent slice) and triggers a blob download.
+    await waitFor(() => expect(store.list).toHaveBeenCalled())
+    await waitFor(() => expect(createUrl).toHaveBeenCalled())
+    expect(click).toHaveBeenCalled()
+
+    vi.unstubAllGlobals()
+    click.mockRestore()
+  })
+
   it('restores focus to the opener when it unmounts', () => {
     const opener = document.createElement('button')
     document.body.appendChild(opener)

@@ -14,12 +14,15 @@
  * is the single source of truth (phase, players, the live hand, stacks, the coach grade) and is plain
  * JSON — it round-trips losslessly. The decision buffer ({@link HeroDecision}[]) is the only live state
  * that lives *outside* the model (in a shell ref, for hand-history recording), so it rides along here
- * to keep a resumed hand's history record faithful. The shell decides whether a loaded snapshot is
- * actually *resumable* (only the live phases) — this store just round-trips whatever it was handed.
+ * to keep a resumed hand's history record faithful. The shell's per-session id (schema v3) rides along
+ * for the same reason — it lives outside the model, and a resumed sitting must keep its grouping id.
+ * The shell decides whether a loaded snapshot is actually *resumable* (only the live phases) — this
+ * store just round-trips whatever it was handed.
  *
- * The on-disk envelope is a small versioned JSON object: `{ v: 1, model, decisions }` under the
- * versioned key `holdem-session-v1`. Missing / malformed JSON / a wrong shape / a stale version all
- * degrade to `null` (no saved game) rather than throwing.
+ * The on-disk envelope is a small versioned JSON object: `{ v: 1, model, decisions, sessionId? }` under
+ * the versioned key `holdem-session-v1`. Missing / malformed JSON / a wrong shape / a stale version all
+ * degrade to `null` (no saved game) rather than throwing; a missing `sessionId` (pre-v3 save) degrades
+ * to undefined and the shell mints a fresh id.
  */
 
 import type { Model } from '@holdem/session'
@@ -41,6 +44,13 @@ export interface LiveSessionSnapshot {
   readonly model: Model
   /** The hero's voluntary decisions for the in-progress hand (for a faithful history record). */
   readonly decisions: readonly HeroDecision[]
+  /**
+   * The current session id (schema v3) — like {@link decisions}, shell state that lives *outside* the
+   * model (a per-session ref), persisted here so a resumed sitting keeps the same id and its hands stay
+   * grouped. Optional: a pre-v3 saved game lacks it, and the shell mints a fresh id on resume in that
+   * case.
+   */
+  readonly sessionId?: string
 }
 
 /** The persisted shape: a version tag plus the snapshot. Readers tolerate any malformed variant. */
@@ -51,6 +61,8 @@ interface SessionEnvelope {
   readonly model: Model
   /** The hero-decision buffer at save time. */
   readonly decisions: readonly HeroDecision[]
+  /** The session id at save time (schema v3); absent in pre-v3 saves. */
+  readonly sessionId?: string
 }
 
 /**
@@ -90,7 +102,10 @@ export function parseSnapshot(raw: string | null): LiveSessionSnapshot | null {
   // A well-formed model always carries a string `phase`; treat anything else as "no saved game".
   if (typeof model !== 'object' || model === null || typeof model.phase !== 'string') return null
   const decisions = Array.isArray(env.decisions) ? env.decisions : []
-  return { model, decisions }
+  // sessionId is best-effort: only a string survives; anything else (absent in pre-v3 saves) drops to
+  // undefined and the shell mints a fresh id on resume.
+  const sessionId = typeof env.sessionId === 'string' ? env.sessionId : undefined
+  return sessionId !== undefined ? { model, decisions, sessionId } : { model, decisions }
 }
 
 /**
@@ -132,6 +147,7 @@ export class LocalStorageLiveSessionStore implements LiveSessionStore {
         v: SESSION_ENVELOPE_VERSION,
         model: snapshot.model,
         decisions: [...snapshot.decisions],
+        ...(snapshot.sessionId !== undefined ? { sessionId: snapshot.sessionId } : {}),
       }
       storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(envelope))
     } catch (err: unknown) {

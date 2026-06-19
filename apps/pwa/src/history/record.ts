@@ -31,6 +31,16 @@
  * records (which lack both) are still returned by `list()` and must stay valid — a v1 record simply
  * has no position / facing data, and the M6 aggregation treats that as "not countable for the
  * position / 3bet breakdown". The capture lives in the recording seam (`App.tsx`), not the engine.
+ *
+ * **Schema v3** adds the two facts hand-by-hand *review* (export → coach analysis) needs that the
+ * stats shape deliberately omitted: the hero's {@link HandHistoryRecord.holeCards} (so a decision can
+ * be judged against the cards it was made with, not just the action) and a {@link
+ * HandHistoryRecord.sessionId} grouping every record from one sitting (so an export can be sliced to a
+ * single session rather than the whole log). Both are again **optional + additive**: pre-v3 records
+ * lack them and stay valid — a missing `holeCards` means "cards not captured for this hand", a missing
+ * `sessionId` means "not attributable to a session". Like buttonIndex/bigBlind, both are captured in
+ * the recording seam (`App.tsx`) — the hole cards from the completed hand, the session id from the
+ * shell's per-session ref — and the engine stays untouched.
  */
 
 import type { Action, Card, EndReason, Street } from '@holdem/engine'
@@ -39,8 +49,10 @@ import type { Action, Card, EndReason, Street } from '@holdem/engine'
  * Schema version for the stored record. Bump when the shape changes so M6 can migrate / gate.
  * v1 → v2 (ticket 0086): added optional {@link HandHistoryRecord.buttonIndex} and
  * {@link HeroDecision.facing}; both additive + optional, so existing v1 records remain valid.
+ * v2 → v3: added optional {@link HandHistoryRecord.holeCards} and {@link HandHistoryRecord.sessionId};
+ * again additive + optional, so existing v1/v2 records remain valid.
  */
-export const HAND_HISTORY_SCHEMA_VERSION = 2
+export const HAND_HISTORY_SCHEMA_VERSION = 3
 
 /**
  * One opponent at the table this hand, captured by stable label + preset so M6/replay can name seats
@@ -149,6 +161,22 @@ export interface HandHistoryRecord {
   readonly players: readonly HistoryPlayer[]
   /** The engine seat the hero occupied this hand. */
   readonly heroSeat: number
+  /**
+   * The hero's two hole cards this hand (schema v3) — branded-number `Card`s, structured-clone-safe
+   * like {@link HandOutcome.board}. Captured so hand-by-hand review can judge a decision against the
+   * cards it was made with (preflop ranges, dominated calls), which the stats shape alone cannot. The
+   * hero is always dealt two cards, so a v3 record always carries this; it is optional only because
+   * pre-v3 records pre-date it (a missing value means "cards not captured for this hand").
+   */
+  readonly holeCards?: readonly [Card, Card]
+  /**
+   * The id of the session (one sitting at the table) this hand belongs to (schema v3) — a shell-minted
+   * UUID, stable for every hand of the session and fresh on the next "New table". With it an export
+   * can be sliced to a single session rather than the whole flat log, and {@link handNumber} is the
+   * within-session ordinal. Optional: pre-v3 records pre-date it (a missing value means "not
+   * attributable to a session").
+   */
+  readonly sessionId?: string
   /**
    * The dealer button's engine seat this hand (schema v2, ticket 0086). With {@link heroSeat} +
    * {@link seatCount} this is enough to derive the hero's *position* (button / blinds / etc.) for M6's

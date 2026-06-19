@@ -73,8 +73,11 @@ import './primer.css'
 /** Default bot "thinking" delay (ms) before a bot's action dispatches — for feel. Tests pass `0`. */
 export const DEFAULT_BOT_DELAY_MS = 500
 
-/** A unique record id, using `crypto.randomUUID` where present and a timestamp+random fallback else. */
-function newRecordId(): string {
+/**
+ * A fresh unique id — `crypto.randomUUID` where present, a timestamp+random fallback else. Used both
+ * for a per-hand record id and (once per session mount) the session id that groups a sitting's hands.
+ */
+function newId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
@@ -424,6 +427,14 @@ function Session({
       ? restored.model.handNumber
       : 0,
   )
+  // The session id (schema v3): minted ONCE per session mount, or restored from a resumed save so a
+  // resumed sitting keeps the same grouping id (its hands stay one session). A "New table" remounts
+  // this Session → fresh ref → fresh id, which is exactly the session boundary. Like the record id it
+  // is shell-generated (non-pure), so it lives here, not in the reducer model. Lazily initialised via a
+  // null guard so `newId()` is not called on every render.
+  const sessionIdRef = useRef<string | null>(null)
+  if (sessionIdRef.current === null) sessionIdRef.current = restored?.sessionId ?? newId()
+
   // A tiny "history open?" UI flag (component-local, like the coach drawer — not poker state).
   const [historyOpen, setHistoryOpen] = useState(false)
 
@@ -514,8 +525,9 @@ function Session({
     recordedRef.current = model.handNumber
     try {
       const record = assembleRecord(model, hand, decisionsRef.current, {
-        id: newRecordId(),
+        id: newId(),
         playedAt: Date.now(),
+        sessionId: sessionIdRef.current ?? undefined,
       })
       void Promise.resolve(historyStore.append(record)).catch((err: unknown) => {
         console.warn('hand-history: append failed', err)
@@ -534,7 +546,11 @@ function Session({
   // gracefully internally, so a persistence failure never blocks or crashes play.
   useEffect(() => {
     if (isResumablePhase(phase)) {
-      sessionStore.save({ model, decisions: decisionsRef.current })
+      sessionStore.save({
+        model,
+        decisions: decisionsRef.current,
+        sessionId: sessionIdRef.current ?? undefined,
+      })
     } else {
       sessionStore.clear()
     }

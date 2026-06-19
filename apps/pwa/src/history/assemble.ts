@@ -24,6 +24,13 @@ export interface AssembleContext {
   readonly id: string
   /** When the hand finished, epoch ms (the shell passes `Date.now()`). */
   readonly playedAt: number
+  /**
+   * The id of the current session (schema v3) — the shell's per-session UUID, stable across the
+   * sitting. Non-pure like {@link id}, so it is injected here rather than derived. Optional so callers
+   * mid-migration (and tests that don't exercise sessions) can omit it; when omitted the record simply
+   * carries no `sessionId`.
+   */
+  readonly sessionId?: string
 }
 
 /**
@@ -86,6 +93,13 @@ export function assembleRecord(
     // The big blind is constant for the hand (schema v2, ticket 0087) — captured so fold-to-3bet can
     // tell a genuine open (raise into an unraised pot, currentBet === bigBlind) from a cold 3bet.
     bigBlind: hand.bigBlind,
+    // Schema v3: the hero's hole cards (for hand-by-hand review) and the session id (so an export can
+    // be grouped per sitting). Both optional — spread in only when present so a record that genuinely
+    // lacks them stays absent-keyed (not `holeCards: undefined`), matching the pre-v3 shape readers see.
+    ...(heroPlayer !== undefined
+      ? { holeCards: [heroPlayer.holeCards[0], heroPlayer.holeCards[1]] as const }
+      : {}),
+    ...(ctx.sessionId !== undefined ? { sessionId: ctx.sessionId } : {}),
     decisions: [...decisions],
     outcome: {
       board: [...hand.board],
