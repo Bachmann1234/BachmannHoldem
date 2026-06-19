@@ -75,6 +75,20 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   table instead of a second set of fragile per-size patches. A discretionary UI investment off the
   learning arc; it reclaims the M7 number freed when LLM coaching was deprioritized to a deferred
   idea (below). Its epic is [`0095`](../tickets/0095-responsive-felt-and-landscape.md).
+- **M8 — Coach betting & sizing guidance.** Back on the learning side: teach _how much to bet_, not
+  just whether to continue. The coach grades the continue decision (fold vs call/check) but is blind
+  to bet size — it green-checks a 100bb open-shove of ATo because it approved the hand, not the size.
+  M8 adds a deterministic sizing read: classify a bet's **intent** (value / bluff / protection /
+  steal) from the equity read it already has, recommend a size **band** from the rules of thumb the
+  M4.6 bet-sizing lesson already teaches (in the same pot-odds pegs), and grade the hero's size against
+  it with a plain _why_. Crucially it grades **purpose, not optimality** — the optimal size is solver
+  work (deferred), but "you risked 200 to win 3" is pure arithmetic, and purpose errors are where
+  beginners actually lose. The UI evolves too: the review drawer shows the verdict, and the bet slider
+  gains **passive anchoring** — the recommended band + purpose-labelled pegs, as reference (like the
+  starting-hand chart), never auto-selecting a size — because a continuous control needs an anchor the
+  discrete fold/call/raise choices don't. Builds on M3 (the coach) and M4.6 (the sizing lesson); holds
+  the determinism-then-narration line (every band is math we own). Its epic is
+  [`0100`](../tickets/0100-coach-betting-sizing-guidance.md).
 
 ### Deferred — ideas, not committed
 
