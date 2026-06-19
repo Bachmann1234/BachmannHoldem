@@ -99,6 +99,17 @@ describe('reducer — setup phase', () => {
     expect(model.setup.opponents).toHaveLength(2)
   })
 
+  it('set-seats preserves the chosen stack depth and mode (does not revert to defaults)', () => {
+    let model = createInitialModel({ seats: 6 })
+    model = reducer(model, { type: 'set-stack', startingStack: stackForDepthBb(25) })
+    model = reducer(model, { type: 'set-mode', mode: 'cash' })
+    // Nudging the seat count must not clobber the other setup choices.
+    model = reducer(model, { type: 'set-seats', seats: 4 })
+    expect(model.setup.seats).toBe(4)
+    expect(model.setup.startingStack).toBe(stackForDepthBb(25)) // still 25bb, not the 100bb default
+    expect(model.setup.mode).toBe('cash') // still cash, not the tournament default
+  })
+
   it('adjust-mix moves a slot between archetypes, keeping the total fixed at seats - 1', () => {
     let model = createInitialModel({ seats: 4 }) // 3 opponents: tag/lag/rock
     expect(countsByKind(model.setup.opponents)).toEqual({ tag: 1, lag: 1, rock: 1, station: 0 })

@@ -137,7 +137,10 @@ function setSeats(model: Model, seats: number): Model {
   const want = next - 1
   const fill = defaultOpponents(next)
   const opponents = Array.from({ length: want }, (_, i) => model.setup.opponents[i] ?? fill[i]!)
-  return { ...model, setup: { seats: next, opponents } }
+  // Spread the existing setup so a seat-count change preserves the other choices (startingStack,
+  // mode) — rebuilding `setup` with only seats+opponents silently dropped them, reverting the UI to
+  // its 100bb/tournament defaults.
+  return { ...model, setup: { ...model.setup, seats: next, opponents } }
 }
 
 /** Rebuild the opponent list from per-archetype counts, grouped in {@link BOT_KINDS} order. */

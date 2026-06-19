@@ -130,7 +130,10 @@ export function Center({
           <div className="pot-label">Pot</div>
           <div className="pot-amt" data-testid="pot">
             <span className="disc" />
-            {potTotal(hand)}
+            {/* On a completed hand the pot is what was actually contested — read it from `hand.pots`
+                (the same source as the result banner) so a returned uncalled bet is excluded. During
+                play `pots` is empty, so fall back to `potTotal` (which correctly counts live bets). */}
+            {complete ? hand.pots.reduce((sum, pot) => sum + pot.amount, 0) : potTotal(hand)}
           </div>
         </div>
       )}

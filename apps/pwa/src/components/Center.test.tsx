@@ -68,6 +68,25 @@ describe('Center pot display', () => {
     expect(queryByTestId('pot-pod-0')).toBeNull()
   })
 
+  it('shows the contested pot, not potTotal, on a completed single-pot hand with a returned bet', () => {
+    // Heads-up over-shove: seat0 shoves 200 into seat1's 50-chip stack. Only 50 can be matched, so
+    // the top 150 is returned (BUG-0002) and the contested pot is 100. The headline figure must read
+    // that contested 100 — the same number the result banner shows — not the raw potTotal (250).
+    const deck = buildDeck(2, 0, ['As Ks', 'Qd Jd'], '2c 3d 4h 5s 7c')
+    let hand = createHand(config({ stacks: [200, 50], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 200 }) // seat0 shoves 200
+    hand = applyAction(hand, { type: 'call' }) // seat1 calls all-in for 50 → showdown
+
+    expect(hand.pots.length).toBe(1)
+    const contested = hand.pots.reduce((sum, p) => sum + p.amount, 0)
+    expect(contested).toBeLessThan(potTotal(hand)) // 100 < 250: the 150 over-shove was returned
+
+    const { getByTestId } = render(<Center hand={hand} {...props} />)
+    const pot = getByTestId('pot')
+    expect(pot.textContent).toContain(String(contested))
+    expect(pot.textContent).not.toContain(String(potTotal(hand)))
+  })
+
   it('renders one labelled pod per pot for a multi-way all-in, summing to the total', () => {
     // 3-way all-in at 20/50/100 → main pot 60 (all three eligible) + side pot 60 (seats 1 & 2).
     const deck = buildDeck(3, 0, ['As Ks', 'Qs Js', 'Ts 9s'], '2c 3d 4h 5s 7c')
