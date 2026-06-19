@@ -994,6 +994,9 @@ body {
      spreads the seats). Scoped to the PLAY shell (`.app-stack`) — the reading-column screens (setup,
      learn, drills) keep their comfortable 460px measure. */
   .app-stack {
+    /* ~small-tablet landscape width. Past this the `--u` scale ceiling (1px) already caps the scene
+       size, so extra width only spreads the seats further apart — the cap just stops a very wide
+       desktop window from stretching the felt absurdly; phones (≤~932 landscape) get full width. */
     max-width: min(100%, 1024px);
     /* Safe-area for landscape (ticket 0099): rotated, the notch / home-indicator move to the SHORT
        (left/right) edges, so inset the whole play column horizontally to keep the felt, topbar, and

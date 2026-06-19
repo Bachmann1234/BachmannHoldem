@@ -71,6 +71,21 @@ function podLabel(index: number, potCount: number): string {
 }
 
 /**
+ * Base single-pot showdown lift (felt %) keyed by orientation × seat band — the magic deltas the
+ * long {@link completeRise} doc-comment derives, lifted into one labelled table so the two arms
+ * aren't duplicated control flow and the "portrait is byte-identical" invariant is visible at a
+ * glance. Positive = LIFT, negative = DROP. Bands: `low` = ≤4-max (opponents in the upper arc, no
+ * lower seats), `high5` = 5-max, `high6` = 6-max. PORTRAIT values are FROZEN at the pre-0098 numbers.
+ */
+const RISE_BASE = {
+  portrait: { low: -6, high5: 6, high6: 4 },
+  landscape: { low: -6, high5: 4, high6: 1 },
+} as const
+
+/** Extra MAGNITUDE a multi-pot attribution grid adds over the single-pot base (the grid is taller). */
+const MULTI_POT_LIFT = 2
+
+/**
  * How far (in felt %) to lift (+) or drop (−) the centre block when the result banner appears (see
  * {@link Center}), by seat count AND orientation. The banner stacks below the board, so the
  * vertically-centred pot+board+banner block must move to keep that downward growth off whichever
@@ -86,7 +101,7 @@ function podLabel(index: number, potCount: number): string {
  * cleared it; it now scales WITH the felt, so its height is a constant FRACTION at every size and
  * these percentage lifts hold across the supported range).
  *
- * PORTRAIT (the `'portrait'` branch) is FROZEN at its pre-0098 values so portrait is byte-identical:
+ * PORTRAIT (the `RISE_BASE.portrait` row) is FROZEN at its pre-0098 values so portrait is byte-identical:
  *  - ≤4-max: every opponent flanks or sits ABOVE the board (the 3/4-max upper arc at y≈22–31), so
  *    the block DROPS into the open felt down to the hero (y≈81); lifting it would drive the board up
  *    into those seats (the original showdown collision). −6, or −8 for the taller multi-pot grid.
@@ -119,24 +134,12 @@ function podLabel(index: number, potCount: number): string {
  * path returns the base value unchanged.
  */
 function completeRise(seatCount: number, orientation: Orientation, potCount = 1): number {
-  if (orientation === 'landscape') {
-    // ≤4-max landscape: opponents all in the upper arc (y≈12–26), open felt down to the hero — DROP,
-    // mirroring portrait's direction but re-justified for the wide felt (see the doc-comment).
-    if (seatCount < 5) return potCount > 1 ? -8 : -6
-    // 5/6-max landscape. Unlike portrait, the lower wings DON'T constrain the (narrow, x≈38–62)
-    // single-pot banner: they sit at the far x-edges (x≤7/≥93) and grow inward only to ~x30/70, so
-    // the centred banner clears them HORIZONTALLY at any y. The binding constraint is instead the TOP:
-    // 6-max has a top-centre seat at (x=50, y=13) directly above the board, so the lifted pot label
-    // must clear its pill-bottom (~felt 23%) — a big lift drives the pot INTO it. 5-max has NO
-    // top-centre seat (its uppers sit at x=22/78), so its top is open and it can ride a touch higher.
-    // So 6-max lifts LESS than 5-max (mirroring portrait's `>=6 ? … : …` split, opposite reason).
-    const base = seatCount >= 6 ? 1 : 4
-    return potCount > 1 ? base + 2 : base
-  }
-  // PORTRAIT — frozen at the pre-0098 values (byte-identical portrait output).
-  if (seatCount < 5) return potCount > 1 ? -8 : -6
-  const base = seatCount >= 6 ? 4 : 6
-  return potCount > 1 ? base + 2 : base
+  const band = seatCount < 5 ? 'low' : seatCount >= 6 ? 'high6' : 'high5'
+  const base = RISE_BASE[orientation][band]
+  // A multi-pot showdown renders the taller attribution grid, so push it the SAME direction (away
+  // from the nearby seats) a touch more — i.e. increase the magnitude, not the signed value:
+  // `Math.sign(base) * MULTI_POT_LIFT` adds for a lift (+base) and subtracts for a drop (−base).
+  return potCount > 1 ? base + Math.sign(base) * MULTI_POT_LIFT : base
 }
 
 /** Render the pot, board (or a pre-flop street tag), and the result banner once complete. */

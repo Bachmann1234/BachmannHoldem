@@ -69,10 +69,11 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   layout. The felt was built portrait-only — seats are positioned in percentages while cards/pills
   are fixed pixels, so a shorter (landscape) felt collides them; the `orientation: portrait` manifest
   lock masks this rather than solving it. The locked approach is **fix sizing before arrangement**:
-  first make the whole felt scale as one unit so percentage coordinates hold at any size (which also
-  lets the accreted portrait pixel-hacks — `WAGER_DROP_PX`, the `completeRise` lift special-casing —
-  be deleted), _then_ add a landscape seat arrangement on top, which becomes a clean second coordinate
-  table instead of a second set of fragile per-size patches. A discretionary UI investment off the
+  first make the whole felt scale as one unit so percentage coordinates hold at any size (which let the
+  worst pixel-hack, `WAGER_DROP_PX`, be deleted; the `completeRise` lift turned out to be a genuine
+  arrangement fact rather than a `%`-over-px hack, so it was kept and extended per-orientation rather
+  than duplicated), _then_ add a landscape seat arrangement on top, which becomes a clean second
+  coordinate table instead of a second set of fragile per-size patches. A discretionary UI investment off the
   learning arc; it reclaims the M7 number freed when LLM coaching was deprioritized to a deferred
   idea (below). Its epic is [`0095`](../tickets/0095-responsive-felt-and-landscape.md).
 - **M8 — Coach betting & sizing guidance.** Back on the learning side: teach _how much to bet_, not

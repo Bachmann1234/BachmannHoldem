@@ -125,9 +125,9 @@ export const LANDSCAPE_SEAT_LAYOUTS: Readonly<
   ],
 }
 
-/** The felt centre (pot + board) in LANDSCAPE, as `[x%, y%]` (ticket 0097). Sits a touch higher than
- * its `y` would in portrait so the downward-growing banner has room in the short felt below the board
- * and above the hero; horizontally centred like portrait. */
+/** The felt centre (pot + board) in LANDSCAPE, as `[x%, y%]` (ticket 0097). Sits a touch LOWER than
+ * portrait (y=46 vs 45 — one percent further down the felt) so the downward-growing banner has room in
+ * the short felt below the board and above the hero; horizontally centred like portrait. */
 export const LANDSCAPE_CENTER: readonly [number, number] = [50, 46]
 
 /** Felt orientation — the signal that selects between the portrait and landscape coordinate sets. */
