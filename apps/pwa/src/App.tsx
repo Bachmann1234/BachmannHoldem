@@ -74,6 +74,13 @@ import './primer.css'
 export const DEFAULT_BOT_DELAY_MS = 500
 
 /**
+ * Default beat (ms) held between each street of the all-in runout reveal (ticket 0093) — flop, then
+ * turn, then river, then one final hold before the result banner drops. A readable sweat for the
+ * board; injectable via `revealDelayMs` so tests pass `0` and never depend on the wall clock.
+ */
+export const DEFAULT_RUNOUT_STREET_MS = 700
+
+/**
  * A fresh unique id — `crypto.randomUUID` where present, a timestamp+random fallback else. Used both
  * for a per-hand record id and (once per session mount) the session id that groups a sitting's hands.
  */
@@ -114,6 +121,11 @@ export interface AppProps {
   readonly makeBot?: (player: SessionPlayer) => Opponent
   /** Bot "thinking" delay (ms). Defaults to {@link DEFAULT_BOT_DELAY_MS}; tests pass `0`. */
   readonly botDelayMs?: number
+  /**
+   * Beat (ms) between each street of the all-in runout reveal (ticket 0093). Defaults to
+   * {@link DEFAULT_RUNOUT_STREET_MS}; tests pass `0` so the runout resolves immediately.
+   */
+  readonly revealDelayMs?: number
   /**
    * The hand-history store the recording seam appends completed hands to (ticket 0037). Defaults to
    * the IndexedDB-backed store; tests inject a fake / `fake-indexeddb`-backed one. A single instance
@@ -373,6 +385,7 @@ function Session({
   decks,
   makeBot = defaultMakeBot,
   botDelayMs = DEFAULT_BOT_DELAY_MS,
+  revealDelayMs = DEFAULT_RUNOUT_STREET_MS,
   historyStore,
   sessionStore,
   onNavigate,
@@ -438,6 +451,22 @@ function Session({
   // A tiny "history open?" UI flag (component-local, like the coach drawer — not poker state).
   const [historyOpen, setHistoryOpen] = useState(false)
 
+  // --- All-in runout reveal (ticket 0093) ------------------------------------------------------
+  // Pure presentation, component-local (like the bot effect / coachOpen) — NOT in the reducer, NOT
+  // persisted: a resumed/complete hand must show its final state instantly, with no animation. When a
+  // single `apply-action` settles multiple board streets at once (an all-in showdown), we reveal them
+  // one street at a time and withhold the result banner + winner rings until the river is shown.
+  //
+  // `runoutCount` is how many board cards are currently "seen" while a runout is active, or `null`
+  // when no runout is in flight (the common, unpaced case — full board + banner render immediately).
+  const [runoutCount, setRunoutCount] = useState<number | null>(null)
+  // The board length at the END of the PREVIOUS render, so we can tell "this completion dealt N new
+  // streets" from "the board was already current". Seeded to the INITIAL hand's board length so a
+  // restored/complete hand on mount does NOT animate (the board didn't "grow" this render).
+  const lastBoardLenRef = useRef<number>(model.hand?.board.length ?? 0)
+  // The hand number the active runout belongs to, so a stale timer can never fire into a new deal.
+  const runoutHandRef = useRef<number>(model.handNumber)
+
   const { phase, hand, heroSeat, seatToId, players } = model
   const handComplete = hand !== null && isComplete(hand)
   const isHeroTurn =
@@ -494,6 +523,56 @@ function Session({
       clearTimeout(timer)
     }
   }, [phase, hand, handComplete, isHeroTurn, seatToId, botDelayMs])
+
+  // --- Runout stepping (mirror the bot effect: setTimeout + cancelled flag + cleanup) ------------
+  // While a runout is active, hold `revealDelayMs`, then reveal the next street — the street-boundary
+  // length in [3,4,5] just above the current count (the flop is one beat of 3 cards, not three beats).
+  // Once the full board (5) has been shown, one final hold then END the runout (`null`) → the banner +
+  // winner rings appear. Cancel-safe: a new deal / teardown clears the pending timer and the flag, so
+  // no timer fires into a torn-down or replaced hand, and no board is left stuck mid-runout.
+  useEffect(() => {
+    if (runoutCount === null) return
+    const next = [3, 4, 5].find((n) => n > runoutCount)
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      // `next` undefined means the full board is already shown: this final hold ends the runout.
+      setRunoutCount(next ?? null)
+    }, revealDelayMs)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [runoutCount, revealDelayMs])
+
+  // --- Runout trigger detection (during render, so the result never flashes for a frame) ---------
+  // We compute "did this render's hand just settle multiple board streets at once" by comparing the
+  // current board length against the previous render's. Doing it during render (the React "adjust
+  // state while rendering" pattern, guarded by the refs so it runs at most once per real change)
+  // means `runoutCount` is already set on the very render that first shows the completed hand — the
+  // full board + banner never paint for a frame before the reveal takes over.
+  {
+    const boardLen = hand?.board.length ?? 0
+    const prevBoardLen = lastBoardLenRef.current
+    // A fresh deal (new hand number) or a board that shrank means a new hand: clear any stale runout
+    // so the next deal never inherits a half-revealed board.
+    if (model.handNumber !== runoutHandRef.current || boardLen < prevBoardLen) {
+      runoutHandRef.current = model.handNumber
+      if (runoutCount !== null) setRunoutCount(null)
+    } else if (
+      runoutCount === null &&
+      hand !== null &&
+      isComplete(hand) &&
+      hand.endReason === 'showdown' &&
+      boardLen - prevBoardLen >= 2
+    ) {
+      // An all-in runout: this completing transition dealt ≥ 2 new board cards. Begin the reveal at
+      // the cards already on screen (prevBoardLen) and let the stepping effect walk it up to 5.
+      runoutHandRef.current = model.handNumber
+      setRunoutCount(prevBoardLen)
+    }
+    lastBoardLenRef.current = boardLen
+  }
 
   const onAction = (action: Action): void => {
     // Capture the hero's voluntary decision (with the street it was made on) BEFORE dispatching, so
@@ -609,6 +688,12 @@ function Session({
     (model.setup.mode ?? DEFAULT_MODE) === 'tournament'
       ? tournamentLevel(DEFAULT_BLIND_LEVEL, model.handNumber)
       : undefined
+  // The all-in runout reveal (ticket 0093): while a runout is active, render only the cards "seen" so
+  // far and withhold the result; otherwise render the full board with the result gated on completion
+  // exactly as before. `hand` is non-null on every branch that renders the Table below.
+  const runoutActive = runoutCount !== null
+  const revealBoardCount = runoutActive ? runoutCount : (hand?.board.length ?? 0)
+  const showResult = runoutActive ? false : hand !== null && isComplete(hand)
   return (
     <div className="app-stack">
       {hand !== null ? (
@@ -618,6 +703,8 @@ function Session({
           handNumber={model.handNumber}
           tournament={tournament}
           seatLabel={(seat) => seatLabelFor(model, seat)}
+          revealBoardCount={revealBoardCount}
+          showResult={showResult}
           overlay={
             <>
               {historyButton}
@@ -632,8 +719,13 @@ function Session({
           legal={legal}
           heroSeat={heroSeat}
           isHeroTurn={isHeroTurn}
-          handOver={phase === 'hand-over'}
-          sessionOver={phase === 'session-over'}
+          // Withhold the end-of-hand CTAs while an all-in runout is still revealing (ticket 0093):
+          // the reducer flips to `hand-over`/`session-over` the instant the hand settles, but the
+          // board is still sweating, so showing "Deal next hand" / "View summary" then would let the
+          // result be skipped before it's seen. Gate on `showResult` — the bar shows "Waiting…" until
+          // the river lands and the banner drops, exactly when the CTA should invite the next hand.
+          handOver={phase === 'hand-over' && showResult}
+          sessionOver={phase === 'session-over' && showResult}
           onAction={onAction}
           onNext={beginHand}
           onQuit={() => dispatch({ type: 'quit' })}

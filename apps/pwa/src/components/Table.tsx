@@ -45,6 +45,18 @@ export interface TableProps {
    * lives here so its `position:absolute` anchors to the felt, exactly like the design's `.coach-fab`.
    */
   readonly overlay?: React.ReactNode
+  /**
+   * How many board cards to render — the all-in runout reveal (ticket 0093) passes a sub-count so the
+   * board fills in street by street. Threaded straight to {@link Center}; defaults there to the full
+   * board, so non-runout callers are unaffected.
+   */
+  readonly revealBoardCount?: number
+  /**
+   * Whether the result is shown yet — the all-in runout (ticket 0093) withholds the result banner AND
+   * the winner green rings until the river is revealed, so the result doesn't spoil the board sweat.
+   * Defaults to {@link isComplete} so non-runout callers ring + banner exactly as before.
+   */
+  readonly showResult?: boolean
 }
 
 /** Render the top bar, the felt, the centred pot/board, every seat, and the wager chips. */
@@ -55,6 +67,8 @@ export function Table({
   handNumber,
   tournament,
   overlay,
+  revealBoardCount,
+  showResult = isComplete(hand),
 }: TableProps): React.JSX.Element {
   const complete = isComplete(hand)
   const count = hand.players.length
@@ -96,7 +110,13 @@ export function Table({
 
       <div className="table">
         <div className="felt">
-          <Center hand={hand} heroSeat={heroSeat} seatLabel={seatLabel} />
+          <Center
+            hand={hand}
+            heroSeat={heroSeat}
+            seatLabel={seatLabel}
+            revealBoardCount={revealBoardCount}
+            showResult={showResult}
+          />
 
           {/* wager chips — the current-street bet, placed part-way toward the centre */}
           {hand.players.map((p) => {
@@ -122,7 +142,7 @@ export function Table({
               label={seatLabel(p.seat)}
               isHero={p.seat === heroSeat}
               reveal={p.seat === heroSeat || complete}
-              winning={complete && winnerSeats.has(p.seat) && p.status !== 'folded'}
+              winning={showResult && winnerSeats.has(p.seat) && p.status !== 'folded'}
               buttonIndex={hand.buttonIndex}
               seatCount={count}
               toAct={hand.toAct}

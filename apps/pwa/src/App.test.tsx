@@ -10,11 +10,12 @@
  * after each render, so we `await` (via findBy / act flushes) between hero actions.
  */
 
+import { StrictMode } from 'react'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseCards, type Card } from '@holdem/engine'
 import { callingStation, heuristicOpponent, TIGHT_AGGRESSIVE, type Opponent } from '@holdem/bots'
-import { App } from './App.js'
+import { App, DEFAULT_RUNOUT_STREET_MS } from './App.js'
 import { InMemoryLiveSessionStore } from './session/store.js'
 
 afterEach(cleanup)
@@ -113,6 +114,7 @@ describe('App — scripted session', () => {
         decks={[deck]}
         makeBot={makeBot}
         botDelayMs={0}
+        revealDelayMs={0}
         sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
@@ -161,6 +163,7 @@ describe('App — scripted session', () => {
         decks={[deck]}
         makeBot={makeBot}
         botDelayMs={0}
+        revealDelayMs={0}
         sessionStore={new InMemoryLiveSessionStore()}
       />,
     )
@@ -188,7 +191,9 @@ describe('App — scripted session', () => {
     }
 
     // The final hand is still on the table: the showdown banner is visible and the summary is NOT.
-    expect(screen.getByTestId('result-banner')).toBeTruthy()
+    // `findBy` (not `getBy`) so the all-in runout's `revealDelayMs={0}` timers flush — the loop above
+    // breaks the moment the session-over CTA appears, which can precede the runout's final reveal.
+    expect(await screen.findByTestId('result-banner')).toBeTruthy()
     expect(screen.queryByTestId('summary')).toBeNull()
 
     // Dismissing the review reveals the summary, with the hero shown busted.
@@ -198,5 +203,204 @@ describe('App — scripted session', () => {
     await waitFor(() => expect(screen.getByTestId('summary')).toBeTruthy())
     const standings = within(screen.getByTestId('standings'))
     expect(standings.getByText('BUSTED')).toBeTruthy()
+  })
+})
+
+describe('App — all-in runout reveal (ticket 0093)', () => {
+  // The board is rendered inside the felt's `data-testid="board"`; count the face-up `card` testids
+  // there (seat cards live elsewhere) to read how many community cards are currently revealed.
+  function boardCardCount(): number {
+    return within(screen.getByTestId('board')).queryAllByTestId('card').length
+  }
+
+  // A bot that always continues cheaply (check, else call) — lets the hero's shove get called so the
+  // engine settles every remaining street in one `apply-action`.
+  function passiveBot(): Opponent {
+    return {
+      decide: (ctx) => (ctx.legalActions.check ? { type: 'check' } : { type: 'call' }),
+    }
+  }
+
+  // Advance a single bot turn under fake timers: fire the bot effect's `setTimeout`, then flush the
+  // microtask its `Promise.resolve(decide).then(dispatch)` resolves in.
+  async function stepBots(): Promise<void> {
+    await act(async () => {
+      vi.advanceTimersByTime(0)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  it('reveals the board street by street and withholds the banner until the river', async () => {
+    vi.useFakeTimers()
+    try {
+      // Heads-up, button (= SB) on the hero. Hero shoves preflop; the passive bot (BB) calls all-in,
+      // so the engine deals flop+turn+river and finalizes at showdown in one step — the runout case.
+      const deck = buildDeck(2, 0, ['As Ad', 'Kd Kc'], '2c 3d 4h 7s 9h')
+      render(
+        <App
+          initial={{ seats: 2 }}
+          decks={[deck]}
+          makeBot={passiveBot}
+          botDelayMs={0}
+          revealDelayMs={DEFAULT_RUNOUT_STREET_MS}
+          sessionStore={new InMemoryLiveSessionStore()}
+        />,
+      )
+
+      await act(async () => screen.getByRole('button', { name: /Deal in/ }).click())
+      // Hero shoves all-in preflop.
+      await act(async () => screen.getByRole('button', { name: 'all-in' }).click())
+      await act(async () => screen.getByRole('button', { name: /^Raise to/ }).click())
+      // Bot calls all-in → the engine settles the whole runout; the reveal takes over.
+      await stepBots()
+
+      // Immediately after completion: still pre-runout (preflop = empty board), and NO result banner.
+      expect(boardCardCount()).toBe(0)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+
+      // Tick 1 → the flop appears as one beat of three cards. Still no banner.
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(3)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+
+      // Tick 2 → the turn (4th card). Still no banner.
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(4)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+
+      // Tick 3 → the river (5th card). The full board is shown but the banner is STILL withheld for
+      // one final beat (the result must land last).
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(5)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+
+      // Final hold → the runout ends and the result banner appears, last of all.
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(5)
+      expect(screen.getByTestId('result-banner')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('triggers correctly under StrictMode (render-phase trigger fires once, no banner flash)', async () => {
+    // The production app mounts inside <StrictMode> (main.tsx), which double-invokes the render body —
+    // and the runout trigger runs DURING render, mutating refs + calling setState. This pins that the
+    // double-invoke neither double-fires the runout, captures a stale `prevBoardLen`, nor flashes the
+    // full board/banner before the reveal takes over.
+    vi.useFakeTimers()
+    try {
+      const deck = buildDeck(2, 0, ['As Ad', 'Kd Kc'], '2c 3d 4h 7s 9h')
+      render(
+        <StrictMode>
+          <App
+            initial={{ seats: 2 }}
+            decks={[deck]}
+            makeBot={passiveBot}
+            botDelayMs={0}
+            revealDelayMs={DEFAULT_RUNOUT_STREET_MS}
+            sessionStore={new InMemoryLiveSessionStore()}
+          />
+        </StrictMode>,
+      )
+
+      await act(async () => screen.getByRole('button', { name: /Deal in/ }).click())
+      await act(async () => screen.getByRole('button', { name: 'all-in' }).click())
+      await act(async () => screen.getByRole('button', { name: /^Raise to/ }).click())
+      await stepBots()
+
+      // The completing render withholds the board + banner (no full-board/banner flash under the
+      // double-invoke), and the reveal then walks the board up to the river before the banner lands.
+      expect(boardCardCount()).toBe(0)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+
+      // Step one beat at a time (each `act` flushes the re-render that schedules the next timer):
+      // flop → turn → river → final hold. The banner then appears exactly once, last.
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(3)
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(4)
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(boardCardCount()).toBe(5)
+      expect(screen.queryByTestId('result-banner')).toBeNull()
+      await act(async () => vi.advanceTimersByTime(DEFAULT_RUNOUT_STREET_MS))
+      expect(screen.getAllByTestId('result-banner')).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not pace a normal river showdown (board already current → banner shows immediately)', async () => {
+    vi.useFakeTimers()
+    try {
+      // Heads-up checked down street by street to a river showdown: the board was revealed through
+      // live betting, so the completing transition deals NO new cards — not a runout, not paced.
+      const deck = buildDeck(2, 0, ['As Ad', 'Kd Kc'], '2c 3d 4h 7s 9h')
+      render(
+        <App
+          initial={{ seats: 2 }}
+          decks={[deck]}
+          makeBot={passiveBot}
+          botDelayMs={0}
+          revealDelayMs={DEFAULT_RUNOUT_STREET_MS}
+          sessionStore={new InMemoryLiveSessionStore()}
+        />,
+      )
+
+      await act(async () => screen.getByRole('button', { name: /Deal in/ }).click())
+      // Drive the hero passively (check/call) to showdown, stepping bot turns under fake timers.
+      for (let i = 0; i < 30; i++) {
+        await stepBots()
+        if (screen.queryByRole('button', { name: /Deal next hand/ })) break
+        const call = screen.queryByRole('button', { name: /^Call/ })
+        const check = screen.queryByRole('button', { name: /^Check$/ })
+        if (call) await act(async () => call.click())
+        else if (check) await act(async () => check.click())
+      }
+
+      // Reached showdown the normal way: the full board AND the banner are up with no reveal ticks.
+      expect(boardCardCount()).toBe(5)
+      expect(screen.getByTestId('result-banner')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not pace a fold (no board run-out → banner shows immediately)', async () => {
+    vi.useFakeTimers()
+    try {
+      // Heads-up where the bot 3bets and the hero folds preflop: the hand ends on a fold with no new
+      // board cards — never a runout.
+      const deck = buildDeck(2, 0, ['7h 2c', 'As Ad'], '2c 3d 4h 7s 9h')
+      const bot: Opponent = { decide: () => ({ type: 'raise', amount: 50 }) }
+      render(
+        <App
+          initial={{ seats: 2 }}
+          decks={[deck]}
+          makeBot={() => bot}
+          botDelayMs={0}
+          revealDelayMs={DEFAULT_RUNOUT_STREET_MS}
+          sessionStore={new InMemoryLiveSessionStore()}
+        />,
+      )
+
+      await act(async () => screen.getByRole('button', { name: /Deal in/ }).click())
+      // Hero (SB) just calls; bot (BB) raises to 50; hero folds → fold completion, no run-out.
+      await act(async () => screen.getByRole('button', { name: /^Call/ }).click())
+      await stepBots()
+      await act(async () => screen.getByRole('button', { name: /^Fold$/ }).click())
+
+      // Fold-win banner is up immediately (no reveal ticks); the board never ran out (0 cards).
+      expect(boardCardCount()).toBe(0)
+      expect(screen.getByTestId('result-banner')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('exports the cadence as a named constant (tunable, ~readable beat)', () => {
+    expect(DEFAULT_RUNOUT_STREET_MS).toBeGreaterThanOrEqual(650)
+    expect(DEFAULT_RUNOUT_STREET_MS).toBeLessThanOrEqual(750)
   })
 })

@@ -333,6 +333,7 @@ describe('App — hand-history recording seam', () => {
         decks={[deck]}
         makeBot={makeBot}
         botDelayMs={0}
+        revealDelayMs={0}
         historyStore={store}
         sessionStore={new InMemoryLiveSessionStore()}
       />,

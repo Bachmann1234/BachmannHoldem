@@ -19,6 +19,18 @@ export interface CenterProps {
   readonly heroSeat: number
   /** Display name for an engine seat (`You`, `Mia`) — names the winner on the result banner. */
   readonly seatLabel: (seat: number) => string
+  /**
+   * How many of `hand.board`'s cards to actually render — the all-in runout reveal (ticket 0093)
+   * passes a sub-count to withhold not-yet-"seen" streets, stepping it up on timers in {@link App}.
+   * Defaults to the full board so every non-runout caller renders exactly as before.
+   */
+  readonly revealBoardCount?: number
+  /**
+   * Whether to show the result banner. Withheld during the all-in runout (ticket 0093) so the result
+   * doesn't spoil the board sweat, then flipped true at the end. Defaults to `isComplete(hand)` so
+   * every non-runout caller renders exactly as before.
+   */
+  readonly showResult?: boolean
 }
 
 /** Human-readable street label, e.g. `preflop` → `Preflop`. */
@@ -62,9 +74,18 @@ function completeRise(seatCount: number, potCount = 1): number {
 }
 
 /** Render the pot, board (or a pre-flop street tag), and the result banner once complete. */
-export function Center({ hand, heroSeat, seatLabel }: CenterProps): React.JSX.Element {
+export function Center({
+  hand,
+  heroSeat,
+  seatLabel,
+  revealBoardCount = hand.board.length,
+  showResult = isComplete(hand),
+}: CenterProps): React.JSX.Element {
   const complete = isComplete(hand)
   const [cx, cy] = CENTER
+  // The all-in runout (ticket 0093) reveals the board street by street: render only the cards the
+  // player has "seen" so far. Non-runout callers omit `revealBoardCount`, so this is the full board.
+  const shownBoard = hand.board.slice(0, revealBoardCount)
   // On a completed hand the result banner stacks *below* the board; since the whole block is
   // vertically centred, that would push it down toward the bottom seats while leaving a gap up top.
   // Lift the block so the pot/board ride higher and the banner has room below — balanced either way.
@@ -101,15 +122,15 @@ export function Center({ hand, heroSeat, seatLabel }: CenterProps): React.JSX.El
         </div>
       )}
       <div className="board" data-testid="board">
-        {hand.board.length === 0 ? (
+        {shownBoard.length === 0 ? (
           <div className="street-tag">
             {complete ? '' : `${streetLabel(hand.street)} · ${hand.smallBlind}/${hand.bigBlind}`}
           </div>
         ) : (
-          hand.board.map((card) => <Card key={card} card={card} size="md" />)
+          shownBoard.map((card) => <Card key={card} card={card} size="md" />)
         )}
       </div>
-      {complete && <ResultBanner hand={hand} heroSeat={heroSeat} seatLabel={seatLabel} />}
+      {showResult && <ResultBanner hand={hand} heroSeat={heroSeat} seatLabel={seatLabel} />}
     </div>
   )
 }

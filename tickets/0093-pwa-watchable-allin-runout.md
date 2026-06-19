@@ -2,7 +2,7 @@
 id: 0093
 title: Play out the all-in runout street by street so it's watchable
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-18
@@ -27,26 +27,26 @@ choreography (river → pot splits → winners attributed), so design them as on
 
 ## Acceptance criteria
 
-- [ ] When a hand completes via an all-in runout (betting closed with 2+ live players, more than one
+- [x] When a hand completes via an all-in runout (betting closed with 2+ live players, more than one
       board card revealed in the completing transition), the PWA reveals the remaining streets
       **progressively** — flop, then turn, then river, each held for a readable beat — before flipping
       opponents' cards and showing the result banner. Reuses the existing `setTimeout`+dispatch pacing
       pattern (the bot-delay shape in `App.tsx`), not a new mechanism.
-- [ ] The engine stays **pure and unchanged** — `settle()` still computes the full terminal state in
+- [x] The engine stays **pure and unchanged** — `settle()` still computes the full terminal state in
       one step. This is a presentation-layer reveal over an already-known board (flop = `board[0..2]`,
       turn = `board[3]`, river = `board[4]`); the UI withholds rendering of streets the player hasn't
       "seen" yet and reveals them on timers. No pause-mode threaded through the state machine.
-- [ ] Only the all-in case is paced. A normal river showdown (board already revealed street by street
+- [x] Only the all-in case is paced. A normal river showdown (board already revealed street by street
       through live betting) is **not** delayed beyond today — and a hand that ends on a fold doesn't
       run out the board at all. Distinguish "this completion dealt multiple new streets" from "the
       board was already current."
-- [ ] The reveal cannot be left mid-runout: starting a new hand, leaving the table, or any hand-over
+- [x] The reveal cannot be left mid-runout: starting a new hand, leaving the table, or any hand-over
       action cancels pending reveal timers cleanly (mirror the `cancelled` guard in the bot effect) —
       no stuck board, no timer firing into a torn-down hand.
-- [ ] Reveal cadence is a single named constant (sibling to `DEFAULT_BOT_DELAY_MS`) so it's tunable
+- [x] Reveal cadence is a single named constant (sibling to `DEFAULT_BOT_DELAY_MS`) so it's tunable
       and testable; tests assert the staged sequence (board cards appear over successive ticks, result
       banner appears last) using fake timers, and that the fold / normal-showdown paths are unpaced.
-- [ ] `pnpm verify` green.
+- [x] `pnpm verify` green.
 
 ## Notes
 
@@ -75,3 +75,25 @@ so the beats share timing and feel, rather than being designed in isolation.
 **Don't regress the common case.** Most hands reach showdown through normal betting with the board
 already current, or end on a fold. Those must feel exactly as they do now; the pacing applies only when
 there are unrevealed streets to run out.
+
+**As built / decisions (with review outcomes).**
+
+- _Opponent cards stay face-up during the runout_ (classic "hands up, sweat the board", matching the
+  design pass) — the AC's "before flipping opponents' cards" wording was deliberately not followed.
+  Only the result banner + winner green rings are withheld (they'd spoil the sweat); `reveal` stays
+  gated on `complete`. The 0090 multi-pot tray stays visible through the runout (reads terminal pots).
+- _Reveal lives component-local in `App.tsx`_ (`runoutCount` + a `setTimeout`/`cancelled` stepping
+  effect mirroring the bot effect) — not the reducer, not persisted; a resumed/complete hand shows its
+  final state with no animation. Cadence: `DEFAULT_RUNOUT_STREET_MS` (700ms), injectable via
+  `revealDelayMs` (tests pass 0). Trigger: a showdown completion whose board grew ≥ 2 cards.
+- _Review catch — the end-of-hand CTA was clickable mid-runout_ ("Deal next hand"/"View summary"
+  appear the instant the reducer flips to `hand-over`, before the reveal finishes, letting it be
+  skipped). Now gated on `showResult`, so the bar reads "Waiting…" until the river lands. A StrictMode
+  test was added to pin the render-phase trigger (the app mounts under `<StrictMode>`).
+
+**Known limitation (documented, not fixed).** A hand _dealt directly_ to a complete all-in showdown
+(`settleIfDealtComplete` — a sub-blind stack blinded all-in on the deal, reachable in escalating
+tournament mode) is NOT paced: `handNumber` increments in the same dispatch that fills the board, so
+the new-hand reset branch swallows the runout trigger. This is rare and not a regression (it was
+unpaced before this ticket too); pacing it cleanly would require distinguishing a live deal-time settle
+from a resume mount, which isn't worth the complexity for the frequency. Left as a known edge.
