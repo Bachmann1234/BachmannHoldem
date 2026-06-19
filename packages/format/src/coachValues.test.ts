@@ -71,6 +71,7 @@ describe('explainDecision', () => {
     heroBet: false,
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    shortAllIn: null,
     ...v,
   })
 
@@ -184,6 +185,51 @@ describe('explainDecision', () => {
     expect(s.toLowerCase()).toContain('free')
     expect(s.toLowerCase()).not.toContain('bet for value')
   })
+
+  it('appends the short-all-in side-pot note to a priced line when shortAllIn is set (ticket 0092)', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.6,
+        potOddsThreshold: 0.33,
+        correctDecision: 'continue',
+        verdict: 'good',
+        shortAllIn: { allInFor: 20, mainPot: 60 },
+      }),
+    )
+    // The base priced "why" sentence is still there...
+    expect(s).toContain('+EV play')
+    // ...plus the side-pot eligibility note naming both numbers.
+    expect(s).toContain("You're all-in for 20")
+    expect(s).toContain('60 main pot')
+    expect(s.toLowerCase()).toContain("side pot you're not eligible for")
+  })
+
+  it('omits the side-pot note when shortAllIn is null', () => {
+    const s = explainDecision(
+      verdict({ potOddsThreshold: 0.33, correctDecision: 'continue', shortAllIn: null }),
+    )
+    expect(s.toLowerCase()).not.toContain('side pot')
+    expect(s.toLowerCase()).not.toContain('all-in')
+  })
+
+  it('appends the short-all-in note on an UNBET all-in bet, not only priced lines (ticket 0092)', () => {
+    // An open-shove into an unbet street is `potOddsThreshold === 0` + `heroBet`, yet it can still
+    // be a short all-in when 2+ opponents already went all-in for more on a prior street. The note
+    // must survive that branch — it was silently dropped before (caught in review).
+    const s = explainDecision(
+      verdict({
+        equity: 0.55,
+        potOddsThreshold: 0,
+        heroBet: true,
+        correctDecision: 'continue',
+        verdict: 'good',
+        shortAllIn: { allInFor: 20, mainPot: 60 },
+      }),
+    )
+    expect(s).toContain('value bet') // the base unbet-pot sentence is preserved
+    expect(s).toContain("You're all-in for 20")
+    expect(s).toContain('60 main pot')
+  })
 })
 
 describe('priceComparison', () => {
@@ -199,6 +245,7 @@ describe('priceComparison', () => {
     heroBet: false,
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    shortAllIn: null,
     ...v,
   })
 
@@ -420,6 +467,7 @@ describe('evMetric', () => {
     heroBet: false,
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    shortAllIn: null,
     ...v,
   })
 

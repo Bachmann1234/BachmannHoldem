@@ -62,12 +62,24 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
  * - **Priced continue** (`correctDecision === 'continue'`): equity beats the price, so calling is +EV.
  * - **Priced fold** (`correctDecision === 'fold'`): equity trails the price, so folding is +EV.
  *
+ * On a **priced all-in for less than two-or-more live opponents** the verdict carries
+ * {@link DecisionVerdict.shortAllIn} (ticket 0092); when present, one tight side-pot-eligibility
+ * sentence is appended to the priced line, naming the main pot the hero is actually playing for.
+ * It never co-occurs with the free-check branch (a check is not all-in).
+ *
  * The sentence is **label-free** (no "Good"/"Leak" prefix) so a client can pair it with its own
  * headline — the play coach's {@link VERDICT_LABEL}, the primer's encouraging copy — without
  * repeating the tag.
  */
 export function explainDecision(verdict: DecisionVerdict): string {
   const equity = pct(verdict.equity)
+  // The short-all-in side-pot eligibility note (ticket 0092): appended to the priced sentence when
+  // the action put the hero all-in for less than two-or-more live opponents (a real side pot they
+  // can't win). One tight, concrete sentence naming the main pot they're actually playing for. It
+  // never co-occurs with a free check (a check is not all-in), so the unbet branch ignores it.
+  const sidePotNote = verdict.shortAllIn
+    ? ` You're all-in for ${verdict.shortAllIn.allInFor}, so you can only win the ${verdict.shortAllIn.mainPot} main pot — the chips above that form a side pot you're not eligible for.`
+    : ''
   // A free check has no price to weigh equity against, so it never talks about a break-even % or EV.
   if (verdict.potOddsThreshold === 0) {
     // Over-passivity nudge (ticket 0055): the check is fine, but with this much equity the hero is
@@ -77,23 +89,28 @@ export function explainDecision(verdict: DecisionVerdict): string {
     }
     // The hero *did* bet into the unbet pot — describe a value bet, not a free check (BUG-0009): no
     // one had bet, and with this much equity the hero is ahead, so putting chips in is +EV value.
+    // An unbet pot can still be a *short all-in* (ticket 0092): if 2+ opponents already went all-in
+    // for more on a prior street, the current street is unbet (`toCall === 0`) yet a short open-shove
+    // here is all-in for less — so the eligibility note is appended on this branch too, not only the
+    // priced ones below. (`missedValueBet`/free-card are checks, never all-in, so `sidePotNote` is
+    // empty there.)
     if (verdict.heroBet) {
-      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.`
+      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.${sidePotNote}`
     }
     return `There's no price to call, so taking the free card is automatic: you keep your ${equity} share for nothing.`
   }
   const price = pct(verdict.potOddsThreshold)
   // Break-even: equity is within the tolerance band of the price, so the call is a coin-flip.
   if (verdict.verdict === 'breakEven') {
-    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.`
+    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.${sidePotNote}`
   }
   // Clear decision: equity is meaningfully above or below the break-even price. `callEv`'s sign is
   // the EV-correct side; report the chip EV of calling either way so the magnitude teaches too.
   const chips = `calling is worth ${signedChips(verdict.callEv)} chips`
   if (verdict.correctDecision === 'continue') {
-    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.`
+    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.${sidePotNote}`
   }
-  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.`
+  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.${sidePotNote}`
 }
 
 /**

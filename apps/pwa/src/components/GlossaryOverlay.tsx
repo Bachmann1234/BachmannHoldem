@@ -144,6 +144,24 @@ const SECTIONS: readonly GlossarySection[] = [
     ],
   },
   {
+    // The side-pot vocabulary (ticket 0092): the words behind the coach's short-all-in note, so a
+    // learner who meets "main pot" / "side pot" at the table has the definition in the same place.
+    title: 'Pots',
+    intro: 'When someone is all-in for less than others, the pot splits in two.',
+    entries: [
+      {
+        term: 'Main pot',
+        meaning:
+          'The pot every still-live player contests, capped at the shortest all-in stack. If you are all-in for 20 against two players, the main pot is the chips matched up to your 20 — the most you can win.',
+      },
+      {
+        term: 'Side pot',
+        meaning:
+          'The chips bet above a short all-in, contested only by the players who could cover it. If you are all-in for less, you cannot win the side pot no matter how strong your hand.',
+      },
+    ],
+  },
+  {
     title: 'Table positions',
     intro: 'The tags beside the seats. Position decides how early you must act.',
     entries: [

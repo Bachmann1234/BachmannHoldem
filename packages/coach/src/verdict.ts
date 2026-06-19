@@ -692,6 +692,28 @@ export interface PostflopTrace {
 }
 
 /**
+ * The short-all-in side-pot eligibility note (ticket 0092): set on a {@link DecisionVerdict}
+ * when the hero's action puts them **all-in for less than two or more other live players**, so a
+ * side pot the hero **cannot win** actually exists. It names the two numbers the coach narrates:
+ * the hero's total all-in commitment ({@link allInFor}) and the {@link mainPot} they are actually
+ * playing for (the chips above it form the side pot the hero is excluded from).
+ *
+ * Derived **entirely from the engine's commitment numbers** carried on the {@link DecisionContext}
+ * (`ctx.pot`, each opponent's `totalCommitted`) — it does **not** re-run the engine's side-pot
+ * split. See {@link coachDecision} for the exact trigger and the `mainPot` formula.
+ */
+export interface ShortAllInEligibility {
+  /** The hero's total lifetime commitment after going all-in — the cap on what they can win. */
+  readonly allInFor: number
+  /**
+   * The chips the hero is actually playing for: the sum over the hero and every other seat of
+   * `min(theirTotalCommitted, allInFor)`. Includes **folded** seats' dead money (it sits in the
+   * main pot) and the hero's own `allInFor`. Everything wagered above this is the side pot.
+   */
+  readonly mainPot: number
+}
+
+/**
  * A complete per-decision verdict: the numbers the coach narrates plus the classification.
  *
  * Every field is a plain value (no engine state, no randomness) so the verdict serialises,
@@ -778,6 +800,31 @@ export interface DecisionVerdict {
    * range it was, without re-deriving the line→width mapping.
    */
   readonly trace: PostflopTrace
+  /**
+   * The short-all-in side-pot eligibility note (ticket 0092), or `null` when it does not apply.
+   *
+   * Set **only** when the hero's action this turn puts them all-in *for less than at least two
+   * other live (non-folded) contributors* — i.e. a side pot the hero is structurally excluded
+   * from actually exists. The pedagogical tail of the side-pot cluster: it teaches that a short
+   * all-in only contests the main pot up to the hero's commitment, naming the {@link
+   * ShortAllInEligibility.mainPot} they are actually playing for.
+   *
+   * **The `>= 2` guard is the false-positive guard, and it is exact.** The note fires iff the
+   * count of opponents with `status !== 'folded'` **and** `totalCommitted > heroFinalTotal` is at
+   * least **two**:
+   * - *Zero* opponents above (an even all-in — everyone matched the hero) ⇒ one pot, everyone
+   *   eligible ⇒ no note.
+   * - *Exactly one* opponent above ⇒ that excess is a **returned uncalled bet** (a heads-up
+   *   over-shove the hero never had to match), **not** a contested side pot ⇒ no note.
+   * - *Two or more* above ⇒ those players can win chips among themselves the hero cannot ⇒ a real
+   *   side pot the hero is excluded from ⇒ the note fires.
+   *
+   * Never set on a fold or a check (neither can be all-in), and absent (`null`) when the hero is
+   * not all-in or is all-in but everyone is eligible for a single pot. Read purely from the
+   * engine-derived commitments on the {@link DecisionContext} — it does **not** re-implement the
+   * side-pot split. See {@link coachDecision} for the derivation.
+   */
+  readonly shortAllIn: ShortAllInEligibility | null
 }
 
 /**
@@ -827,6 +874,55 @@ export interface DecisionVerdict {
  * inputs: a context with the wrong hole-card count, an illegal board size, a negative pot,
  * or a negative `toCall`.
  */
+/**
+ * The short-all-in side-pot eligibility note (ticket 0092), derived purely from the engine's
+ * commitment numbers on the {@link DecisionContext} — `ctx.pot` (the sum of *every* seat's lifetime
+ * `totalCommitted`) and each opponent's `totalCommitted`. It does **not** re-run the side-pot split.
+ *
+ * Returns `null` unless `action` puts the hero all-in *and* at least **two** live (non-folded)
+ * opponents have already committed more than the hero's final total — the exact `>= 2` guard
+ * documented on {@link DecisionVerdict.shortAllIn} (one opponent above is a returned uncalled bet,
+ * not a side pot; zero is an even all-in). When it fires, names the hero's all-in total and the
+ * `mainPot` they are actually playing for.
+ */
+function shortAllInNote(ctx: DecisionContext, action: Action): ShortAllInEligibility | null {
+  // A fold or check is never all-in, so it can never trigger the note.
+  if (action.type === 'fold' || action.type === 'check') return null
+  // No chips behind ⇒ already all-in / nothing to put in ⇒ this action puts no one all-in.
+  if (ctx.stack <= 0) return null
+
+  // The chips THIS action puts in beyond what the hero already wagered this street, and whether
+  // that empties the stack (= all-in). A call is capped at stack in `ctx.toCall`; a bet/raise's
+  // "to" amount minus what's already committed this street is the additional chips it commits.
+  const chipsIn = action.type === 'call' ? ctx.toCall : action.amount - ctx.committed
+  const isAllIn = chipsIn === ctx.stack
+  if (!isAllIn) return null
+
+  // The hero's lifetime commitment BEFORE this action: `ctx.pot` is the sum of every seat's
+  // lifetime total, so subtracting the opponents' totals leaves the hero's own. The all-in adds
+  // the whole remaining stack on top.
+  const opponentsTotal = ctx.opponents.reduce((sum, o) => sum + o.totalCommitted, 0)
+  const heroLifetimeTotal = ctx.pot - opponentsTotal
+  const heroFinalTotal = heroLifetimeTotal + ctx.stack
+
+  // The false-positive guard: a real, contested side pot the hero is excluded from exists only when
+  // TWO OR MORE live players are in for more than the hero. (One above = a returned uncalled bet.)
+  const liveAbove = ctx.opponents.filter(
+    (o) => o.status !== 'folded' && o.totalCommitted > heroFinalTotal,
+  ).length
+  if (liveAbove < 2) return null
+
+  // The main pot: everyone's contribution capped at the hero's level — the chips the hero actually
+  // plays for. Folded seats' chips count (dead money in the main pot); the hero's own term is their
+  // full final total. Anything wagered above this forms the side pot the hero cannot win.
+  const mainPot = ctx.opponents.reduce(
+    (sum, o) => sum + Math.min(o.totalCommitted, heroFinalTotal),
+    heroFinalTotal,
+  )
+
+  return { allInFor: heroFinalTotal, mainPot }
+}
+
 export function coachDecision(
   ctx: DecisionContext,
   action: Action,
@@ -836,6 +932,12 @@ export function coachDecision(
   // the helpers — a clearer message than the deep call's, and it documents the contract.
   if (ctx.pot < 0) throw new RangeError(`ctx.pot must be ≥ 0, got ${ctx.pot}`)
   if (ctx.toCall < 0) throw new RangeError(`ctx.toCall must be ≥ 0, got ${ctx.toCall}`)
+
+  // The short-all-in side-pot eligibility note (ticket 0092): `null` unless this action puts the
+  // hero all-in for less than two or more live opponents (a real side pot the hero can't win). It
+  // can co-occur with a priced continue verdict (an all-in call is priced), so it is stamped onto
+  // every return below; it is `null` on a free check (a check is never all-in).
+  const shortAllIn = shortAllInNote(ctx, action)
 
   // --- The read: equity against the assumed range, seeded for determinism. ---
   // The range is a deterministic, pure function of the betting line + board: the no-read
@@ -888,6 +990,8 @@ export function coachDecision(
       // No price to weigh — the decision is purely reading your share of the pot.
       concept: 'equity',
       trace,
+      // A free check is never all-in, so this is always null here — stamped for shape uniformity.
+      shortAllIn,
     }
   }
 
@@ -908,6 +1012,8 @@ export function coachDecision(
       // Facing a price: the continue decision turns on weighing equity against that price.
       concept: 'equity-vs-price',
       trace,
+      // An all-in call is a priced decision, so the short-all-in note can co-occur here.
+      shortAllIn,
     }
   }
 
@@ -934,5 +1040,7 @@ export function coachDecision(
     // Facing a price: the continue decision turns on weighing equity against that price.
     concept: 'equity-vs-price',
     trace,
+    // An all-in call/raise is a priced decision, so the short-all-in note can co-occur here.
+    shortAllIn,
   }
 }

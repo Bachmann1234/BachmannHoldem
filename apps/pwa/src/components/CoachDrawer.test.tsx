@@ -66,6 +66,7 @@ const GOOD: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   heroBet: false,
+  shortAllIn: null,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
@@ -80,6 +81,7 @@ const LEAK: DecisionVerdict = {
   verdict: 'leak',
   missedValueBet: false,
   heroBet: false,
+  shortAllIn: null,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.75, polarized: null },
 }
@@ -94,6 +96,7 @@ const BREAKEVEN: DecisionVerdict = {
   verdict: 'breakEven',
   missedValueBet: false,
   heroBet: false,
+  shortAllIn: null,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
@@ -108,6 +111,7 @@ const FREE_CHECK: DecisionVerdict = {
   verdict: 'good',
   missedValueBet: false,
   heroBet: false,
+  shortAllIn: null,
   concept: 'equity',
   trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
 }
@@ -199,6 +203,7 @@ describe('CoachDrawer — verdict state', () => {
       callEv: 6.2,
       missedValueBet: true,
       heroBet: false,
+      shortAllIn: null,
     }
     render(<CoachDrawer coach={verdictResult(missed)} open onClose={vi.fn()} />)
     expect(screen.getByTestId('coach-why').textContent?.toLowerCase()).toContain('bet for value')
@@ -213,6 +218,7 @@ describe('CoachDrawer — verdict state', () => {
       callEv: 106.8,
       missedValueBet: false,
       heroBet: true,
+      shortAllIn: null,
     }
     render(<CoachDrawer coach={verdictResult(heroBet)} open onClose={vi.fn()} />)
     const why = screen.getByTestId('coach-why').textContent?.toLowerCase() ?? ''

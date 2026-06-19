@@ -45,6 +45,9 @@ function ctx(over: {
   toCall: number
   numActive?: number
   street?: DecisionContext['street']
+  stack?: number
+  committed?: number
+  opponents?: DecisionContext['opponents']
 }): DecisionContext {
   const board = over.board ?? []
   const legal: LegalActions = { fold: true, check: false, call: null, bet: null, raise: null }
@@ -69,15 +72,15 @@ function ctx(over: {
     pot: over.pot,
     currentBet: over.toCall,
     toCall: over.toCall,
-    stack: 1000,
-    committed: 0,
+    stack: over.stack ?? 1000,
+    committed: over.committed ?? 0,
     smallBlind: 1,
     bigBlind: 2,
     buttonIndex: 0,
     isButton: true,
     numPlayers: numActive,
     numActive,
-    opponents: [],
+    opponents: over.opponents ?? [],
   }
 }
 
@@ -1010,6 +1013,140 @@ describe('coachDecision — archetype-aware read (ticket 0062)', () => {
       expect(lineOnly.villainArchetype).toBeUndefined()
       expect(lineOnly.archetypeShift).toBeUndefined()
     })
+  })
+})
+
+describe('coachDecision — short-all-in side-pot eligibility note (ticket 0092)', () => {
+  /** A redacted opponent view with only the fields the note reads; the rest are plausible filler. */
+  function opp(
+    seat: number,
+    totalCommitted: number,
+    status: DecisionContext['opponents'][number]['status'] = 'active',
+  ): DecisionContext['opponents'][number] {
+    return { seat, stack: 0, committed: 0, totalCommitted, status, isButton: false }
+  }
+
+  it('FIRES when the hero calls all-in short of two villains who are both in for more', () => {
+    // Hero calls 20 all-in (stack 20, toCall 20, nothing committed yet → final total 20). Two
+    // villains have each already committed 50 — both above the hero, so a real side pot exists.
+    // pot = hero's 0 lifetime + 50 + 50 = 100.
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 100,
+      toCall: 20,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50)],
+    })
+    const v = coachDecision(spot, CALL)
+
+    expect(v.shortAllIn).not.toBeNull()
+    // The hero's final all-in total is 20.
+    expect(v.shortAllIn!.allInFor).toBe(20)
+    // Main pot = min(50,20) + min(50,20) + hero's 20 = 60. (The 60 above forms the side pot.)
+    expect(v.shortAllIn!.mainPot).toBe(60)
+  })
+
+  it('counts FOLDED contributors as dead money in the main pot', () => {
+    // Same short all-in, but add a folded seat that put in 10 before folding — those 10 are dead
+    // money in the main pot. Two LIVE villains are still above the hero, so the note still fires.
+    // pot = hero 0 + 50 + 50 + 10 = 110.
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 110,
+      toCall: 20,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50), opp(3, 10, 'folded')],
+    })
+    const v = coachDecision(spot, CALL)
+
+    expect(v.shortAllIn).not.toBeNull()
+    expect(v.shortAllIn!.allInFor).toBe(20)
+    // Main pot = min(50,20) + min(50,20) + min(10,20) + hero's 20 = 20+20+10+20 = 70.
+    expect(v.shortAllIn!.mainPot).toBe(70)
+  })
+
+  it('does NOT fire on an even all-in (every live player at the same total)', () => {
+    // Hero all-in for 20; both villains are ALSO in for exactly 20 → no one is above the hero,
+    // so everyone is eligible for one pot. No side pot, no note.
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 60,
+      toCall: 20,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 20), opp(2, 20)],
+    })
+    expect(coachDecision(spot, CALL).shortAllIn).toBeNull()
+  })
+
+  it('does NOT fire on a heads-up over-shove (exactly ONE opponent above the hero)', () => {
+    // Hero all-in for 20 facing a single villain in for 50. The villain's excess 30 is a returned
+    // uncalled bet, NOT a contested side pot — so no note (the >= 2 guard).
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 50,
+      toCall: 20,
+      stack: 20,
+      numActive: 2,
+      opponents: [opp(1, 50)],
+    })
+    expect(coachDecision(spot, CALL).shortAllIn).toBeNull()
+  })
+
+  it('does NOT fire on a non-all-in call (toCall below the hero stack)', () => {
+    // Two villains above the hero, but the hero is NOT all-in — toCall 20 with 1000 behind, so this
+    // is an ordinary call, not a short all-in. No note.
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 100,
+      toCall: 20,
+      stack: 1000,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50)],
+    })
+    expect(coachDecision(spot, CALL).shortAllIn).toBeNull()
+  })
+
+  it('does NOT fire on a fold or a check (neither can be all-in)', () => {
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 100,
+      toCall: 20,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50)],
+    })
+    expect(coachDecision(spot, FOLD).shortAllIn).toBeNull()
+    // A free-check spot (toCall 0) with the hero already all-in-for-less structure: still no note.
+    const checkSpot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 100,
+      toCall: 0,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50)],
+    })
+    expect(coachDecision(checkSpot, CHECK).shortAllIn).toBeNull()
+  })
+
+  it('FIRES on an all-in raise that is still short of two villains already in for more', () => {
+    // The hero raises all-in: bets "to" 20 having committed 0 this street with a 20 stack → chipsIn
+    // 20 === stack, all-in. Two villains are already in for 50 lifetime. (A raise can be all-in.)
+    const spot = ctx({
+      holeCards: hole('AsAh'),
+      pot: 100,
+      toCall: 0,
+      stack: 20,
+      numActive: 3,
+      opponents: [opp(1, 50), opp(2, 50)],
+    })
+    const raise: Action = { type: 'raise', amount: 20 }
+    const v = coachDecision(spot, raise)
+    expect(v.shortAllIn).not.toBeNull()
+    expect(v.shortAllIn!.allInFor).toBe(20)
+    expect(v.shortAllIn!.mainPot).toBe(60)
   })
 })
 

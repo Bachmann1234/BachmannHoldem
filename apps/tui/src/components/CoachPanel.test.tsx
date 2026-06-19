@@ -174,6 +174,7 @@ describe('CoachPanel verdicts (graded through the real reducer)', () => {
               verdict: 'good',
               missedValueBet: true,
               heroBet: false,
+              shortAllIn: null,
               concept: 'equity',
               trace: {
                 assumedRange: 'medium',
