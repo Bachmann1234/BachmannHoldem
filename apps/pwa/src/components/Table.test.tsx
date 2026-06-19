@@ -225,6 +225,66 @@ describe('Table tournament level chip', () => {
   })
 })
 
+describe('Table orientation selection (ticket 0097)', () => {
+  /** Install a `matchMedia` stub that reports the given landscape state (jsdom has none). */
+  function stubMatchMedia(isLandscape: boolean): void {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('landscape') ? isLandscape : !isLandscape,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        onchange: null,
+        dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  afterEach(() => {
+    // Remove the stub so other suites see jsdom's default (no matchMedia → portrait fallback).
+    Reflect.deleteProperty(window, 'matchMedia')
+  })
+
+  function headsUp(): HandState {
+    return createHand({
+      stacks: [200, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: freshDeck(),
+    })
+  }
+
+  it('marks the felt data-orientation="landscape" when the viewport is landscape', () => {
+    stubMatchMedia(true)
+    const { container } = renderTable(headsUp())
+    expect(container.querySelector('.felt')?.getAttribute('data-orientation')).toBe('landscape')
+  })
+
+  it('marks the felt data-orientation="portrait" when the viewport is portrait', () => {
+    stubMatchMedia(false)
+    const { container } = renderTable(headsUp())
+    expect(container.querySelector('.felt')?.getAttribute('data-orientation')).toBe('portrait')
+  })
+
+  it('falls back to portrait when matchMedia is unavailable (jsdom default)', () => {
+    const { container } = renderTable(headsUp())
+    expect(container.querySelector('.felt')?.getAttribute('data-orientation')).toBe('portrait')
+  })
+
+  it('places seats at the landscape coordinates in landscape', () => {
+    stubMatchMedia(true)
+    const { getByTestId } = renderTable(headsUp())
+    // Heads-up landscape hero sits at [50, 86]; the opponent at [50, 12].
+    expect(getByTestId('seat-0').getAttribute('style')).toContain('top: 86%')
+    expect(getByTestId('seat-1').getAttribute('style')).toContain('top: 12%')
+  })
+})
+
 describe('Table winner highlight (BUG-0002)', () => {
   it('rings only the actual winner when the loser had an uncalled overbet returned', () => {
     // Hero (seat 0) shoves 100 over a 30-chip short stack; the short stack calls all-in and

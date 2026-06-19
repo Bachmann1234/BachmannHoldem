@@ -19,7 +19,8 @@ import { handWinners, isComplete, type HandState } from '@holdem/engine'
 import type { LevelStatus } from '@holdem/session'
 import { Center } from './Center.js'
 import { Seat } from './Seat.js'
-import { CENTER, SEAT_LAYOUTS, wagerStyle } from './layout.js'
+import { tableLayout, wagerStyle } from './layout.js'
+import { useOrientation } from './useOrientation.js'
 
 /** A label provider for an engine seat — the table is decoupled from the session model shape. */
 export type SeatLabel = (seat: number) => string
@@ -72,7 +73,10 @@ export function Table({
 }: TableProps): React.JSX.Element {
   const complete = isComplete(hand)
   const count = hand.players.length
-  const layout = SEAT_LAYOUTS[count] ?? SEAT_LAYOUTS[6]!
+  // The single layout owner picks the portrait/landscape coordinate set + matching centre off the
+  // live orientation (ticket 0097). Components below read THIS — they never re-derive orientation.
+  const orientation = useOrientation()
+  const { seats: layout, center } = tableLayout(count, orientation)
   // Seats that actually won a pot — used to ring their (revealed) cards green. Reads
   // `handWinners` (not `payouts > 0`) so a returned uncalled bet isn't ringed (BUG-0002).
   const winnerSeats = new Set(handWinners(hand))
@@ -109,11 +113,12 @@ export function Table({
       </div>
 
       <div className="table">
-        <div className="felt">
+        <div className="felt" data-orientation={orientation}>
           <Center
             hand={hand}
             heroSeat={heroSeat}
             seatLabel={seatLabel}
+            center={center}
             revealBoardCount={revealBoardCount}
             showResult={showResult}
           />
@@ -126,7 +131,7 @@ export function Table({
                 className="wager"
                 key={`w${p.seat}`}
                 data-testid={`wager-${p.seat}`}
-                style={wagerStyle(layout[p.seat] ?? CENTER)}
+                style={wagerStyle(layout[p.seat] ?? center, center)}
               >
                 <span className="disc" />
                 {p.committed}
@@ -146,7 +151,7 @@ export function Table({
               buttonIndex={hand.buttonIndex}
               seatCount={count}
               toAct={hand.toAct}
-              position={layout[p.seat] ?? CENTER}
+              position={layout[p.seat] ?? center}
             />
           ))}
 

@@ -27,6 +27,12 @@ export interface CenterProps {
   /** Display name for an engine seat (`You`, `Mia`) — names the winner on the result banner. */
   readonly seatLabel: (seat: number) => string
   /**
+   * The pot/board anchor `[x%, y%]` for the active orientation (ticket 0097), handed down by the
+   * layout owner via {@link Table}. Defaults to the portrait {@link CENTER} so existing callers and
+   * tests render exactly as before.
+   */
+  readonly center?: readonly [number, number]
+  /**
    * How many of `hand.board`'s cards to actually render — the all-in runout reveal (ticket 0093)
    * passes a sub-count to withhold not-yet-"seen" streets, stepping it up on timers in {@link App}.
    * Defaults to the full board so every non-runout caller renders exactly as before.
@@ -95,11 +101,12 @@ export function Center({
   hand,
   heroSeat,
   seatLabel,
+  center = CENTER,
   revealBoardCount = hand.board.length,
   showResult = isComplete(hand),
 }: CenterProps): React.JSX.Element {
   const complete = isComplete(hand)
-  const [cx, cy] = CENTER
+  const [cx, cy] = center
   // The all-in runout (ticket 0093) reveals the board street by street: render only the cards the
   // player has "seen" so far. Non-runout callers omit `revealBoardCount`, so this is the full board.
   const shownBoard = hand.board.slice(0, revealBoardCount)

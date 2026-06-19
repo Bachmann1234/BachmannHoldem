@@ -261,6 +261,28 @@ body {
   container-type: size;
   --u: clamp(0.62px, 100cqh / 701, 1px);
 }
+
+/* ---- Landscape felt scaling (ticket 0097) -------------------------------------------------------
+   PORTRAIT (above) is FROZEN: it binds `--u` to felt HEIGHT against a 701px reference, because a
+   portrait felt is tall and height is the generous dimension. In LANDSCAPE the felt is SHORT and
+   WIDE, so that exact height-bound rule is wrong: `100cqh / 701` on a ~320px-tall landscape felt
+   floors at the clamp's 0.62px and the scene still renders too LARGE for the short felt → it
+   overflows the band and collides the wide-arc seats. So landscape re-binds `--u` to its OWN, much
+   shorter reference height (430px ≈ the design canvas's felt height once rotated to ~900×460), with a
+   width term (`100cqw / 920`) as a safety floor. 920 is intentionally a touch wider than the ~900
+   rotated-canvas width, so the width term normally sits just ABOVE the height term and the `min()`
+   stays height-bound; it only becomes the binder — shrinking the scene further — for a felt narrower
+   than ~920px-equivalent, guarding the rare narrow-and-short felt from horizontal overflow. `min()`
+   takes whichever dimension is the tighter fit; in practice the wide felt makes
+   HEIGHT the binder, which is deliberate — keeping `--u ∝ felt height` in BOTH orientations means a
+   seat's pill drop stays a constant FRACTION of felt height, so `WAGER_DROP_PCT = 8%` clears the
+   pill in landscape with no orientation-specific pixel constant (the 0096 carry-forward). The clamp
+   ceiling stays 1px (never enlarge past the authored size); the floor drops to 0.5px so the shortest
+   landscape felts still shrink the scene enough to fit rather than clipping. This is scoped to
+   `data-orientation=landscape` (set by Table via useOrientation), so portrait is untouched. */
+.felt[data-orientation='landscape'] {
+  --u: clamp(0.5px, min(100cqh / 430, 100cqw / 920), 1px);
+}
 .felt::after {
   content: '';
   position: absolute;
@@ -940,6 +962,73 @@ body {
 .quit-cta {
   grid-column: 1 / -1;
   font-size: 13px;
+}
+
+/* ---- Landscape action bar (ticket 0097) ----------------------------------------------------------
+   In portrait the bar reserves a tall 140px floor (bet-row stacked ABOVE a 3-up button grid). On a
+   short landscape viewport that 140px is ~36% of the screen — it crushes the felt to ~190px, which
+   re-collides the seats with the corner controls and pushes the hero off the felt. Landscape instead
+   lays the bet-row and the action buttons SIDE BY SIDE in a single short row and drops the height
+   floor, handing the reclaimed ~60px back to the felt so the wide-arc arrangement actually fits.
+
+   The two rows sit at the same height whether or not the bet-row is present (hero-turn vs the
+   waiting / between-hands / session-over CTA states), so the bar height is stable across the turn
+   without the portrait `min-height` reservation. `@media (orientation: landscape)` is the SAME
+   condition the felt reads via `matchMedia('(orientation: landscape)')`, so chrome and felt switch
+   together. Portrait is untouched. */
+@media (orientation: landscape) {
+  /* Use the width. In portrait the play shell is a 460px column (a phone screen); keeping that cap in
+     landscape would letterbox the felt to ~434px wide — short AND narrow — so the wide-arc arrangement
+     never gets the horizontal room it was designed for and the action-bar row has no space. Lift the
+     cap so the felt spans the viewport (bounded so a desktop landscape window doesn't stretch absurdly;
+     the `--u` ceiling already stops the scene scaling past its authored size, so extra width just
+     spreads the seats). Scoped to the PLAY shell (`.app-stack`) — the reading-column screens (setup,
+     learn, drills) keep their comfortable 460px measure. */
+  .app-stack {
+    max-width: min(100%, 1024px);
+  }
+
+  .actionbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 0; /* release the portrait reserved height — the felt reclaims it */
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    gap: 16px;
+  }
+  .bet-row {
+    flex: 1 1 auto;
+    min-width: 0; /* let the slider shrink rather than push the buttons off-screen */
+  }
+  /* The slider is the load-bearing control: give it the flexible space so it never collapses to zero
+     while the (content-sized) amount + pegs hold their width. Reset the base `width: 100%` to `auto`
+     so its size is the flex-basis (0) + grow, not 100% of the row shrunk back down — deterministic
+     rather than relying on flex-shrink to rescue an over-wide basis. */
+  .bet-row .slider {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 80px;
+  }
+  .bet-amount,
+  .sizes {
+    flex: 0 0 auto;
+  }
+  /* Flex (not the portrait 3-col grid) so the variable button sets — 3 actions, the lone "Waiting…",
+     the two between-hands CTAs — all lay out in one right-aligned row instead of stacking. */
+  .actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+  .actions .btn {
+    flex: 0 0 auto;
+    padding: 11px 16px; /* shorter than portrait's 14px so the row stays compact, tap target ~36px */
+  }
+  /* These span the full grid width in portrait; in the landscape flex row they size to content. */
+  .next-cta,
+  .quit-cta {
+    grid-column: auto;
+  }
 }
 
 /* ============ setup screen (ticket 0035) ============ */
@@ -1643,6 +1732,34 @@ body {
 }
 .btn.history-open:hover {
   border-color: var(--accent);
+}
+
+/* Tuck the bottom-corner felt chrome tighter in landscape (ticket 0097). These controls are FIXED px
+   (tap targets, not part of the scaled scene), so on a short landscape felt they're a big fraction of
+   the height and the 5/6-max lower wings — which can't rise past the central board band — graze them.
+   A modest shrink + a lower anchor buys the wings clearance across the common phone-landscape range
+   without dropping the tap targets below ~32px. Placed AFTER the base `.coach-fab` / `.history-open`
+   rules so it wins the cascade (same specificity → source order).
+
+   COUPLED with the landscape lower-wing y in layout.ts `LANDSCAPE_SEAT_LAYOUTS` (y=61) and the
+   `CORNER_CONTROL_TOP` guard in layout.test.ts: this size/anchor sets how far up the felt the controls
+   reach, and the wings are pinned above that. If you grow these controls (or raise `bottom`), the
+   wings can re-collide — re-verify in a landscape browser; the felt-% unit test cannot see this CSS. */
+@media (orientation: landscape) {
+  .coach-fab {
+    bottom: 8px;
+    padding: 5px 7px;
+    gap: 2px;
+  }
+  .coach-fab .ring {
+    width: 23px;
+    height: 23px;
+    font-size: 12px;
+  }
+  .btn.history-open {
+    bottom: 8px;
+    padding: 8px 12px;
+  }
 }
 
 /* The recent-hands sheet: a centered modal over a dim scrim. */
