@@ -119,6 +119,7 @@ export function Table({
             heroSeat={heroSeat}
             seatLabel={seatLabel}
             center={center}
+            orientation={orientation}
             revealBoardCount={revealBoardCount}
             showResult={showResult}
           />

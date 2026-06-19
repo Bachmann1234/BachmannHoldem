@@ -410,6 +410,15 @@ body {
   max-width: 88%;
   text-align: left;
 }
+/* Landscape (ticket 0098): unlike the narrow single-pot banner, the attribution GRID is wide, so on
+   the wide landscape felt an 88% width reaches the far-edge lower wings (at x≤7/≥93). Narrow it to a
+   central band that clears them by construction (a side-pot showdown is rare, so the tighter grid is
+   an acceptable trade vs. risking a wing overlap). Higher-specificity `.felt[data-orientation=...]`
+   selector so it wins regardless of source order. Pairs with the landscape line cap in
+   Center.tsx `maxPotLines` (fewer rows) and the gentler landscape `completeRise` lift. */
+.felt[data-orientation='landscape'] .result-banner--pots {
+  max-width: 60%;
+}
 /* One row per pot, NEVER wrapping: tag (auto) · winner+hand (1fr, ellipsis-clips first) · amount
    (auto, right). The hand description is the load-bearing-last column that clips at 320px while
    the tag, name, and amount stay intact. */

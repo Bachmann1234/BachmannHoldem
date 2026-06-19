@@ -24,7 +24,7 @@ import {
   type HandConfig,
 } from '@holdem/engine'
 import { Center, ResultBanner } from './Center.js'
-import { CENTER } from './layout.js'
+import { CENTER, LANDSCAPE_CENTER } from './layout.js'
 
 afterEach(cleanup)
 
@@ -191,6 +191,91 @@ describe('Center showdown lift direction', () => {
   })
 })
 
+/**
+ * Showdown lift direction in LANDSCAPE (ticket 0098). Same downward-banner physics, re-derived for
+ * the wide-arc {@link LANDSCAPE_CENTER}/`LANDSCAPE_SEAT_LAYOUTS` (board y=46; ≤4-max opponents in the
+ * upper arc y≈12–26 with no lower seats; 5/6-max lower wings at y=61). The `.center` is rendered with
+ * `center={LANDSCAPE_CENTER}` + `orientation="landscape"`, exactly as Table threads it.
+ */
+describe('Center showdown lift direction — landscape', () => {
+  const LY = LANDSCAPE_CENTER[1] // 46
+
+  it('drops the block below the landscape centre at ≤4-max (opponents are all in the upper arc)', () => {
+    for (const n of [2, 3, 4]) {
+      const hand = completedAllIn(n)
+      const { container } = render(
+        <Center hand={hand} center={LANDSCAPE_CENTER} orientation="landscape" {...props} />,
+      )
+      const top = parseFloat((container.querySelector('.center') as HTMLElement).style.top)
+      // Drop (top > centre): board stays ~46–48, far below the y≈12–13 top seats; banner grows down
+      // into the open felt above the hero (y=86). The single-pot drop lands at top=52.
+      expect(top, `${n}-max landscape should drop, not lift`).toBeGreaterThan(LY)
+      expect(
+        top,
+        `${n}-max landscape drop must keep the banner clear of the hero (y=86)`,
+      ).toBeLessThan(70)
+      cleanup()
+    }
+  })
+
+  it('lifts the block above the landscape centre at 5/6-max (a gentle lift, board between the bands)', () => {
+    for (const n of [5, 6]) {
+      const hand = completedAllIn(n)
+      const { container } = render(
+        <Center hand={hand} center={LANDSCAPE_CENTER} orientation="landscape" {...props} />,
+      )
+      const top = parseFloat((container.querySelector('.center') as HTMLElement).style.top)
+      // Lift (top < centre, board rides up) — but a GENTLE lift only. The narrow single-pot banner
+      // clears the far-edge wings horizontally regardless of y, so the binding constraint is the TOP
+      // seat: a hard lift drove the pot label into the 6-max top-centre seat (the bug that
+      // visual-verification caught). So `top` stays just below the centre (≈42–45), not over-lifted.
+      expect(top, `${n}-max landscape should lift`).toBeLessThan(LY)
+      expect(
+        top,
+        `${n}-max landscape lift must stay gentle so the pot clears the top seat`,
+      ).toBeGreaterThan(40)
+      cleanup()
+    }
+  })
+
+  it('lifts 6-max LESS than 5-max in landscape (6-max has a top-centre seat the pot must clear)', () => {
+    // 6-max seats a top-centre opponent at (x=50, y=13) directly above the board, so a big lift drives
+    // the pot label into it (the bug visual-verification caught). 5-max's top is open (uppers at
+    // x=22/78), so it can ride a touch higher. Pinned so the per-count split can't silently collapse.
+    const five = completedAllIn(5)
+    const six = completedAllIn(6)
+    const r5 = render(
+      <Center hand={five} center={LANDSCAPE_CENTER} orientation="landscape" {...props} />,
+    )
+    const top5 = parseFloat((r5.container.querySelector('.center') as HTMLElement).style.top)
+    cleanup()
+    const r6 = render(
+      <Center hand={six} center={LANDSCAPE_CENTER} orientation="landscape" {...props} />,
+    )
+    const top6 = parseFloat((r6.container.querySelector('.center') as HTMLElement).style.top)
+    // 6-max lifts less → its `top` sits LOWER on the felt (larger %) than 5-max's.
+    expect(top6).toBeGreaterThan(top5)
+  })
+
+  it('keeps the portrait lift byte-identical (portrait path unchanged by the orientation param)', () => {
+    // Default orientation is portrait — the same number as before the 0098 signature change.
+    for (const n of [2, 5]) {
+      const hand = completedAllIn(n)
+      const def = render(<Center hand={hand} {...props} />)
+      const topDefault = parseFloat(
+        (def.container.querySelector('.center') as HTMLElement).style.top,
+      )
+      cleanup()
+      const expl = render(<Center hand={hand} center={CENTER} orientation="portrait" {...props} />)
+      const topExplicit = parseFloat(
+        (expl.container.querySelector('.center') as HTMLElement).style.top,
+      )
+      cleanup()
+      expect(topExplicit).toBe(topDefault)
+    }
+  })
+})
+
 describe('ResultBanner showdown attribution', () => {
   it('attributes each pot to its own winner when the hero wins main and loses the side', () => {
     // 3-way all-in 20/50/100. Hero (seat0) is short → eligible for the MAIN pot only, and holds the
@@ -313,5 +398,34 @@ describe('ResultBanner showdown attribution', () => {
     expect(getByTestId('pot-line-4').className).toContain('win')
     expect(queryByTestId('pot-line-3')).toBeNull() // a non-hero pot collapsed in its place
     expect(getByTestId('pot-line-more').textContent).toContain('+1 more')
+  })
+
+  // --- The landscape (tighter) cap (ticket 0098) ---------------------------------------------------
+  it('caps the landscape grid at 2 pot-lines + a "+N more" tail (short felt below the board)', () => {
+    // The short-wide landscape felt seats the lower wings at y=61, leaving room for far fewer
+    // attribution rows below the board than portrait — so the grid collapses at 2 (main + 1 side),
+    // not 4. Hero wins only the main: show main + the first side, collapse the remaining three.
+    const hand = { ...completedThreeWay(), pots: fivePots(0) }
+    const { getByTestId, queryByTestId } = render(
+      <ResultBanner hand={hand} orientation="landscape" {...props} />,
+    )
+    expect(getByTestId('pot-line-0')).toBeTruthy()
+    expect(getByTestId('pot-line-1')).toBeTruthy()
+    expect(queryByTestId('pot-line-2')).toBeNull() // collapsed by the tighter landscape cap
+    expect(queryByTestId('pot-line-3')).toBeNull()
+    expect(getByTestId('pot-line-more').textContent).toContain('+3 more')
+  })
+
+  it('still force-shows a hero-won pot under the landscape cap (main + the hero pot)', () => {
+    // Hero wins the LAST pot (index 4): even with only 2 slots it stays shown (main + hero-won),
+    // collapsing the three middle non-hero pots into the tail.
+    const hand = { ...completedThreeWay(), pots: fivePots(4) }
+    const { getByTestId, queryByTestId } = render(
+      <ResultBanner hand={hand} orientation="landscape" {...props} />,
+    )
+    expect(getByTestId('pot-line-0')).toBeTruthy() // main always shown
+    expect(getByTestId('pot-line-4').className).toContain('win') // hero-won, force-shown
+    expect(queryByTestId('pot-line-1')).toBeNull() // middle non-hero pots collapse
+    expect(getByTestId('pot-line-more').textContent).toContain('+3 more')
   })
 })
