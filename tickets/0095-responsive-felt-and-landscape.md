@@ -2,7 +2,7 @@
 id: 0095
 title: Responsive felt & landscape play
 type: epic
-status: todo
+status: in-progress
 milestone: M7
 priority: medium
 created: 2026-06-19
