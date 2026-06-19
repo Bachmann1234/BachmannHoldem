@@ -24,7 +24,10 @@ export default defineConfig({
         theme_color: '#0d0f13',
         background_color: '#0d0f13',
         display: 'standalone',
-        orientation: 'portrait',
+        // No `orientation` lock (ticket 0099): the felt is now orientation-agnostic (M7 — the felt
+        // scales as one unit and has a real landscape arrangement + landscape play chrome), so the
+        // installed PWA follows the device and rotates freely. The old `orientation: 'portrait'` was a
+        // de-facto guard against the then-broken landscape layout, no longer needed once 0096–0098 land.
         start_url: '/',
         scope: '/',
         icons: [

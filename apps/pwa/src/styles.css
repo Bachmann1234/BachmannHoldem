@@ -995,6 +995,13 @@ body {
      learn, drills) keep their comfortable 460px measure. */
   .app-stack {
     max-width: min(100%, 1024px);
+    /* Safe-area for landscape (ticket 0099): rotated, the notch / home-indicator move to the SHORT
+       (left/right) edges, so inset the whole play column horizontally to keep the felt, topbar, and
+       action-bar controls out from under them. Portrait's top/bottom insets (on .topbar/.table/
+       .actionbar) still apply; this adds the sideways pair landscape needs. 0 on a non-notched
+       device, so it's inert where unneeded. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   .actionbar {
