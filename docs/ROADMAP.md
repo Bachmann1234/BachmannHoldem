@@ -63,14 +63,26 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   existed, so it was built here as the shared durable store M6 stats will consume. Its epic is
   [`0076`](../tickets/0076-drills-v2.md).
 - **M6 — Stats & leak detection.** Where a trainer beats just playing online — longitudinal
-  feedback built on stored hand history. **This is the last committed milestone.**
+  feedback built on stored hand history. The last milestone of the _learning_ arc.
+- **M7 — Responsive felt & landscape play.** The first milestone that's purely about the shell, not
+  the poker brain: make the table felt orientation- and size-agnostic and add a real landscape
+  layout. The felt was built portrait-only — seats are positioned in percentages while cards/pills
+  are fixed pixels, so a shorter (landscape) felt collides them; the `orientation: portrait` manifest
+  lock masks this rather than solving it. The locked approach is **fix sizing before arrangement**:
+  first make the whole felt scale as one unit so percentage coordinates hold at any size (which also
+  lets the accreted portrait pixel-hacks — `WAGER_DROP_PX`, the `completeRise` lift special-casing —
+  be deleted), _then_ add a landscape seat arrangement on top, which becomes a clean second coordinate
+  table instead of a second set of fragile per-size patches. A discretionary UI investment off the
+  learning arc; it reclaims the M7 number freed when LLM coaching was deprioritized to a deferred
+  idea (below). Its epic is [`0095`](../tickets/0095-responsive-felt-and-landscape.md).
 
 ### Deferred — ideas, not committed
 
 Parked as maybe-someday ideas, deliberately off the committed arc. They only get pulled if they
 clearly earn their cost; until then they're not planned work.
 
-- **LLM coaching (was M7).** Natural-language narration on top of the trustworthy math — the LLM would
+- **LLM coaching (formerly the M7 slot; that number is now M7 — Responsive felt, above).**
+  Natural-language narration on top of the trustworthy math — the LLM would
   _explain_ the deterministic numbers, never compute them. **Deprioritized:** it's pure polish and the
   only thing in the whole app that would need a network boundary (a serverless key-proxy), and that
   cost isn't worth it just for narration — the deterministic math coach already stands on its own.
