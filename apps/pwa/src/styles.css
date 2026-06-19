@@ -814,8 +814,8 @@ body {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+  gap: 12px;
+  padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 .setup-head {
@@ -837,10 +837,10 @@ body {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
-  padding: 16px;
+  padding: 13px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 .setup-row {
   display: flex;
@@ -926,6 +926,62 @@ body {
 .setup-cta {
   margin-top: auto;
   width: 100%;
+}
+/* A single card holding several rows split by hairlines instead of one card each — keeps the Play
+   setup compact on short phones (Seats / Stack / Format share one card). */
+.setup-card--divided {
+  gap: 0;
+}
+.setup-card--divided .setup-row {
+  padding: 12px 0;
+}
+.setup-card--divided .setup-row:first-child {
+  padding-top: 0;
+}
+.setup-card--divided .setup-row:last-child {
+  padding-bottom: 0;
+}
+.setup-card--divided .setup-row + .setup-row {
+  border-top: 1px solid var(--line);
+}
+/* Drills theme picker (ticket 0068) as a two-column grid of toggle chips — each chip is the whole
+   target, title over a compact mastery readout, so nine topics fit without a tall scroll. */
+.theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.theme-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 9px 11px;
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+  transition: 0.12s;
+}
+.theme-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.theme-chip-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.theme-chip.active .theme-chip-title {
+  color: var(--accent);
+}
+.theme-chip-meta {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
 }
 
 /* ============ stats screen (ticket 0089) ============ */

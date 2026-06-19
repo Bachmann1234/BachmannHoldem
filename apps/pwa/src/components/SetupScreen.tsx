@@ -87,10 +87,9 @@ export function SetupScreen({
       <div className="setup">
         <div className="setup-head">
           <div className="setup-title">Set up your table</div>
-          <div className="setup-sub">Pick how many seats and who you&apos;re up against.</div>
         </div>
 
-        <div className="setup-card">
+        <div className="setup-card setup-card--divided">
           <div className="setup-row">
             <div className="setup-label">
               Seats
@@ -120,9 +119,6 @@ export function SetupScreen({
               </button>
             </div>
           </div>
-        </div>
-
-        <div className="setup-card">
           <div className="setup-row">
             <div className="setup-label">
               Stack
@@ -151,9 +147,6 @@ export function SetupScreen({
               })}
             </div>
           </div>
-        </div>
-
-        <div className="setup-card">
           <div className="setup-row">
             <div className="setup-label">
               Format

@@ -355,39 +355,29 @@ export function DrillsBranch({
       <div className="setup">
         <div className="setup-head">
           <div className="setup-title">Practice the math</div>
-          <div className="setup-sub">
-            Pick the topic(s) to drill. Fast, interleaved reps that complement your time at the
-            table. They don&apos;t replace it.
-          </div>
         </div>
 
-        <div className="setup-card">
+        <div className="setup-card theme-grid">
           {DRILL_THEMES.map((theme) => {
             const on = selectedIds.has(theme.id)
             // The per-concept mastery readout (ticket 0081), read from the same store — "70% over 40 reps"
             // when drilled, a gentle "not drilled yet" before. It is a decision-quality read, not a score.
             const readout = formatMastery(mastery.get(theme.concept))
             return (
-              <div className="setup-row" key={theme.id}>
-                <div className="setup-label">
-                  {theme.title}
-                  <span className="hint" data-testid={`theme-mastery-${theme.id}`}>
-                    {readout
-                      ? `${conceptWords(theme.concept)} · ${readout.percent} over ${readout.reps}`
-                      : `drills ${conceptWords(theme.concept)} · not drilled yet`}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="preset-pill"
-                  aria-pressed={on}
-                  aria-label={`${on ? 'Remove' : 'Add'} ${theme.title}`}
-                  data-testid={`theme-${theme.id}`}
-                  onClick={() => toggleTheme(theme.id)}
-                >
-                  {on ? '✓ On' : 'Off'}
-                </button>
-              </div>
+              <button
+                key={theme.id}
+                type="button"
+                className={'theme-chip' + (on ? ' active' : '')}
+                aria-pressed={on}
+                aria-label={`${on ? 'Remove' : 'Add'} ${theme.title}`}
+                data-testid={`theme-${theme.id}`}
+                onClick={() => toggleTheme(theme.id)}
+              >
+                <span className="theme-chip-title">{theme.title}</span>
+                <span className="theme-chip-meta" data-testid={`theme-mastery-${theme.id}`}>
+                  {readout ? `${readout.percent} over ${readout.reps}` : 'not drilled yet'}
+                </span>
+              </button>
             )
           })}
         </div>
