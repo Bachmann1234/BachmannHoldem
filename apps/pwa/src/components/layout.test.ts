@@ -1,26 +1,31 @@
 /**
  * Felt geometry invariants (layout.ts). The headline guard is wager-chip placement. A seat's
  * coordinate is its container centre and a seat stacks its cards above its pill, so the pill sits a
- * roughly constant ~43px below the coordinate. For an UPPER seat that puts the pill on the pot side
- * of the coordinate, so a chip floated a fixed *percentage* toward the pot lands on the stack
- * number (the "225" overlap bug) — and the needed percentage grows as the felt shrinks, so the fix
- * drops upper-seat chips a fixed *pixel* distance instead. Lower seats keep the gentle % float
- * (their pill is on the far side of the coordinate from the pot). These tests pin both branches.
+ * roughly constant distance below the coordinate. Pre-0096 that distance was a constant ~43px while
+ * the felt's pixel height varied, so it was a SMALL % on a tall felt but a LARGE % on a short one —
+ * no single % cleared the pill on every screen (the "225" overlap bug), forcing a `WAGER_DROP_PX`
+ * pixel hack for upper seats. Since 0096 the whole felt scales as ONE unit (the `--u` design-pixel
+ * in styles.css), so that pill drop is a constant FRACTION of the felt at every size and a plain
+ * percentage clears it everywhere. Both branches are pure `%` again; these tests pin both.
  */
 
 import { describe, expect, it } from 'vitest'
 import { CENTER, SEAT_LAYOUTS, wagerStyle } from './layout.js'
 
 describe('wagerStyle', () => {
-  it('drops every upper-seat chip a fixed pixel distance past its pill', () => {
+  it('drops every upper-seat chip a fixed percentage past its pill toward the pot', () => {
     for (const seats of Object.values(SEAT_LAYOUTS)) {
       for (const seat of seats) {
         const [, sy] = seat
         if (sy >= CENTER[1]) continue
         const { top } = wagerStyle(seat)
-        // Pixel offset (viewport-invariant) so it clears the ~43px pill drop on any screen, NOT a
-        // percentage that would shrink to nothing on a short felt.
-        expect(top, `upper seat ${JSON.stringify(seat)}`).toBe(`calc(${sy}% + 56px)`)
+        // Now a pure percentage: the felt scales uniformly, so the constant pill drop is a constant
+        // % (8% — the old 56px was 8% of the 701px reference felt) at any size. The chip lands BELOW
+        // the coordinate (toward the pot), still above felt-centre.
+        expect(top, `upper seat ${JSON.stringify(seat)}`).toBe(`${sy + 8}%`)
+        const ty = parseFloat(top)
+        expect(ty, `upper chip ${JSON.stringify(seat)} dropped toward pot`).toBeGreaterThan(sy)
+        expect(ty, `upper chip ${JSON.stringify(seat)} stays above centre`).toBeLessThan(CENTER[1])
       }
     }
   })
@@ -59,6 +64,6 @@ describe('wagerStyle', () => {
 
   it('matches the documented values for the hero and a top-centre seat', () => {
     expect(wagerStyle([50, 81])).toEqual({ left: '50%', top: '68.76%' }) // hero: gentle float up
-    expect(wagerStyle([50, 16])).toEqual({ left: '50%', top: 'calc(16% + 56px)' }) // top-centre drop
+    expect(wagerStyle([50, 16])).toEqual({ left: '50%', top: '24%' }) // top-centre: 8% drop past pill
   })
 })

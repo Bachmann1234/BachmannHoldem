@@ -65,10 +65,14 @@ function podLabel(index: number, potCount: number): string {
  * it lifts a touch less than a 5-max to avoid driving the board up into the top row. Counts with no
  * bottom seats (≤ 4: opponents flank or sit above the board) just get the 5-max value cosmetically.
  *
- * Note: on the shortest phones (~320×680) the pot+board+banner block is tall enough that no lift
- * fully clears the wings without crowding the top seats; these values clear the common small sizes
- * (≥360-wide) and reduce — not eliminate — the overlap at 320. A fuller fix needs a more compact
- * showdown banner.
+ * KEPT after the 0096 uniform-scale refactor — and it stays in felt **percent**, not pixels, so it
+ * is NOT a `%`-over-px hack like the old `WAGER_DROP_PX`. It encodes a genuine ARRANGEMENT fact: the
+ * downward-growing banner must move away from whichever seats are nearby, and that direction differs
+ * by seat count (upper-arc vs lower-wing). Uniform scale doesn't change which way to move, so the
+ * direction logic survives intact; what it *does* fix is the pre-0096 small-phone caveat — the
+ * pot+board+banner block was a constant pixel height on a felt that shrank, so on ~320px phones it
+ * overflowed and no lift cleared it. The block now scales WITH the felt, so its height is a constant
+ * fraction at every size and these percentage lifts clear the wings across the supported range.
  *
  * Pot-aware (ticket 0091): a multi-pot showdown renders the taller per-pot attribution grid, so it
  * needs a touch *more* lift to keep that taller banner clear of the bottom wings. `potCount` defaults

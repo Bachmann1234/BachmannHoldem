@@ -1,7 +1,13 @@
 /**
  * Felt geometry shared by the table view (ticket 0034) — the seat `%`-coordinate tables and the
- * centre/wager positioning math, ported verbatim from the confirmed design's `app.jsx`
- * (`SEAT_LAYOUTS` / `CENTER` / `lerp`). Layout-only: no game logic.
+ * centre/wager positioning math, ported from the confirmed design's `app.jsx` (`SEAT_LAYOUTS` /
+ * `CENTER` / `lerp`). Layout-only: no game logic.
+ *
+ * Sizing model (ticket 0096): the whole table scene (cards, pills, board, pot, banner, wagers) is
+ * sized in one shared "design pixel" `--u` in `styles.css`, so it scales as a single unit with the
+ * felt. That makes these `%` coordinates *size-stable* — a `[x%, y%]` maps to the same relative spot
+ * AND the same apparent size at any felt size — which is why {@link wagerStyle} can be pure `%` again
+ * (the old `WAGER_DROP_PX` pixel hack is gone; see its replacement note below).
  */
 
 /**
@@ -57,30 +63,37 @@ export function lerp(a: number, b: number, t: number): number {
 }
 
 /**
- * How far below an upper seat's coordinate to drop its wager chip, in CSS pixels.
+ * How far (in felt %) to push an UPPER seat's wager chip past its coordinate toward the pot.
  *
- * A seat's coordinate is its *container* centre, and a seat stacks its (fixed-px) cards ABOVE its
- * pill — so the pill bottom sits a roughly CONSTANT ~43px below the coordinate, independent of
- * viewport. For an upper seat that pill is on the pot side of the coordinate, so a chip floated a
- * fixed *percentage* toward the pot lands on it (the garbled "225" overlap) — and worse, the needed
- * percentage grows as the felt shrinks, so no single % clears it on every screen. Pixels do: 56px
- * clears the ~43px pill drop plus the chip's ~11px half-height with a small margin, at any size.
+ * Pre-0096 this branch could not be a percentage at all: cards/pills were a CONSTANT pixel size
+ * while the felt's pixel height varied, so a seat's pill sat a constant ~43px below its coordinate
+ * — a distance that is a SMALL % on a tall felt but a LARGE % on a short one. No single % cleared
+ * the pill on every screen, which forced the old `WAGER_DROP_PX = 56` pixel hack (deleted here).
+ *
+ * Now that the whole felt scales as one unit (the `--u` design-pixel; see `styles.css`), the pill
+ * drop is a CONSTANT FRACTION of the felt at every size, so a plain percentage clears it everywhere
+ * — and the chip scales with the felt instead of "growing" as the felt shrinks. So both branches
+ * are now pure `%` again. {@link WAGER_DROP_PCT} replaces the old `WAGER_DROP_PX = 56`: that 56px
+ * was 8% of the reference felt height (701px), and since the pill now holds that same ~8% drop at
+ * EVERY felt size, the literal 8% clears it on every screen.
  */
-const WAGER_DROP_PX = 56
+const WAGER_DROP_PCT = 8
 
 /**
  * The CSS `left`/`top` for a seat's wager chip. The chip reads as money pushed toward the pot.
  *
- * UPPER seats drop their chip a fixed pixel distance past the pill (see {@link WAGER_DROP_PX}).
- * LOWER seats (the hero and the 5/6-max wings) carry their pill on the *far* side of the coordinate
- * from the pot, so a gentle float toward {@link CENTER} already clears it — they keep the original
- * percentage interpolation. The horizontal nudge toward centre is cosmetic and also keeps flank
- * chips off the screen edge.
+ * Both branches are now pure percentage placement (the felt scales uniformly, so a constant pill
+ * drop is a constant % at any size — no more pixel patch):
+ *  - UPPER seats (above {@link CENTER}) carry their pill on the *pot* side of the coordinate, so the
+ *    chip is dropped DOWN past it — toward the pot but clear of the pill — by {@link WAGER_DROP_PCT}.
+ *  - LOWER seats (the hero + the 5/6-max wings) carry their pill on the *far* side, so a gentle
+ *    float UP toward {@link CENTER} already clears it.
+ * The horizontal nudge toward centre is cosmetic and also keeps flank chips off the screen edge.
  */
 export function wagerStyle(seat: readonly [number, number]): { left: string; top: string } {
   const [sx, sy] = seat
   const left = `${lerp(sx, CENTER[0], 0.34)}%`
-  if (sy < CENTER[1]) return { left, top: `calc(${sy}% + ${WAGER_DROP_PX}px)` }
+  if (sy < CENTER[1]) return { left, top: `${sy + WAGER_DROP_PCT}%` }
   return { left, top: `${lerp(sy, CENTER[1], 0.34)}%` }
 }
 

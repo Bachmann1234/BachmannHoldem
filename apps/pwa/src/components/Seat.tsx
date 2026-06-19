@@ -63,6 +63,10 @@ export function Seat({
   // Horizontal anchor: a seat on the felt's left/right flank grows its (wide) info pill INWARD
   // from that edge rather than centring on its coordinate, so the pill can never spill off the
   // narrow-phone screen edge. Only near-centre seats (the hero, a top-centre seat) stay centred.
+  // KEPT after the 0096 uniform-scale refactor: the pill scales with the felt now, but a label is
+  // intrinsically variable-width (a long `Seat N (Persona)` is wider than its coordinate margin even
+  // at a small scale), so a flank pill centred on a near-edge coordinate would still overhang. This
+  // is a label-width concern, not the px-impedance the scale fixed, so the inner-edge anchor stays.
   const side = x <= 18 ? 'left' : x >= 82 ? 'right' : 'center'
   const cls = [
     'pseat',

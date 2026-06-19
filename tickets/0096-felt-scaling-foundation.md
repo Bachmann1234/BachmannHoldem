@@ -2,7 +2,7 @@
 id: 0096
 title: Scale the felt as a single unit (kill the %-over-px mismatch)
 type: task
-status: todo
+status: done
 milestone: M7
 priority: medium
 created: 2026-06-19
@@ -21,22 +21,33 @@ per-size pixel patching the portrait layout accreted.
 
 ## Acceptance criteria
 
-- [ ] The felt is rendered against a fixed-aspect "design canvas" (the dimensions the current
+- [x] The felt is rendered against a fixed-aspect "design canvas" (the dimensions the current
       `SEAT_LAYOUTS`/`CENTER` numbers were authored against) and scaled to fit its container as a
-      single unit, so cards, pills, board, and seat coordinates grow/shrink together.
-- [ ] **Portrait output is visually unchanged.** Across the supported portrait phone width range the
+      single unit, so cards, pills, board, and seat coordinates grow/shrink together. _(Implemented
+      as a shared `--u` design-pixel driven by `100cqh / 701` on `.felt` — the felt scene scales as
+      one unit; no transform, so text stays crisp. Reference felt height 701px ⇒ `--u`=1px.)_
+- [x] **Portrait output is visually unchanged.** Across the supported portrait phone width range the
       table looks as it does today (this is a sizing refactor, not a redesign). The seat-position
-      numbers in `SEAT_LAYOUTS` should survive largely intact.
-- [ ] The `%`-over-px workarounds are removed where the scaling layer subsumes them — at minimum
+      numbers in `SEAT_LAYOUTS` should survive largely intact. _(Verified in Chromium: at the 460×900
+      reference felt is 701px tall ⇒ `--u`=1px ⇒ cards/pills byte-identical to pre-0096; at 320×680
+      the scene scales to 0.672× with no seat/center overflow. `SEAT_LAYOUTS` unchanged.)_
+- [x] The `%`-over-px workarounds are removed where the scaling layer subsumes them — at minimum
       `WAGER_DROP_PX` (`layout.ts` `wagerStyle`); review `completeRise` and Seat.tsx edge-anchoring and
       simplify or delete what the uniform scale makes unnecessary. Anything kept is justified in a
-      comment.
-- [ ] Layout tests in `Center.test.tsx` (and any seat-position tests) are re-baselined to the scaled
+      comment. _(`WAGER_DROP_PX = 56` deleted ⇒ `WAGER_DROP_PCT = 8` (the px was 8% of the 701px
+      reference). `completeRise` kept — it's already felt-%, encodes a per-seat-count arrangement
+      fact, not a px hack; comment rewritten. Seat edge-anchoring kept — a label-width concern
+      orthogonal to scale; comment added.)_
+- [x] Layout tests in `Center.test.tsx` (and any seat-position tests) are re-baselined to the scaled
       model; the existing assertions about lift direction / pot placement still hold (or are updated
-      with a rationale).
-- [ ] No interaction regressions: tap targets (action bar, coach FAB, seats) stay correctly sized and
-      hit-testable after scaling; text stays crisp (no blurry transform scaling of fonts).
-- [ ] `pnpm verify` green.
+      with a rationale). _(`layout.test.ts` wager assertions re-baselined to the pure-% model +
+      strengthened with two bound invariants; `Center.test.tsx` lift-direction values unchanged and
+      still pass.)_
+- [x] No interaction regressions: tap targets (action bar, coach FAB, seats) stay correctly sized and
+      hit-testable after scaling; text stays crisp (no blurry transform scaling of fonts). _(Container-
+      query units, not `transform: scale()` — children lay out at real px, so hit-rects and font
+      rasterization are native. Coach FAB / History left at fixed px as corner-anchored chrome.)_
+- [x] `pnpm verify` green. _(format + lint + typecheck + 1142 tests + coverage gate all green.)_
 
 ## Notes
 

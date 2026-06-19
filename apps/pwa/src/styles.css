@@ -44,6 +44,13 @@
   --radius-panel: 16px;
   --radius-pill: 999px;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+
+  /* The felt design-pixel (ticket 0096). The IDENTITY default (1px) is the authored, unscaled size
+     — it keeps `<Card>` and other `calc(N * var(--u))` consumers rendering at their original px
+     OUTSIDE the scaling felt (the lesson/drill `.spot-felt` surfaces, the rules overlay), where
+     there is no felt to scale against. `.felt` overrides this with the container-query scale so the
+     poker scene shrinks/grows as one unit; everything else stays pixel-stable as it was pre-0096. */
+  --u: 1px;
   --felt: radial-gradient(120% 80% at 50% 26%, #1c2a2a 0%, #141b1d 52%, #0f1416 100%);
   --felt-radius: 130px;
 }
@@ -227,6 +234,32 @@ body {
     inset 0 -30px 70px rgba(0, 0, 0, 0.4),
     var(--shadow);
   overflow: visible;
+
+  /* ---- Uniform felt scaling (ticket 0096) ---------------------------------------------------
+     The whole table SCENE — cards, pills, board, pot, banner, wagers — is sized in one shared
+     "design pixel" `--u` so it grows and shrinks together with the felt. That makes a `[x%, y%]`
+     seat coordinate map to the same *relative* spot AND the same *apparent* size at any felt size,
+     killing the old `%`-over-px mismatch (fixed-px cards on a `%`-positioned felt collided as the
+     felt shrank; see layout.ts / Center.tsx). Approach chosen: container-query units, NOT
+     `transform: scale()` — text stays crisp (real layout px, no GPU upscale blur) and tap targets
+     keep their true hit-rects (no transform coordinate remap).
+
+     `container-type: size` lets children read the felt's box via `cqh`/`cqw`. This OVERRIDES the
+     `:root` identity default (`--u: 1px`) for the felt subtree only. `--u` is the size of one
+     design-pixel at the current scale: it equals the felt height as a fraction of the REFERENCE
+     felt height the layout was authored against (701px = the felt at the 460×900 design viewport).
+     `100cqh / 701` is `1px` at the reference height and scales linearly with felt height. The clamp
+     ceiling (`1px`) means a *larger* felt never enlarges past the authored size — matching today,
+     where the scene was fixed px and never grew; the floor (`0.62px`) keeps the shortest supported
+     felts (~320-wide) legible rather than vanishing. Children multiply this: `calc(54 * var(--u))`.
+
+     Why height-bound: the collisions this fixes are vertical (the `%` y-coords pull seats together
+     as felt height drops while their cards stayed px-sized), and the scene was authored to the felt
+     HEIGHT. Binding to height (not min/width) reproduces today's look exactly at the reference and
+     degrades by shrinking the scene on shorter felts — never letterboxing, since the felt itself
+     still fills the table `inset: 0` and only its contents scale. */
+  container-type: size;
+  --u: clamp(0.62px, 100cqh / 701, 1px);
 }
 .felt::after {
   content: '';
@@ -244,7 +277,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: calc(10 * var(--u));
   z-index: 2;
   width: max-content;
 }
@@ -252,10 +285,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: calc(1 * var(--u));
 }
 .pot-label {
-  font-size: 9px;
+  font-size: calc(9 * var(--u));
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -263,16 +296,16 @@ body {
 .pot-amt {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 18px;
+  font-size: calc(18 * var(--u));
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6 * var(--u));
 }
 .pot-amt .disc,
 .wager .disc {
-  width: 11px;
-  height: 11px;
+  width: calc(11 * var(--u));
+  height: calc(11 * var(--u));
   border-radius: 50%;
   background: var(--accent);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
@@ -283,17 +316,17 @@ body {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 10px;
+  gap: calc(10 * var(--u));
 }
 .pot-pod {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: calc(1 * var(--u));
 }
 /* Side pods read quieter than the main pod: muted text, a smaller amount, and a dimmer disc. */
 .pot-pod.side .pot-amt {
-  font-size: 15px;
+  font-size: calc(15 * var(--u));
   color: var(--text-3);
 }
 .pot-pod.side .disc {
@@ -301,12 +334,12 @@ body {
 }
 .board {
   display: flex;
-  gap: 5px;
-  min-height: 60px;
+  gap: calc(5 * var(--u));
+  min-height: calc(60 * var(--u));
   align-items: center;
 }
 .street-tag {
-  font-size: 10px;
+  font-size: calc(10 * var(--u));
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -320,22 +353,23 @@ body {
   backdrop-filter: blur(6px);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-panel);
-  padding: 7px 15px;
+  padding: calc(7 * var(--u)) calc(15 * var(--u));
   text-align: center;
   animation: pop 0.25s ease-out;
   /* Keep the banner within the felt on a narrow phone — long hand descriptions wrap instead of
-     spilling off the screen edge (the `.center` it lives in is only `width: max-content`). */
+     spilling off the screen edge (the `.center` it lives in is only `width: max-content`). A
+     screen-edge guard, not scene sizing, so it stays in `vw` rather than the scaled `--u`. */
   max-width: 78vw;
 }
 .result-banner .who {
-  font-size: 13px;
+  font-size: calc(13 * var(--u));
   font-weight: 700;
 }
 .result-banner .what {
-  font-size: 11px;
+  font-size: calc(11 * var(--u));
   color: var(--text-2);
   font-family: var(--font-mono);
-  margin-top: 1px;
+  margin-top: calc(1 * var(--u));
 }
 .result-banner .who.win {
   color: var(--good);
@@ -349,8 +383,8 @@ body {
    the pot-aware `completeRise`). */
 .result-banner--pots {
   display: grid;
-  gap: 2px;
-  padding: 7px 13px;
+  gap: calc(2 * var(--u));
+  padding: calc(7 * var(--u)) calc(13 * var(--u));
   max-width: 88%;
   text-align: left;
 }
@@ -361,18 +395,18 @@ body {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: baseline;
-  gap: 7px;
-  font-size: 12px;
+  gap: calc(7 * var(--u));
+  font-size: calc(12 * var(--u));
 }
 .pot-line-tag {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: calc(9 * var(--u));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 1px 4px;
+  padding: calc(1 * var(--u)) calc(4 * var(--u));
   border: 1px solid var(--line-2);
-  border-radius: 5px;
+  border-radius: calc(5 * var(--u));
   color: var(--text-3);
 }
 .pot-line-who {
@@ -387,7 +421,7 @@ body {
 }
 .pot-line-hand {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11 * var(--u));
   color: var(--text-3);
 }
 .pot-line-amt {
@@ -412,8 +446,8 @@ body {
   text-align: center;
   color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 10px;
-  padding-top: 1px;
+  font-size: calc(10 * var(--u));
+  padding-top: calc(1 * var(--u));
 }
 
 /* ============ seats ============ */
@@ -423,7 +457,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: calc(5 * var(--u));
   z-index: 2;
   transition: opacity 0.25s;
   /* Size to the (one-line) pill's intrinsic width rather than the absolute-position shrink-to-fit
@@ -448,27 +482,27 @@ body {
 }
 .pseat-cards {
   display: flex;
-  gap: 3px;
+  gap: calc(3 * var(--u));
 }
 .pseat.hero .pseat-cards {
-  gap: 5px;
-  margin-bottom: 1px;
+  gap: calc(5 * var(--u));
+  margin-bottom: calc(1 * var(--u));
 }
 .pseat-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(8 * var(--u));
   background: rgba(8, 10, 13, 0.62);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   /* Left padding is tight (4px) because the round avatar sits flush to it. Opponents have no
      avatar, so their pill uses symmetric padding (below) to keep the label off the border. */
-  padding: 4px 11px 4px 4px;
+  padding: calc(4 * var(--u)) calc(11 * var(--u)) calc(4 * var(--u)) calc(4 * var(--u));
   backdrop-filter: blur(6px);
   transition: 0.2s;
 }
 .pseat:not(.hero) .pseat-info {
-  padding-left: 11px;
+  padding-left: calc(11 * var(--u));
 }
 .pseat.acting .pseat-info {
   border-color: var(--accent);
@@ -478,13 +512,13 @@ body {
   background: rgba(8, 10, 13, 0.72);
 }
 .avatar {
-  width: 28px;
-  height: 28px;
+  width: calc(28 * var(--u));
+  height: calc(28 * var(--u));
   border-radius: 50%;
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 10.5px;
+  font-size: calc(10.5 * var(--u));
   background: var(--surface-3);
   color: var(--text);
   flex: 0 0 auto;
@@ -499,11 +533,11 @@ body {
   flex-shrink: 0;
 }
 .seat-name {
-  font-size: 11.5px;
+  font-size: calc(11.5 * var(--u));
   font-weight: 650;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: calc(5 * var(--u));
   white-space: nowrap;
   flex-wrap: nowrap;
 }
@@ -512,20 +546,20 @@ body {
 }
 .seat-stack {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11 * var(--u));
   color: var(--accent);
   font-weight: 600;
 }
 .postag {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: calc(8.5 * var(--u));
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-3);
   border: 1px solid var(--line-2);
-  border-radius: 4px;
-  padding: 1px 3px;
+  border-radius: calc(4 * var(--u));
+  padding: calc(1 * var(--u)) calc(3 * var(--u));
 }
 /* The dealer-button tag. NB: a distinct class (not `.btn`) — `.btn` is the action-button style
    (flex column, 14px, big padding) and would otherwise inflate this tiny tag into a button blob. */
@@ -536,8 +570,8 @@ body {
 }
 .turn-timer {
   width: 60%;
-  height: 2.5px;
-  border-radius: 2px;
+  height: calc(2.5 * var(--u));
+  border-radius: calc(2 * var(--u));
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent-soft);
 }
@@ -560,24 +594,29 @@ body {
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: calc(5 * var(--u));
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11 * var(--u));
   font-weight: 600;
   color: var(--text);
   background: rgba(8, 10, 13, 0.6);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-pill);
-  padding: 3px 9px 3px 6px;
+  padding: calc(3 * var(--u)) calc(9 * var(--u)) calc(3 * var(--u)) calc(6 * var(--u));
 }
 
 /* ============ cards ============ */
+/* Card box + type scale with the felt via `--u` (ticket 0096): the `--cw`/`--ch` design pixels and
+   the radius/corner/pip type are all `calc(N * var(--u))`, so a card is the SAME apparent fraction
+   of the felt at every size — the fix for the old fixed-px cards colliding on a shrunken felt. */
 .card {
-  --cw: 42px;
-  --ch: 60px;
+  --cw: calc(42 * var(--u));
+  --ch: calc(60 * var(--u));
   width: var(--cw);
   height: var(--ch);
-  border-radius: var(--radius-card);
+  /* Scale the active theme's card radius (9px classic / 13px playful) by `--u`. The `/ 1px` cancels
+     `--u`'s px unit so a px var × the `--u` px scale yields px (not px²). */
+  border-radius: calc(var(--radius-card) * var(--u) / 1px);
   background: #f8f9fb;
   position: relative;
   overflow: hidden;
@@ -587,16 +626,16 @@ body {
   opacity: 1;
 }
 .card.sm {
-  --cw: 30px;
-  --ch: 43px;
+  --cw: calc(30 * var(--u));
+  --ch: calc(43 * var(--u));
 }
 .card.md {
-  --cw: 42px;
-  --ch: 60px;
+  --cw: calc(42 * var(--u));
+  --ch: calc(60 * var(--u));
 }
 .card.lg {
-  --cw: 54px;
-  --ch: 77px;
+  --cw: calc(54 * var(--u));
+  --ch: calc(77 * var(--u));
 }
 @media (prefers-reduced-motion: no-preference) {
   .card {
@@ -645,19 +684,19 @@ body {
   font-family: var(--font-card);
 }
 .card .corner.tl {
-  top: 4px;
-  left: 5px;
+  top: calc(4 * var(--u));
+  left: calc(5 * var(--u));
 }
 .card .corner.br {
-  bottom: 4px;
-  right: 5px;
+  bottom: calc(4 * var(--u));
+  right: calc(5 * var(--u));
   transform: rotate(180deg);
 }
 .card .corner .r {
   font-weight: 800;
 }
 .card .corner .s {
-  margin-top: 1px;
+  margin-top: calc(1 * var(--u));
 }
 .card .pip {
   position: absolute;
@@ -666,25 +705,25 @@ body {
   transform: translate(-50%, -50%);
 }
 .card.sm .corner {
-  font-size: 9.5px;
+  font-size: calc(9.5 * var(--u));
 }
 .card.sm .corner.br {
   display: none;
 }
 .card.sm .pip {
-  font-size: 15px;
+  font-size: calc(15 * var(--u));
 }
 .card.md .corner {
-  font-size: 12px;
+  font-size: calc(12 * var(--u));
 }
 .card.md .pip {
-  font-size: 22px;
+  font-size: calc(22 * var(--u));
 }
 .card.lg .corner {
-  font-size: 14.5px;
+  font-size: calc(14.5 * var(--u));
 }
 .card.lg .pip {
-  font-size: 30px;
+  font-size: calc(30 * var(--u));
 }
 
 /* card back */
@@ -703,29 +742,29 @@ body {
 .card.back::after {
   content: '';
   position: absolute;
-  inset: 4px;
-  border-radius: calc(var(--radius-card) - 3px);
+  inset: calc(4 * var(--u));
+  border-radius: calc((var(--radius-card) / 1px - 3) * var(--u));
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .card.back .back-mark {
   color: color-mix(in oklch, var(--accent) 55%, white);
   opacity: 0.5;
-  font-size: 14px;
+  font-size: calc(14 * var(--u));
 }
 .card.back.sm .back-mark {
-  font-size: 11px;
+  font-size: calc(11 * var(--u));
 }
 
 /* ============ action flash (a seat's most recent action) ============ */
 .action-flash {
   position: absolute;
-  top: -13px;
+  top: calc(-13 * var(--u));
   z-index: 4;
-  font-size: 10px;
+  font-size: calc(10 * var(--u));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 3px 9px;
+  padding: calc(3 * var(--u)) calc(9 * var(--u));
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   border: 1px solid var(--line-2);
