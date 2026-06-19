@@ -114,3 +114,31 @@ export const WIDENING_POSITIONS: ReadonlySet<Position> = new Set<Position>(['lat
 export function isInPosition(position: Position): boolean {
   return position === 'late'
 }
+
+/**
+ * Are *only the blinds* left to act behind the hero — i.e. is this a genuine blind-*steal* seat (the
+ * **button** or the **small blind**, including the heads-up button), as opposed to the **cutoff**,
+ * which still has the button to act behind it with position?
+ *
+ * {@link classifyPosition} groups the button and the cutoff together as {@link Position} `late` —
+ * both open a wide *charted* range, which is correct. But they are **not** equivalent *steal* seats:
+ * when it folds to the button or the small blind the only players left are forced blinds, so the
+ * widest trash steals (A6o, K7o…) are profitable; from the cutoff the button is still behind you in
+ * position, so that bottom tail is a fold. Short-handed this bites hard — 4-handed the lone
+ * first-to-act seat *is* the cutoff (offset `1` → `late`), and treating it like the button over-opens
+ * it with the button's junk. This predicate picks *which* trash steal range applies — the full
+ * button/blind range when true, the narrower cutoff range when false — separate from {@link Position}
+ * (which the wider charted opens still consult): it answers the *back* question ("who is left behind
+ * me?") where {@link WIDENING_POSITIONS} answers the broad "does this seat widen at all?". Pure seat
+ * arithmetic; no range or fold reasoning.
+ */
+export function onlyBlindsBehind(ctx: DecisionContext): boolean {
+  const { seat, buttonIndex, numPlayers } = ctx
+  // Heads-up the button *is* the small blind, with only the big blind behind — a steal seat. (The
+  // other seat is the big blind, which never opens an unraised pot.)
+  if (numPlayers === 2) return seat === buttonIndex
+  // Full table: only the button (just the two blinds behind) and the small blind (just the BB behind)
+  // have nothing but forced money left to act. The cutoff has the button behind it, so it is excluded.
+  const sb = (buttonIndex + 1) % numPlayers
+  return seat === buttonIndex || seat === sb
+}

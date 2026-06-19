@@ -8,7 +8,13 @@
 
 import { describe, expect, it } from 'vitest'
 import type { DecisionContext } from '@holdem/bots'
-import { classifyPosition, isInPosition, WIDENING_POSITIONS, type Position } from './position.js'
+import {
+  classifyPosition,
+  isInPosition,
+  onlyBlindsBehind,
+  WIDENING_POSITIONS,
+  type Position,
+} from './position.js'
 
 /**
  * Build the minimal {@link DecisionContext} {@link classifyPosition} reads — it consults only
@@ -52,5 +58,28 @@ describe('WIDENING_POSITIONS', () => {
     expect(WIDENING_POSITIONS.has('middle')).toBe(false)
     // The big blind is deliberately NOT a widening seat (the SB↔BB conflation fix).
     expect(WIDENING_POSITIONS.has('big-blind')).toBe(false)
+  })
+})
+
+describe('onlyBlindsBehind — the blind-steal-seat gate (button / SB, never the cutoff)', () => {
+  it('is true on the button and the small blind, false on the cutoff (6-max, button on seat 0)', () => {
+    expect(onlyBlindsBehind(posCtx(0, 0, 6))).toBe(true) // BTN: only the two blinds behind
+    expect(onlyBlindsBehind(posCtx(1, 0, 6))).toBe(true) // SB: only the BB behind
+    expect(onlyBlindsBehind(posCtx(5, 0, 6))).toBe(false) // CO: the button still acts behind it
+    expect(onlyBlindsBehind(posCtx(3, 0, 6))).toBe(false) // UTG
+  })
+
+  it('heads-up: true on the button(=SB), false on the big blind', () => {
+    expect(onlyBlindsBehind(posCtx(0, 0, 2))).toBe(true) // button is the SB, only the BB behind
+    expect(onlyBlindsBehind(posCtx(1, 0, 2))).toBe(false) // the big blind
+  })
+
+  it('4-handed: the lone first-to-act seat is the cutoff (false), not the button (true)', () => {
+    // Button on seat 1 → sb=2, bb=3, and seat 0 is first to act: the cutoff (offset 1), classified
+    // `late` but with the button still behind — so NOT a blind-steal seat. This is the reported spot.
+    expect(classifyPosition(posCtx(0, 1, 4))).toBe('late')
+    expect(onlyBlindsBehind(posCtx(0, 1, 4))).toBe(false) // the button (seat 1) acts behind the hero
+    expect(onlyBlindsBehind(posCtx(1, 1, 4))).toBe(true) // the actual button
+    expect(onlyBlindsBehind(posCtx(2, 1, 4))).toBe(true) // the small blind
   })
 })

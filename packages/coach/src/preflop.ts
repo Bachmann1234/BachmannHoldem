@@ -32,6 +32,7 @@ import {
   classifyPosition,
   EARLY_SEATS,
   isInPosition,
+  onlyBlindsBehind,
   WIDENING_POSITIONS,
   type Position,
 } from './position.js'
@@ -271,8 +272,10 @@ export interface PreflopTrace {
   /**
    * On an *unraised* pot, whether the trash steal-promotion was available — a genuine steal spot
    * (the pot folded to the hero) in a widening seat, i.e. {@link isStealSpot}. `false` whenever the
-   * hero is facing a raise or it is not a steal spot — it records whether the {@link STEAL_OPEN_RANGE}
-   * promotion branch was even reachable for this open.
+   * hero is facing a raise or it is not a steal spot — it records whether the steal-range promotion
+   * branch was even reachable for this open (which range applies — the full {@link STEAL_OPEN_RANGE}
+   * from the button/blind, or the narrower {@link CUTOFF_STEAL_RANGE} from the cutoff — then depends
+   * on who is left behind; see {@link onlyBlindsBehind}).
    */
   readonly stealSpot: boolean
 }
@@ -418,6 +421,28 @@ export const STEAL_OPEN_RANGE =
 const PARSED_STEAL_RANGE: Range = parseRange(STEAL_OPEN_RANGE)
 
 /**
+ * The narrower steal range the **cutoff** opens — the trash-tier hands a winning player steals from
+ * the cutoff, where the button still acts behind in position, as opposed to the full
+ * {@link STEAL_OPEN_RANGE} the button and small blind open (only the blinds left behind). The
+ * difference is the over-wide-cutoff fix: `classifyPosition` groups the cutoff with the button as
+ * {@link Position} `late`, and short-handed the lone first-to-act seat *is* the cutoff (4-handed,
+ * offset `1`), so without a separate range it would open the button's widest junk (A6o, K7o…) into a
+ * seat with a player still behind it.
+ *
+ * **Invariant — a subset of {@link STEAL_OPEN_RANGE}.** Every hand here is also a button steal (and so
+ * also `trash` on {@link PREFLOP_CHART}); the cutoff simply opens *fewer* of them. It keeps the top of
+ * the tail — the stronger offsuit aces (A9o/A8o), K9o and the suited kings, Q9o/Q9s/Q8s, J9o/J8s, T9o,
+ * and the offsuit connectors 98o/87o — and drops the button-only junk (A7o–A2o, K8o–K5o, K4s–K2s, Q8o,
+ * Q7s, Q6s, J7s, T8o, 76o, 65o, 54o). A *tunable knob*, like {@link STEAL_OPEN_RANGE}: a believable
+ * cutoff steal, not a solver's output — widen or tighten freely. Deterministic and pure.
+ */
+export const CUTOFF_STEAL_RANGE =
+  'A9o, A8o, ' + 'K9o, K9s, K8s, K7s, K6s, K5s, ' + 'Q9o, Q9s, Q8s, ' + 'J9o, J8s, T9o, 98o, 87o'
+
+/** The pre-parsed {@link CUTOFF_STEAL_RANGE}, built once at module load (parse eagerly, fail fast). */
+const PARSED_CUTOFF_STEAL_RANGE: Range = parseRange(CUTOFF_STEAL_RANGE)
+
+/**
  * The chart's open/fold prescription for a tier in this spot — now position-aware across the **whole**
  * opening range, not just the `marginal` tier (ticket 0054). The hero's {@link Position} gates which
  * tiers open:
@@ -427,11 +452,14 @@ const PARSED_STEAL_RANGE: Range = parseRange(STEAL_OPEN_RANGE)
  *   from early** at a full table: a winning 6-max reg does not open 87s/65s/76s/A2s/44 UTG.
  * - `marginal` — opens only in late position / steal seats (the pre-0054 behaviour, preserved):
  *   QJo/KTo/JTo fold UTG, open CO/BTN.
- * - `trash` — folds by default, but in a {@link WIDENING_POSITIONS} seat (late / small blind /
- *   heads-up button) a hand in the supplementary {@link STEAL_OPEN_RANGE} is promoted to `open`
- *   **only when the pot is folded to the hero** (`stealSpot`) — a genuine steal. Over a limper it is
- *   not a steal (raising junk over limpers is a leak), so the promotion does not fire (K7o/A9o/T9o on
- *   the button steal when folded to, but fold behind a limper).
+ * - `trash` — folds by default, but in a {@link WIDENING_POSITIONS} seat a hand in the supplementary
+ *   steal range is promoted to `open` **only when the pot is folded to the hero** (`stealSpot`) — a
+ *   genuine steal. Over a limper it is not a steal (raising junk over limpers is a leak), so the
+ *   promotion does not fire. *Which* steal range applies depends on `onlyBlindsBehind`: the button /
+ *   small blind / heads-up button (only the blinds behind) open the full {@link STEAL_OPEN_RANGE}; the
+ *   cutoff opens the narrower {@link CUTOFF_STEAL_RANGE} (the button still acts behind it in position),
+ *   so K7o/A9o/T9o steal from the button but the cutoff opens only the stronger A9o-tier tail and folds
+ *   the button-only junk (A6o, K7o).
  *
  * Heads-up gets the wide treatment for free: the heads-up button classifies {@link Position.late}, a
  * {@link WIDENING_POSITIONS} seat, so the steal range applies — a wider opening range than the 6-max
@@ -448,6 +476,7 @@ function adviceFor(
   position: Position,
   hand: Combo,
   stealSpot: boolean,
+  onlyBlindsBehind: boolean,
 ): PreflopAdvice {
   const widening = WIDENING_POSITIONS.has(position)
 
@@ -462,8 +491,13 @@ function adviceFor(
   if (tier === 'marginal') return widening ? 'open' : 'fold'
 
   // Trash: fold by default, but a steal-range hand opens from a widening seat ONLY in a genuine steal
-  // spot (the pot folded to the hero). Over a limper this is a leak, not a steal — no promotion.
-  if (widening && stealSpot && rangeContains(PARSED_STEAL_RANGE, hand)) return 'open'
+  // spot (the pot folded to the hero). The range tightens with who is left behind: the button and small
+  // blind (only the blinds behind) get the full STEAL_OPEN_RANGE, while the cutoff — which still has the
+  // button to act behind it in position — gets the narrower CUTOFF_STEAL_RANGE, dropping the button's
+  // widest junk (A6o, K7o…). Over a limper it is not a steal at all (raising junk is a leak), so no
+  // promotion fires regardless of seat.
+  const stealRange = onlyBlindsBehind ? PARSED_STEAL_RANGE : PARSED_CUTOFF_STEAL_RANGE
+  if (widening && stealSpot && rangeContains(stealRange, hand)) return 'open'
   return 'fold'
 }
 
@@ -658,10 +692,13 @@ function facingRaiseAdvice(
  * - **Unraised pot** (`currentBet <= bigBlind` — limp / the BB's option): the chart is an *opening*
  *   chart, so a charted hand opens / continues per {@link adviceFor} — now position-aware across the
  *   **whole** range (ticket 0054): `playable` speculative hands fold from early position, the
- *   `marginal` tier opens only in late/steal seats (preserved), and a {@link STEAL_OPEN_RANGE} hand
- *   is promoted to `open` from the late/small-blind/heads-up steal seats **when the pot is folded to
- *   the hero** (a genuine steal — see {@link isStealSpot}) so standard button & blind steals
- *   (K7o/A9o/T9o) are no longer `Trash`/`Leak`; behind a limper that promotion does not fire. The
+ *   `marginal` tier opens only in late/steal seats (preserved), and a steal-range trash hand is
+ *   promoted to `open` from the late/small-blind/heads-up steal seats **when the pot is folded to the
+ *   hero** (a genuine steal — see {@link isStealSpot}) so standard button & blind steals (K7o/A9o/T9o)
+ *   are no longer `Trash`/`Leak`; behind a limper that promotion does not fire. Which steal range
+ *   applies narrows by who is left behind ({@link onlyBlindsBehind}): the button / small blind open the
+ *   full {@link STEAL_OPEN_RANGE}, the cutoff the tighter {@link CUTOFF_STEAL_RANGE} (the button still
+ *   acts behind it), so the cutoff folds the button's widest junk (A6o, K7o). The
  *   bottom of a steal range is *optional*, so **folding** a steal-promotion open is graded
  *   `'breakEven'` (fine either way), not a `'leak'` — opening it stays `'good'` (ticket 0060).
  * - **Facing a raise** (`currentBet > bigBlind`): the open chart would bless loose cold-calls a
@@ -754,12 +791,18 @@ export function gradePreflop(ctx: DecisionContext, action: Action): PreflopVerdi
     // position), so the *open* path keeps the tier's teaching label while the *fold* path gets a
     // position-named line that follows the advice — never the open-chart label above a fold. (The
     // full rationale-follows-advice pass is [[0056-coach-rationale-not-absolute]].)
-    // The trash steal-promotion fires only in a genuine steal (the pot folded to the hero); over a
-    // limper, raising junk is a leak, not a steal — so gate the promotion on isStealSpot. Recorded on
-    // the trace (whether the steal branch was reachable for this open).
+    // The trash steal-promotion fires only when the pot is folded to the hero (`isStealSpot` — over a
+    // limper, raising junk is a leak, not a steal). Recorded on the trace (whether the steal branch was
+    // reachable for this open).
     stealSpot = isStealSpot(ctx)
     const hand = validateHole(ctx.holeCards)
-    advice = adviceFor(tier, position, hand, stealSpot)
+    // Which steal range applies depends on who is left behind: the button / small blind (only the
+    // blinds behind) open the full STEAL_OPEN_RANGE; the cutoff opens the narrower CUTOFF_STEAL_RANGE,
+    // because the button still acts behind it in position. `classifyPosition` lumps cutoff and button
+    // together as `late`, and short-handed the lone first-to-act seat *is* the cutoff (4-handed, offset
+    // 1), so this back-of-the-table check (`onlyBlindsBehind`) is what keeps the cutoff from opening the
+    // button's widest junk (A6o, K7o…).
+    advice = adviceFor(tier, position, hand, stealSpot, onlyBlindsBehind(ctx))
     // A trash hand in the steal range opens when it is folded to the hero in a late/blind seat; this
     // lets the fold-path rationale say so honestly instead of claiming the whole tail "opens later".
     const canStealLater = rangeContains(PARSED_STEAL_RANGE, hand)

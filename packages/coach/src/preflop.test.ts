@@ -13,6 +13,7 @@ import {
   LARGE_RAISE_MIN_BB,
   THREE_BET_MIN_BB,
   STEAL_OPEN_RANGE,
+  CUTOFF_STEAL_RANGE,
   startingHandChart,
   handClassLabel,
   type Position,
@@ -741,6 +742,79 @@ describe('gradePreflop — position-aware across all tiers (0054)', () => {
     // widening seat. (Guards the acceptance criterion that the chart tiers are unchanged.)
     expect(STEAL_OPEN_RANGE).toMatch(/K7o/)
     expect(classifyStartingHand(hole('Kh7c')).tier).toBe('trash') // K7o still trash on the chart
+  })
+
+  it('CUTOFF_STEAL_RANGE is a strict subset of STEAL_OPEN_RANGE (the cutoff steals fewer hands)', () => {
+    const tokens = (range: string) => range.split(',').map((t) => t.trim())
+    const button = new Set(tokens(STEAL_OPEN_RANGE))
+    const cutoff = tokens(CUTOFF_STEAL_RANGE)
+    // Every cutoff steal is also a button steal (the cutoff opens a subset, never an extra hand)…
+    for (const hand of cutoff) expect(button.has(hand)).toBe(true)
+    // …and a strict subset: the button opens junk (A6o) the cutoff does not.
+    expect(cutoff.length).toBeLessThan(button.size)
+    expect(CUTOFF_STEAL_RANGE).not.toMatch(/A6o/)
+    expect(STEAL_OPEN_RANGE).toMatch(/A6o/)
+  })
+})
+
+describe('gradePreflop — the cutoff steals a NARROWER range than the button (only-blinds-behind)', () => {
+  // The cutoff classifies `late` (same bucket as the button), but the button still acts behind it in
+  // position — so it opens the tighter CUTOFF_STEAL_RANGE: it keeps the stronger steals (A9o, K9o…)
+  // but folds the button's widest junk (A6o, K7o…). Short-handed this bites hardest, because 4-handed
+  // the lone first-to-act seat *is* the cutoff.
+
+  it('A6o on the cutoff is a FOLD (button-only junk), but A9o still OPENS (the cutoff steal range)', () => {
+    // 6-max, button on seat 0 → the cutoff is seat 5 (offset 1), classified `late` like the button.
+    const a6o = preflopCtx({ holeCards: hole('Ah6c'), seat: 5, buttonIndex: 0, numPlayers: 6 })
+    expect(classifyPosition(a6o)).toBe('late') // same bucket as the button…
+    expect(gradePreflop(a6o, CALL).advice).toBe('fold') // …but A6o is button-only junk: a cutoff fold
+    expect(gradePreflop(a6o, CALL).verdict).toBe('leak') // entering A6o from the cutoff is a leak
+    expect(gradePreflop(a6o, FOLD).verdict).toBe('good') // folding it is correct
+    // A9o IS a standard cutoff steal — it stays in the cutoff range, so opening it is GOOD (the fix
+    // must not over-tighten the cutoff into folding legitimate steals).
+    const a9o = preflopCtx({ holeCards: hole('Ah9c'), seat: 5, buttonIndex: 0, numPlayers: 6 })
+    expect(gradePreflop(a9o, CALL).advice).toBe('open')
+    expect(gradePreflop(a9o, CALL).verdict).toBe('good')
+  })
+
+  it('the button & SB open the FULL junk tail (A6o, K7o) that the cutoff folds', () => {
+    for (const seat of [0 /* BTN */, 1 /* SB */]) {
+      for (const cards of ['Ah6c', 'Kh7c']) {
+        const v = gradePreflop(
+          preflopCtx({ holeCards: hole(cards), seat, buttonIndex: 0, numPlayers: 6 }),
+          CALL,
+        )
+        expect(v.advice).toBe('open')
+        expect(v.verdict).toBe('good')
+      }
+    }
+    // …and the cutoff folds that same tail (K7o is button-only, like A6o).
+    const coK7o = preflopCtx({ holeCards: hole('Kh7c'), seat: 5, buttonIndex: 0, numPlayers: 6 })
+    expect(gradePreflop(coK7o, CALL).advice).toBe('fold')
+    expect(gradePreflop(coK7o, CALL).verdict).toBe('leak')
+  })
+
+  it('the cutoff keeps its charted opens — marginal broadways still OPEN (only the junk tail narrows)', () => {
+    // KTo/QJo/JTo are `marginal`: they open from any widening seat (the cutoff included). The fix only
+    // trims the `trash` steal tail at the cutoff, it does not touch the charted opens.
+    for (const cards of ['KhTc', 'QhJc', 'JhTc']) {
+      const co = preflopCtx({ holeCards: hole(cards), seat: 5, buttonIndex: 0, numPlayers: 6 })
+      expect(gradePreflop(co, CALL).advice).toBe('open')
+      expect(gradePreflop(co, CALL).verdict).toBe('good')
+    }
+  })
+
+  it('the reported spot: A6o first-to-act 4-handed (the cutoff) is a LEAK to enter', () => {
+    // The exact geometry from the bug report: 4 players, button on seat 1, the hero (seat 0) is first
+    // to act — which 4-handed is the cutoff (offset 1 → `late`), with the button (seat 1) behind.
+    const spot = preflopCtx({ holeCards: hole('Ah6c'), seat: 0, buttonIndex: 1, numPlayers: 4 })
+    expect(classifyPosition(spot)).toBe('late') // the lone first-to-act seat is the cutoff, not the button
+    expect(gradePreflop(spot, CALL).advice).toBe('fold') // A6o is button-only junk → fold from the cutoff
+    expect(gradePreflop(spot, CALL).verdict).toBe('leak')
+    // …and the same hand on the 4-handed button (only blinds behind) IS a steal.
+    const onBtn = preflopCtx({ holeCards: hole('Ah6c'), seat: 1, buttonIndex: 1, numPlayers: 4 })
+    expect(gradePreflop(onBtn, CALL).advice).toBe('open')
+    expect(gradePreflop(onBtn, CALL).verdict).toBe('good')
   })
 })
 
