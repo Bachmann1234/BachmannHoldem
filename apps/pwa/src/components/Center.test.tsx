@@ -24,8 +24,19 @@ import {
   type HandConfig,
 } from '@holdem/engine'
 import { Center, ResultBanner } from './Center.js'
+import { CENTER } from './layout.js'
 
 afterEach(cleanup)
+
+/** Drive N equal stacks to an all-in showdown (first actor shoves, the rest call) → a completed hand. */
+function completedAllIn(n: number) {
+  const holes = ['As Ks', 'Qd Qs', 'Td 9d', '7c 7h', '5c 5d', '3c 3d'].slice(0, n)
+  const deck = buildDeck(n, 0, holes, '2c 3d 4h 6s 8s')
+  let hand = createHand(config({ stacks: Array(n).fill(2000), deck }))
+  hand = applyAction(hand, { type: 'raise', amount: 2000 })
+  for (let k = 1; k < n; k++) hand = applyAction(hand, { type: 'call' })
+  return hand
+}
 
 /** Build a deck dealing the given hole cards + board (mirrors the engine test helper). */
 function buildDeck(n: number, button: number, holesBySeat: string[], board: string): Card[] {
@@ -131,6 +142,36 @@ describe('Center pot display', () => {
  * The headline two-pot and split-side-pot hands are driven through the real engine so `collectPots`
  * and `decideWinners` produce the `winningSeats` — we never hand-build the pots.
  */
+/**
+ * Showdown lift direction (layout bug fix). The completed-hand banner grows *downward* from the
+ * board, so the vertically-centred block has to move to keep the banner off the bottom seats —
+ * but which way depends on where the opponents sit:
+ *  - ≤4-max: every opponent flanks or sits ABOVE the board (the upper arc), so the block must DROP
+ *    into the open felt below — lifting it would drive the board up into those seats (the bug).
+ *  - 5/6-max: the lower wings sit below the board, so the block LIFTS to clear the banner off them.
+ */
+describe('Center showdown lift direction', () => {
+  it('drops the block below felt-centre at ≤4-max (no upper-arc collision)', () => {
+    for (const n of [2, 3, 4]) {
+      const hand = completedAllIn(n)
+      const { container } = render(<Center hand={hand} {...props} />)
+      const top = parseFloat((container.querySelector('.center') as HTMLElement).style.top)
+      expect(top, `${n}-max should drop, not lift`).toBeGreaterThan(CENTER[1])
+      cleanup()
+    }
+  })
+
+  it('lifts the block above felt-centre at 5/6-max (clears the lower wings)', () => {
+    for (const n of [5, 6]) {
+      const hand = completedAllIn(n)
+      const { container } = render(<Center hand={hand} {...props} />)
+      const top = parseFloat((container.querySelector('.center') as HTMLElement).style.top)
+      expect(top, `${n}-max should lift`).toBeLessThan(CENTER[1])
+      cleanup()
+    }
+  })
+})
+
 describe('ResultBanner showdown attribution', () => {
   it('attributes each pot to its own winner when the hero wins main and loses the side', () => {
     // 3-way all-in 20/50/100. Hero (seat0) is short → eligible for the MAIN pot only, and holds the

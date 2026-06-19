@@ -76,6 +76,12 @@ function podLabel(index: number, potCount: number): string {
  * `potCount > 1` showdown adds the extra +2.
  */
 function completeRise(seatCount: number, potCount = 1): number {
+  // ≤4-max has NO bottom seats — every opponent flanks or sits ABOVE the board (the 3/4-max upper
+  // arc at y≈22–31). Adding the banner below the board already rides the vertically-centred block
+  // *up* toward those seats; lifting it further drove the board into them (the showdown collision).
+  // So drop the block instead: there's open felt all the way down to the hero (y≈81), and the
+  // downward-growing banner lands in it. A multi-pot banner is taller, so drop a touch more.
+  if (seatCount < 5) return potCount > 1 ? -8 : -6
   const base = seatCount >= 6 ? 4 : 6
   return potCount > 1 ? base + 2 : base
 }
