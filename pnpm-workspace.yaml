@@ -3,3 +3,8 @@ packages:
   - 'apps/*'
 allowBuilds:
   esbuild: true
+# Force the patched undici (>=7.28.0) up through the jsdom -> vitest dev toolchain — closes the
+# GHSA-pr7r-676h-xcf6 TLS-bypass (high) + cross-user disclosure (moderate) advisories. Dev-only
+# transitive dep; lives here because pnpm 11 no longer reads `pnpm.overrides` from package.json.
+overrides:
+  undici: '^7.28.0'
