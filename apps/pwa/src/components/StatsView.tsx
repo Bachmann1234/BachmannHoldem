@@ -74,6 +74,16 @@ const POSITION_LABEL: Readonly<Record<Position, string>> = {
   'big-blind': 'Big blind',
 }
 
+/**
+ * The position buckets the by-position breakdown actually renders — `POSITION_ORDER` minus `middle`.
+ * `middle` is a real bucket in the 5-position model (`classifyPosition`), but it only ever occurs at
+ * **7+ handed** tables: at 6 seats or fewer every seat falls into early / late / SB / BB and `middle`
+ * is geometrically unreachable. This app caps tables at 6-max (see `SetupScreen`'s seat range), so the
+ * `middle` slice can never be populated. Showing it as "not seen yet" would read as a thin-sample cue
+ * the user could eventually fill — they can't — so we drop the dead row entirely rather than mislead.
+ */
+const POSITION_DISPLAY_ORDER: readonly Position[] = POSITION_ORDER.filter((p) => p !== 'middle')
+
 /** Render a kebab-case {@link Concept} as words ("pot-odds" → "pot odds") — the shared primer idiom. */
 function conceptWords(concept: Concept): string {
   return concept.replace(/-/g, ' ')
@@ -332,7 +342,7 @@ function PlayStatsSection({ state }: { state: PlayState }): React.JSX.Element {
           <div className="setup-label">By position</div>
           <span className="hint">where you were sitting</span>
         </div>
-        {POSITION_ORDER.map((position) => {
+        {POSITION_DISPLAY_ORDER.map((position) => {
           const slice = state.stats.byPosition.get(position)
           // An absent slice is "not seen yet", NEVER zeroed stats — surface that honestly.
           if (slice === undefined) {

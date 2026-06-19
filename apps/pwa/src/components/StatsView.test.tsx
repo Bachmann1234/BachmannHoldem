@@ -141,6 +141,21 @@ describe('StatsView — play stats + sample sizes', () => {
     await waitFor(() => expect(screen.getByTestId('play-by-position')).toBeTruthy())
     expect(screen.getByTestId('position-big-blind-empty').textContent).toContain('not seen yet')
   })
+
+  it('does not render the Middle bucket (unreachable at the app’s 6-max cap)', async () => {
+    // `middle` only occurs at 7+ handed tables; this app caps at 6-max, so the slice can never fill.
+    // We drop the row entirely rather than show a permanently-"not seen yet" cue that misleads.
+    render(
+      <StatsView
+        onNavigate={vi.fn()}
+        historyStore={fakeHistory([])}
+        drillProgressStore={fakeDrills([])}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('play-by-position')).toBeTruthy())
+    expect(screen.queryByTestId('position-middle')).toBeNull()
+  })
 })
 
 describe('StatsView — leaks', () => {
