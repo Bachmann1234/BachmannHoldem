@@ -214,4 +214,44 @@ describe('ResultBanner showdown attribution', () => {
     expect(queryByTestId('pot-line-0')).toBeNull()
     expect(container.querySelector('.pot-line')).toBeNull()
   })
+
+  // --- The +N more cap (ticket 0094) ---------------------------------------------------------------
+  // A completed 3-way all-in gives real showdown hands for seats 0/1/2; we override its `pots` to a
+  // deep ladder (more pots than the cap) to drive the collapse without hand-building a HandState.
+  function completedThreeWay(): ReturnType<typeof createHand> {
+    const deck = buildDeck(3, 0, ['Ks Kh', 'Qs Qh', '7s 7d'], 'Kc Qd 7h 2s 5c')
+    let hand = createHand(config({ stacks: [20, 50, 100], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 20 })
+    hand = applyAction(hand, { type: 'raise', amount: 50 })
+    hand = applyAction(hand, { type: 'call' })
+    return hand
+  }
+  /** Five pots referencing only seats 0/1/2 (all have showdown hands); hero (0) wins `heroWinsIndex`. */
+  function fivePots(heroWinsIndex: number) {
+    return [0, 1, 2, 3, 4].map((i) => ({
+      amount: 100 - i * 10,
+      eligibleSeats: [0, 1, 2],
+      winningSeats: [i === heroWinsIndex ? 0 : (i % 2) + 1],
+    }))
+  }
+
+  it('caps the banner at 4 pot-lines + a "+N more" tail past the cap (ticket 0094)', () => {
+    // Five pots, hero wins only the main: show main + the first three sides, collapse the fifth.
+    const hand = { ...completedThreeWay(), pots: fivePots(0) }
+    const { getByTestId, queryByTestId } = render(<ResultBanner hand={hand} {...props} />)
+    expect(getByTestId('pot-line-0')).toBeTruthy()
+    expect(getByTestId('pot-line-3')).toBeTruthy()
+    expect(queryByTestId('pot-line-4')).toBeNull() // the 5th pot folded into the tail
+    expect(getByTestId('pot-line-more').textContent).toContain('+1 more')
+  })
+
+  it('never collapses a hero-won pot — a late pot the hero took stays shown (ticket 0094)', () => {
+    // Hero wins the LAST pot (index 4): it must be force-shown (with the win colour) while an earlier
+    // non-hero pot collapses into the tail instead.
+    const hand = { ...completedThreeWay(), pots: fivePots(4) }
+    const { getByTestId, queryByTestId } = render(<ResultBanner hand={hand} {...props} />)
+    expect(getByTestId('pot-line-4').className).toContain('win')
+    expect(queryByTestId('pot-line-3')).toBeNull() // a non-hero pot collapsed in its place
+    expect(getByTestId('pot-line-more').textContent).toContain('+1 more')
+  })
 })

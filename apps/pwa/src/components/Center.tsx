@@ -8,7 +8,14 @@
  * calls are the read-only `potTotal` / `isComplete` / `describeHand`.
  */
 
-import { describeHand, handWinners, isComplete, potTotal, type HandState } from '@holdem/engine'
+import {
+  describeHand,
+  handWinners,
+  isComplete,
+  potTotal,
+  type HandState,
+  type Pot,
+} from '@holdem/engine'
 import { Card } from './Card.js'
 import { CENTER } from './layout.js'
 
@@ -154,6 +161,27 @@ function potTag(index: number, potCount: number): string {
   return `SIDE ${index}`
 }
 
+/** Most `.pot-line` rows the attribution banner renders before collapsing the tail (ticket 0094). */
+const MAX_POT_LINES = 4
+
+/**
+ * Which pot indices the attribution banner shows when there are many pots (ticket 0094). A
+ * maximally-laddered all-in (main + up to 4 side pots at 6-max) would otherwise grow the banner
+ * downward into the hero seat, so past {@link MAX_POT_LINES} we show only some rows and collapse the
+ * rest into a `+N more` tail. The main pot (0) and **every pot the hero won** are never collapsed —
+ * the hero must always see what they took; the remaining slots fill with the earliest pots, and the
+ * result stays in engine (main-first) order. Returns all indices when at or under the cap.
+ */
+function visiblePotIndices(pots: readonly Pot[], heroSeat: number): number[] {
+  if (pots.length <= MAX_POT_LINES) return pots.map((_, i) => i)
+  const shown = new Set<number>([0])
+  pots.forEach((pot, i) => {
+    if (pot.winningSeats.includes(heroSeat)) shown.add(i)
+  })
+  for (let i = 0; i < pots.length && shown.size < MAX_POT_LINES; i++) shown.add(i)
+  return [...shown].sort((a, b) => a - b)
+}
+
 /**
  * The showdown / fold-win banner for a completed hand: who won, for how much, and (at a showdown)
  * the winning hand description.
@@ -178,12 +206,17 @@ export function ResultBanner({
     // Carried on the banner as a `win`/`lose` modifier (mirroring the single-pot `.who`); each
     // `.pot-line` then independently colours only the pots the hero actually took.
     const heroWon = hand.pots.some((pot) => pot.winningSeats.includes(heroSeat))
+    // Cap the rows so a deeply-laddered all-in can't grow the banner into the hero seat (ticket 0094):
+    // show at most MAX_POT_LINES pots + a single `+N more` tail; main + every hero-won pot stay.
+    const shownIndices = visiblePotIndices(hand.pots, heroSeat)
+    const hiddenCount = hand.pots.length - shownIndices.length
     return (
       <div
         className={`result-banner result-banner--pots ${heroWon ? 'win' : 'lose'}`}
         data-testid="result-banner"
       >
-        {hand.pots.map((pot, i) => {
+        {shownIndices.map((i) => {
+          const pot = hand.pots[i]!
           const heroWonPot = pot.winningSeats.includes(heroSeat)
           const names = pot.winningSeats
             .map((s) => (s === heroSeat ? 'You' : seatLabel(s)))
@@ -207,6 +240,11 @@ export function ResultBanner({
             </div>
           )
         })}
+        {hiddenCount > 0 ? (
+          <div className="pot-line pot-line--more" data-testid="pot-line-more">
+            +{hiddenCount} more
+          </div>
+        ) : null}
       </div>
     )
   }

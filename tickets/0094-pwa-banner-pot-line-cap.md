@@ -2,7 +2,7 @@
 id: 0094
 title: Cap the showdown attribution banner with a "+N more" tail past 4 pots
 type: task
-status: todo
+status: done
 milestone: M4
 priority: low
 created: 2026-06-19
@@ -33,17 +33,17 @@ It's a genuine-but-narrow edge; 0091 deferred it here. This ticket closes it.
 
 ## Acceptance criteria
 
-- [ ] When the completed hand has more than **4** pots, `ResultBanner` renders at most 4 `.pot-line`
+- [x] When the completed hand has more than **4** pots, `ResultBanner` renders at most 4 `.pot-line`
       rows plus a single `+N more` summary row (where N is the number of collapsed pots), instead of
       one row per pot. At ≤ 4 pots the banner is unchanged from 0091.
-- [ ] The hero's won pot(s) are **never** collapsed into the tail — lead with / always include any
+- [x] The hero's won pot(s) are **never** collapsed into the tail — lead with / always include any
       pot the hero won, per the design's "lead with the hero's pot". The main pot stays first.
-- [ ] `completeRise` (or the banner's layout) keeps the capped banner clear of the bottom wings at
+- [x] `completeRise` (or the banner's layout) keeps the capped banner clear of the bottom wings at
       the common small sizes, consistent with the existing pot-aware lift — the capped height is
       bounded (≤ 5 rows), so tune the lift to it rather than letting it scale unbounded.
-- [ ] `Center.test.tsx` covers a hand (or a constructed completed `HandState`) with ≥ 5 pots: only 4
+- [x] `Center.test.tsx` covers a hand (or a constructed completed `HandState`) with ≥ 5 pots: only 4
       pot-lines + a `+N more` row render, and a hero-won pot beyond the 4th is still shown.
-- [ ] `pnpm verify` green.
+- [x] `pnpm verify` green.
 
 ## Notes
 
@@ -54,3 +54,13 @@ the hero's pot is among them.
 **Test fixture.** A real 6-way 5-side-pot hand is fiddly to drive; a constructed completed
 `HandState` literal with a hand-built `pots` array + `showdownHands` is acceptable for the cap test
 (0091 established that pattern as a fallback), as long as the hero-pot-priority case is covered.
+
+**As built.** `visiblePotIndices(pots, heroSeat)` in `Center.tsx`: returns all indices unchanged at
+≤ 4 pots (the common case is byte-identical to 0091); past the cap it force-includes the main pot (0)
+and **every** hero-won pot, fills the remaining slots with the earliest pots in engine order, and the
+tail folds into one muted `.pot-line--more` "+N more" row. Tags/test-ids keep each shown pot's real
+index. `completeRise` is left at the flat `+2` for multi-pot hands — the cap is exactly what bounds the
+height (≤ 5 rows) so a fixed lift suffices, per the AC. Tests built by overriding a real completed
+3-way all-in's `pots` (`{ ...hand, pots: fivePots(n) }`) so the referenced winners keep valid showdown
+hands. Degenerate case (hero wins 4+ of 5 pots → forced set exceeds the cap): all show, no tail —
+honouring "never collapse a hero pot" over the cosmetic ≤ 4, as the AC prioritises.

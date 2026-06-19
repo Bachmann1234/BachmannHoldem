@@ -405,6 +405,16 @@ body {
 .pot-line.win .pot-line-amt {
   color: var(--good);
 }
+/* The collapsed-tail row (ticket 0094): past the cap, the remaining pots fold into one muted
+   "+N more" line so the banner can't grow into the hero seat. Overrides the grid for a centred note. */
+.pot-line--more {
+  display: block;
+  text-align: center;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding-top: 1px;
+}
 
 /* ============ seats ============ */
 .pseat {
