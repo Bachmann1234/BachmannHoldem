@@ -16,15 +16,20 @@ renders **every** pot unconditionally, and `completeRise` adds a flat `+2` lift 
 hand regardless of count.
 
 That's fine for the common 2–3 pot case, but a 6-max table can ladder a single all-in into a main
-pot plus **up to 5 side pots** (6 distinct stack sizes → 6 lines). At that height the banner grows
-downward into the hero seat on a narrow phone — the exact regression 0091's height budget was meant
-to avoid. The design pass (`Showdown Sequence`, §4 height note) called this out explicitly:
+pot plus **up to 4 side pots** — **5 lines**. At that height the banner grows downward into the hero
+seat on a narrow phone — the exact regression 0091's height budget was meant to avoid. The design
+pass (`Showdown Sequence`, §4 height note) called this out, though it overstated the count:
 
 > Beyond 3 pots (a maximally-laddered 6-way all-in can make up to 5 side pots): keep one line per
 > pot, lead with the hero's pot, and cap the banner — collapse the tail into a `+N more` row past 4
 > lines rather than letting it grow into the hero.
 
-0091 deferred this as a rare edge; this ticket closes it.
+**Correction (verified in `packages/engine/src/state.test.ts`).** A 6-way all-in with distinct
+stacks yields **main + 4 side pots = 5 contested pots**, not 5 side pots: the deepest stack's top
+layer has no caller, so its excess is a returned uncalled bet (`collectPots`), not a contested pot.
+Six side pots would need **seven** distinct contributors — impossible at 6-max. So the true worst case
+this ticket guards is **5 lines**, and the `+N more` cap (past 4 lines) trims at most one tail line.
+It's a genuine-but-narrow edge; 0091 deferred it here. This ticket closes it.
 
 ## Acceptance criteria
 

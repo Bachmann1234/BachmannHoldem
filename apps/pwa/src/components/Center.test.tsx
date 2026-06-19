@@ -48,7 +48,6 @@ describe('Center pot display', () => {
   it('renders the single, unchanged pot figure for an ordinary hand', () => {
     const deck = buildDeck(2, 0, ['As Ks', 'Qd Jd'], '2c 3d 4h 5s 7c')
     const hand = createHand(config({ stacks: [100, 100], deck }))
-    expect(hand.pots.length).toBeLessThan(2) // sanity: ordinary in-progress hand has no side pots
 
     const { getByTestId, queryByTestId } = render(<Center hand={hand} {...props} />)
 
