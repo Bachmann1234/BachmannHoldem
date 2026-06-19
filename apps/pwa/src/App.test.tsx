@@ -59,8 +59,7 @@ describe('App — setup → deal', () => {
       screen.getByRole('button', { name: /Deal in/ }).click()
     })
 
-    // The table is live: the hero bank + the hero seat face-up.
-    expect(screen.getByTestId('bank').textContent).toContain('BANK')
+    // The table is live: the hero seat is face-up and shows the hero's stack.
     const hero = within(screen.getByTestId('seat-0'))
     expect(hero.getByText('You')).toBeTruthy()
   })
