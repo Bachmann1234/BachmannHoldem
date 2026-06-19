@@ -2,7 +2,7 @@
 id: 0090
 title: Show side pots distinctly on the felt during play
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-18
@@ -21,23 +21,39 @@ a 60 main pot (all three eligible) and a 60 side pot (only the two who reached 5
 stack can't see that they're only contesting the main pot. Surfacing the split is the point: it makes
 "what am I actually playing for" legible at the moment it matters. The data's all there; this is a
 presentation gap. Showdown attribution (who _won_ each pot) is the sibling ticket
-[[0091-pwa-side-pot-showdown-attribution]]; this ticket is the live, pre-showdown display.
+[[0091-pwa-side-pot-showdown-attribution]]; this ticket is the pot-breakdown display.
+
+**Engine reality (discovered during build).** `collectPots()` runs only inside `finalize()`, so
+`hand.pots` is empty for the whole of live betting and is populated only once the hand reaches
+`complete`. Today the all-in runout also settles in one synchronous jump, so there is no
+pre-showdown moment at which a multi-pot hand exists. The tray this ticket adds therefore renders on
+the **settled hand** (alongside the result banner), not mid-runout. It goes genuinely _live_ once the
+watchable runout in [[0093-pwa-watchable-allin-runout]] lands: that ticket renders the **terminal**
+`HandState` (pots already populated) while withholding board cards + banner on timers, so the tray
+reads `hand.pots` and shows the split _during_ the runout with no engine change — captured as a
+dependency note on 0093. This ticket ships the breakdown on the surface where the data exists now.
 
 ## Acceptance criteria
 
-- [ ] When `hand.pots.length > 1`, the `.pot` region in `apps/pwa/src/components/Center.tsx` renders
-      one row per pot — a labelled main pot and labelled side pot(s) (e.g. `Main 60` / `Side 60`,
-      and `Side 1` / `Side 2` when there are multiple) — instead of a single summed figure.
-- [ ] When there is a single pot (the overwhelmingly common case) the display is **unchanged** from
+- [x] When `hand.pots.length > 1`, the `.pot` region in `apps/pwa/src/components/Center.tsx` renders
+      one labelled pod per pot — a main pot and side pot(s) (`Main` / `Side`, abbreviating to
+      `S1` / `S2` when there are multiple side pots) — instead of a single summed figure. Per the
+      design pass these sit on a single **horizontal** tray (not stacked rows), which keeps the block
+      height-flat — the resolution of this ticket's own "keep each row compact" caution below.
+- [x] When there is a single pot (the overwhelmingly common case) the display is **unchanged** from
       today: one `Pot` label + `potTotal(hand)` figure, same markup/`data-testid="pot"`, so no
       visual regression on ordinary hands.
-- [ ] Pot rows read from the engine's `hand.pots` directly (each `pot.amount`); do not re-derive
-      amounts in the component. Total across rows must equal `potTotal(hand)`.
-- [ ] Ordering is stable and intuitive: main pot (the broadest-eligibility / first layer) on top,
-      side pots below in the order the engine produced them.
-- [ ] A `Center.test.tsx` case covers the multi-pot render (a hand with 2+ pots shows distinct
-      labelled rows summing to the total) and the single-pot case still renders the unchanged figure.
-- [ ] `pnpm verify` green.
+- [x] Pod amounts read from the engine's `hand.pots` directly (each `pot.amount`); do not re-derive
+      amounts in the component. The pods sum to the **contested** chips — i.e. `potTotal(hand)` minus
+      any returned uncalled bet, which `collectPots()` peels out of the pots (the BUG-0002 guarantee).
+      This matches the `ResultBanner`'s amount convention; it deliberately differs from the single-pot
+      `.pot` figure (raw `potTotal`) when an over-shove was returned.
+- [x] Ordering is stable and intuitive: main pot (the broadest-eligibility / first layer) first,
+      side pots after in the order the engine produced them.
+- [x] `Center.test.tsx` covers the multi-pot render (2+ pots show distinct labelled pods reading each
+      `pot.amount`), the multi-side abbreviation (`S1`/`S2`), an over-shove that returns an uncalled
+      bet (pods show contested chips, below `potTotal`), and the single-pot unchanged figure.
+- [x] `pnpm verify` green.
 
 ## Notes
 

@@ -57,6 +57,15 @@ or a small "runout from street X" flag derived in the session layer) to drive th
 engine's terminal `HandState` as the source of truth; the UI only controls _when_ each already-dealt
 card becomes visible.
 
+**Makes 0090's tray genuinely live (no engine change).** [[0090-pwa-multi-pot-display]] shipped the
+multi-pot tray, but because `collectPots()` runs only in `finalize()`, `hand.pots` exists only on the
+terminal state — so today the tray appears on the already-settled hand, not mid-runout. This ticket's
+banner-withheld reveal phase is exactly the pre-showdown window that tray was meant for: since the
+runout renders the **terminal** `HandState` (pots populated) while gating board + banner visibility,
+the tray reads `hand.pots` and shows the main/side split _during_ the runout for free. Acceptance: keep
+the multi-pot tray visible through the reveal phase (banner still withheld until the end) — no early
+pot computation, no engine change, consistent with the purity constraint above.
+
 **One choreography, not three animations.** The street reveal here, the pot split in
 [[0090-pwa-multi-pot-display]], and the attribution in [[0091-pwa-side-pot-showdown-attribution]] are
 beats of the same showdown sequence. The `frontend-design` pass / mockups feeding those tickets should

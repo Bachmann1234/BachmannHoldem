@@ -277,6 +277,28 @@ body {
   background: var(--accent);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
+/* multi-pot tray (ticket 0090): one labelled pod per pot, on a single horizontal row so the
+   block stays height-flat during play (the deliberate alternative to stacked rows). */
+.pot-tray {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+}
+.pot-pod {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+/* Side pods read quieter than the main pod: muted text, a smaller amount, and a dimmer disc. */
+.pot-pod.side .pot-amt {
+  font-size: 15px;
+  color: var(--text-3);
+}
+.pot-pod.side .disc {
+  background: rgba(255, 255, 255, 0.4);
+}
 .board {
   display: flex;
   gap: 5px;

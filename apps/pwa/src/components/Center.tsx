@@ -27,6 +27,18 @@ function streetLabel(street: string): string {
 }
 
 /**
+ * Pod labels for a multi-pot tray (ticket 0090). The engine produces `hand.pots` main-first, so
+ * index 0 is always the main pot. With a single side pot we call it "Side"; with several we
+ * abbreviate to "S1", "S2", … so three pods still hold their width on a 320px felt. Purely
+ * presentational — the amounts come straight from each `pot.amount`.
+ */
+function podLabel(index: number, potCount: number): string {
+  if (index === 0) return 'Main'
+  if (potCount === 2) return 'Side'
+  return `S${index}`
+}
+
+/**
  * How far (in felt %) to lift the centre block when the result banner appears (see {@link Center}),
  * by seat count. The banner stacks below the board, so lifting keeps it off the *bottom* seats — the
  * 5/6-max lower wings (y≈63–65), whose cards the un-lifted banner clips on a narrow phone. A 6-max
@@ -53,13 +65,35 @@ export function Center({ hand, heroSeat, seatLabel }: CenterProps): React.JSX.El
   const top = complete ? cy - completeRise(hand.players.length) : cy
   return (
     <div className="center" style={{ left: `${cx}%`, top: `${top}%` }}>
-      <div className="pot">
-        <div className="pot-label">Pot</div>
-        <div className="pot-amt" data-testid="pot">
-          <span className="disc" />
-          {potTotal(hand)}
+      {hand.pots.length > 1 ? (
+        // Multi-pot all-in (ticket 0090): one labelled pod per pot so a short stack can see which
+        // pot they're actually contesting. A horizontal tray (not stacked rows) keeps the block
+        // height-flat during play — see the `completeRise` note about narrow phones. Amounts read
+        // straight from `hand.pots`; they sum to `potTotal(hand)`.
+        <div className="pot-tray" data-testid="pot-tray">
+          {hand.pots.map((pot, i) => (
+            <div
+              key={i}
+              className={`pot-pod${i === 0 ? '' : ' side'}`}
+              data-testid={`pot-pod-${i}`}
+            >
+              <div className="pot-label">{podLabel(i, hand.pots.length)}</div>
+              <div className="pot-amt">
+                <span className="disc" />
+                {pot.amount}
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="pot">
+          <div className="pot-label">Pot</div>
+          <div className="pot-amt" data-testid="pot">
+            <span className="disc" />
+            {potTotal(hand)}
+          </div>
+        </div>
+      )}
       <div className="board" data-testid="board">
         {hand.board.length === 0 ? (
           <div className="street-tag">
