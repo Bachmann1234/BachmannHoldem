@@ -36,7 +36,7 @@ and removes the lock.
       condition.)_
 - [x] Safe-area insets and the action bar behave in landscape (notch/home-indicator on the short
       edges) — controls stay reachable and unclipped. _(Added `padding-left/right: env(safe-area-inset-
-    left/right)` to the landscape play shell so the felt/topbar/action-bar inset from the side notch;
+left/right)` to the landscape play shell so the felt/topbar/action-bar inset from the side notch;
       the landscape action bar (0097) keeps controls in a reachable single row. Inert (0) on a
       non-notched device — can't simulate a real notch in a plain browser, so this is by-construction.)_
 - [x] A quick a11y/usability pass: focus isn't lost on rotate, tap targets remain adequate, and the

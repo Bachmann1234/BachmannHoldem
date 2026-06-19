@@ -2,7 +2,7 @@
 id: 0095
 title: Responsive felt & landscape play
 type: epic
-status: in-progress
+status: done
 milestone: M7
 priority: medium
 created: 2026-06-19
@@ -52,20 +52,28 @@ a deferred idea in [`../docs/ROADMAP.md`](../docs/ROADMAP.md)).
 
 ## Acceptance criteria
 
-- [ ] The table renders correctly across the full phone size range in **both** orientations: no
+- [x] The table renders correctly across the full phone size range in **both** orientations: no
       board/seat overlap, no clipped pills, no pot-label collision, at heads-up through 6-max.
-- [ ] Portrait output is **visually unchanged** by the foundation work (the seat-position numbers
+      _(Portrait 320–460 wide and landscape 932×430→740×360 verified collision-free in Chromium;
+      6-max — the densest — is the binding case both ways.)_
+- [x] Portrait output is **visually unchanged** by the foundation work (the seat-position numbers
       largely survive; only how the felt is sized changes) — verified by re-baselined layout tests.
-- [ ] The `%`-over-px workarounds (`WAGER_DROP_PX`, `completeRise` special-casing, ad-hoc
+      _(At the 460×900 reference `--u`=1px ⇒ pixel-identical; `SEAT_LAYOUTS` unchanged.)_
+- [x] The `%`-over-px workarounds (`WAGER_DROP_PX`, `completeRise` special-casing, ad-hoc
       edge-anchoring) are removed or demonstrably subsumed by the scaling layer, not duplicated into a
-      landscape path.
-- [ ] All completion surfaces — showdown banner/lift, the all-in runout reveal
+      landscape path. _(`WAGER_DROP_PX` — the actual px hack — DELETED (pure `%` now). `completeRise`
+      and edge-anchoring were genuine arrangement facts, not px hacks; they were kept and cleanly
+      extended with an `orientation` parameter, NOT duplicated into a second fragile per-size path.)_
+- [x] All completion surfaces — showdown banner/lift, the all-in runout reveal
       ([[0093-pwa-watchable-allin-runout]]), and the multi-pot tray + attribution
       ([[0090-pwa-multi-pot-display]] / [[0091-pwa-side-pot-showdown-attribution]] /
-      [[0094-pwa-banner-pot-line-cap]]) — are correct in landscape.
-- [ ] Rotating the device mid-session re-lays-out cleanly with no lost state; the manifest no longer
-      hard-locks `orientation: 'portrait'`.
-- [ ] `pnpm verify` green.
+      [[0094-pwa-banner-pot-line-cap]]) — are correct in landscape. _(0098: orientation-aware
+      `completeRise`, landscape-narrowed/​capped attribution grid; 6-max + heads-up showdowns verified
+      live, 5-max + multi-pot by tests + by-construction bounds.)_
+- [x] Rotating the device mid-session re-lays-out cleanly with no lost state; the manifest no longer
+      hard-locks `orientation: 'portrait'`. _(0099: verified portrait↔landscape mid-hand preserves
+      state; manifest lock removed and confirmed gone from the build.)_
+- [x] `pnpm verify` green.
 
 ## Notes
 
