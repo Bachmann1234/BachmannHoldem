@@ -4,6 +4,7 @@
 # the current branch or the protected long-lived ones.
 current="$(git rev-parse --abbrev-ref HEAD)"
 git branch --merged HEAD |
+  grep -v '^+' |
   sed 's/^[* ]*//' |
   grep -vxE "(${current}|main|master)" |
   while IFS= read -r branch; do
