@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { createHand, parseCards, type Card } from '@holdem/engine'
+import { applyAction, createHand, parseCards, potTotal, type Card } from '@holdem/engine'
 import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
 import { renderState, renderResult, renderCoachFeedback, renderPreflopCoach } from './table.js'
 
@@ -18,6 +18,17 @@ function headsUpDeck(holesBySeat: string[], board: string): Card[] {
   const order: Card[] = []
   for (let round = 0; round < 2; round++) {
     for (let k = 0; k < 2; k++) order.push(holes[k]![round]!)
+  }
+  return [...order, ...parseCards(board)]
+}
+
+/** Build an N-handed deck dealing the given holes + board (button 0, deals SB-first). */
+function deck(n: number, holesBySeat: string[], board: string): Card[] {
+  const sbIndex = n === 2 ? 0 : 1 // button 0; multiway deals from seat left of the button
+  const holes = holesBySeat.map((s) => parseCards(s))
+  const order: Card[] = []
+  for (let round = 0; round < 2; round++) {
+    for (let k = 0; k < n; k++) order.push(holes[(sbIndex + k) % n]![round]!)
   }
   return [...order, ...parseCards(board)]
 }
@@ -40,6 +51,61 @@ describe('renderState', () => {
     expect(out).toContain('As Ad')
     expect(out).toContain('?? ??')
     expect(out).toContain('Bot 1')
+  })
+
+  it('shows the single, unchanged pot total for an ordinary one-pot hand', () => {
+    const state = createHand({
+      stacks: [200, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: headsUpDeck(['As Ad', 'Kc Qc'], '2c 7d 9h Th 5s'),
+    })
+    expect(state.pots.length).toBeLessThan(2) // a fresh hand has no split pot
+    const out = renderState(state, 0)
+    expect(out).toContain(`Pot: ${potTotal(state)}`)
+    expect(out).not.toContain('Main')
+  })
+
+  it('prints a labelled side-pot breakdown for a multi-way all-in (Main | Side)', () => {
+    // 3-way all-in 20/50/100 → main 60 (all three eligible) + side 60 (seats 1 & 2). Built through
+    // the real engine so `collectPots` produces the pots — never hand-built.
+    let state = createHand({
+      stacks: [20, 50, 100],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: deck(3, ['As Ks', 'Qs Js', 'Ts 9s'], '2c 3d 4h 5s 7c'),
+    })
+    state = applyAction(state, { type: 'raise', amount: 20 }) // seat0 shoves 20
+    state = applyAction(state, { type: 'raise', amount: 50 }) // seat1 shoves 50
+    state = applyAction(state, { type: 'call' }) // seat2 calls 50
+
+    expect(state.pots.length).toBe(2) // sanity: a main + side pot
+    const out = renderState(state, 0)
+    expect(out).toContain(`Pot: Main ${state.pots[0]!.amount} | Side ${state.pots[1]!.amount}`)
+    expect(out).not.toMatch(/Pot: \d/) // the single-total form is gone
+  })
+
+  it('abbreviates several layered side pots as S1, S2, …', () => {
+    // 4-way all-in 20/50/100/200 → main + S1 + S2.
+    let state = createHand({
+      stacks: [20, 50, 100, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: deck(4, ['As Ks', 'Qs Js', 'Ts 9s', '8s 7s'], '2c 3d 4h 6s 7c'),
+    })
+    state = applyAction(state, { type: 'raise', amount: 200 }) // UTG seat3 shoves 200
+    state = applyAction(state, { type: 'call' }) // seat0 calls all-in (20)
+    state = applyAction(state, { type: 'call' }) // seat1 calls all-in (50)
+    state = applyAction(state, { type: 'call' }) // seat2 calls all-in (100)
+
+    expect(state.pots.length).toBe(3)
+    const out = renderState(state, 0)
+    expect(out).toContain(
+      `Pot: Main ${state.pots[0]!.amount} | S1 ${state.pots[1]!.amount} | S2 ${state.pots[2]!.amount}`,
+    )
   })
 })
 

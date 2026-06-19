@@ -15,6 +15,7 @@ import {
   applyAction,
   createHand,
   parseCards,
+  potTotal,
   type Card,
   type HandConfig,
   type HandState,
@@ -153,6 +154,49 @@ describe('Board / street header', () => {
     const done = plain(render(<Table hand={headsUpShowdown()} heroSeat={0} />).lastFrame()!)
     expect(done).toContain('Ad')
     expect(done).toContain('Pot:')
+  })
+
+  it('shows the single, unchanged pot total for an ordinary hand (one pot)', () => {
+    const hand = freshHeadsUp()
+    expect(hand.pots.length).toBeLessThan(2) // a fresh hand has no split pot
+    const frame = plain(render(<Table hand={hand} heroSeat={0} />).lastFrame()!)
+    expect(frame).toContain(`Pot: ${potTotal(hand)}`)
+    expect(frame).not.toContain('Main')
+  })
+
+  it('renders a labelled side-pot breakdown for a multi-way all-in (Main / Side)', () => {
+    // 3-way all-in at 20/50/100 → main pot 60 (all three eligible) + side pot 60 (seats 1 & 2),
+    // built through the real engine so `collectPots` produces the pots.
+    const deck = buildDeck(3, 0, ['As Ks', 'Qs Js', 'Ts 9s'], '2c 3d 4h 5s 7c')
+    let hand = createHand(config({ stacks: [20, 50, 100], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 20 }) // seat0 shoves 20
+    hand = applyAction(hand, { type: 'raise', amount: 50 }) // seat1 shoves 50
+    hand = applyAction(hand, { type: 'call' }) // seat2 calls 50
+
+    expect(hand.pots.length).toBe(2) // sanity: a main + side pot
+
+    const frame = plain(render(<Table hand={hand} heroSeat={0} />).lastFrame()!)
+    // Each pod reads its own `pot.amount`, main first; the single "Pot:" total is gone.
+    expect(frame).toContain(`Main ${hand.pots[0]!.amount}`)
+    expect(frame).toContain(`Side ${hand.pots[1]!.amount}`)
+    expect(frame).not.toMatch(/Pot: \d/)
+  })
+
+  it('abbreviates several layered side pots as S1, S2, …', () => {
+    // 4-way all-in 20/50/100/200 → main + S1 + S2 (three side-of-main pots).
+    const deck = buildDeck(4, 0, ['As Ks', 'Qs Js', 'Ts 9s', '8s 7s'], '2c 3d 4h 6s 7c')
+    let hand = createHand(config({ stacks: [20, 50, 100, 200], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 200 }) // UTG seat3 shoves 200
+    hand = applyAction(hand, { type: 'call' }) // seat0 calls all-in (20)
+    hand = applyAction(hand, { type: 'call' }) // seat1 calls all-in (50)
+    hand = applyAction(hand, { type: 'call' }) // seat2 calls all-in (100)
+
+    expect(hand.pots.length).toBe(3)
+
+    const frame = plain(render(<Table hand={hand} heroSeat={0} />).lastFrame()!)
+    expect(frame).toContain(`Main ${hand.pots[0]!.amount}`)
+    expect(frame).toContain(`S1 ${hand.pots[1]!.amount}`)
+    expect(frame).toContain(`S2 ${hand.pots[2]!.amount}`)
   })
 })
 

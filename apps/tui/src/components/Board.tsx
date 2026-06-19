@@ -24,6 +24,18 @@ export function streetLabel(street: string): string {
   return street.charAt(0).toUpperCase() + street.slice(1)
 }
 
+/**
+ * Pot label for the multi-pot breakdown (ticket 0090 parity). The engine emits `hand.pots`
+ * main-first, so index 0 is always the main pot; a lone side pot is "Side", and when several layer
+ * we abbreviate to "S1", "S2", … to keep the single board line narrow. The terminal counterpart of
+ * the PWA's `podLabel`.
+ */
+function podLabel(index: number, potCount: number): string {
+  if (index === 0) return 'Main'
+  if (potCount === 2) return 'Side'
+  return `S${index}`
+}
+
 /** Render the street header, the (coloured) board cards or a pre-flop dash, and the pot total. */
 export function Board({ hand }: BoardProps): React.JSX.Element {
   return (
@@ -39,7 +51,16 @@ export function Board({ hand }: BoardProps): React.JSX.Element {
                 <Card card={card} />
               </Text>
             ))}
-        {'  '}Pot: {potTotal(hand)}
+        {/* Side-pot parity: with a split pot, show a compact labelled breakdown (Main 60  Side 60)
+            reading each `pot.amount` straight off `hand.pots`; otherwise the unchanged total. */}
+        {hand.pots.length > 1
+          ? hand.pots.map((pot, i) => (
+              <Text key={i}>
+                {'  '}
+                {podLabel(i, hand.pots.length)} {pot.amount}
+              </Text>
+            ))
+          : `  Pot: ${potTotal(hand)}`}
       </Text>
     </Box>
   )

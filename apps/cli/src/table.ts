@@ -38,13 +38,35 @@ function cap(s: string): string {
   return s[0]!.toUpperCase() + s.slice(1)
 }
 
+/**
+ * Pot label for the multi-pot breakdown (ticket 0090 parity). The engine emits `state.pots`
+ * main-first, so index 0 is always the main pot; a lone side pot is "Side", and several layered side
+ * pots abbreviate to "S1", "S2", … . The CLI counterpart of the PWA's `podLabel`.
+ */
+function podLabel(index: number, potCount: number): string {
+  if (index === 0) return 'Main'
+  if (potCount === 2) return 'Side'
+  return `S${index}`
+}
+
+/**
+ * The pot fragment of the board line. A single pot reads the unchanged `Pot: <total>`; a split pot
+ * prints a labelled breakdown (`Pot: Main 60 | Side 60`) reading each `pot.amount` straight off
+ * `state.pots` — never re-deriving the amounts.
+ */
+function renderPot(state: HandState): string {
+  if (state.pots.length <= 1) return `Pot: ${potTotal(state)}`
+  const parts = state.pots.map((pot, i) => `${podLabel(i, state.pots.length)} ${pot.amount}`)
+  return `Pot: ${parts.join(' | ')}`
+}
+
 /** Render the current table: street, board, pot, and each seat. `heroSeat`'s cards show. */
 export function renderState(state: HandState, heroSeat: number): string {
   const board = state.board.length ? state.board.map(formatCard).join(' ') : '—'
   const lines = [
     '',
     `── ${cap(state.street)} ${'─'.repeat(40)}`,
-    `Board: ${board}    Pot: ${potTotal(state)}`,
+    `Board: ${board}    ${renderPot(state)}`,
   ]
   for (const p of state.players) lines.push(renderSeat(state, p, heroSeat))
   return lines.join('\n')
