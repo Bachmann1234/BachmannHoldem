@@ -2,7 +2,7 @@
 id: 0091
 title: Attribute each side pot to its winner on the showdown banner
 type: feature
-status: todo
+status: done
 milestone: M4
 priority: medium
 created: 2026-06-18
@@ -25,21 +25,21 @@ sibling and the two should share one visual language.
 
 ## Acceptance criteria
 
-- [ ] When the completed hand has more than one pot, `ResultBanner` shows **per-pot attribution** —
+- [x] When the completed hand has more than one pot, `ResultBanner` shows **per-pot attribution** —
       for each pot, who won it (`pot.winningSeats` via `seatLabel`) and for how much (`pot.amount`),
       e.g. "You win main · 60" / "Mia wins side · 60". The hand description still appears for showdown
       results.
-- [ ] The single-pot case is **unchanged** from today: one winner/"Split pot" line + the
+- [x] The single-pot case is **unchanged** from today: one winner/"Split pot" line + the
       hand-description-or-folded line + total, same `data-testid="result-banner"`.
-- [ ] Winners per pot come from `pot.winningSeats`, **not** from `payouts > 0` and **not** from the
+- [x] Winners per pot come from `pot.winningSeats`, **not** from `payouts > 0` and **not** from the
       top-level `handWinners` — a returned uncalled bet must not read as winning a pot (preserve the
       BUG-0002 guarantee). The hero win/lose colour reflects whether the hero won _any_ pot.
-- [ ] Split pots within a single side pot (multiple `winningSeats` on one pot) still render correctly
+- [x] Split pots within a single side pot (multiple `winningSeats` on one pot) still render correctly
       ("You + Mia split main · 60" or equivalent).
-- [ ] Stays within the small-phone height budget — the banner already clips bottom seats at ~320px
+- [x] Stays within the small-phone height budget — the banner already clips bottom seats at ~320px
       (`completeRise` note in `Center.tsx`); the chosen layout for 2–3 pot lines must not make that
       worse. Follows the visual direction from the design pass (see Notes).
-- [ ] `Center.test.tsx` covers: a two-pot hand where hero wins main and loses side renders both
+- [x] `Center.test.tsx` covers: a two-pot hand where hero wins main and loses side renders both
       attributions with correct seats/amounts; the single-pot result is unchanged; a split side pot
       renders both winners. `pnpm verify` green.
 
@@ -54,6 +54,13 @@ two display tickets. Do that pass first; it also informs the stacked live displa
 
 **Read the truth, render the truth.** No engine changes — `pot.winningSeats` / `pot.amount` /
 `describeHand(showdownHands[seat])` are all already available. Keep `ResultBanner` presentational.
+
+**Deferred: the `+N more` tail cap.** The design's height note also calls for collapsing the banner
+past 4 pot-lines (a 6-way all-in can ladder into 5 side pots) so it doesn't grow into the hero. As
+shipped this banner renders every pot-line uncapped — fine for the common 2–3 pot case, a rare
+overflow for 5+ pots. Split into the follow-up [[0094-pwa-banner-pot-line-cap]] rather than blocking
+this ticket. The naming divergence between this banner (`MAIN`/`SIDE 1`) and 0090's live tray
+(`Main`/`S1`) is intentional and matches the design's two separate treatments — not a bug.
 
 **The learning payoff** (the "why didn't I scoop" explanation tied to eligibility) is the optional
 follow-up [[0092-coach-side-pot-eligibility-note]]; this ticket is purely the result-surface

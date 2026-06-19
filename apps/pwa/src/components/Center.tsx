@@ -50,9 +50,15 @@ function podLabel(index: number, potCount: number): string {
  * fully clears the wings without crowding the top seats; these values clear the common small sizes
  * (≥360-wide) and reduce — not eliminate — the overlap at 320. A fuller fix needs a more compact
  * showdown banner.
+ *
+ * Pot-aware (ticket 0091): a multi-pot showdown renders the taller per-pot attribution grid, so it
+ * needs a touch *more* lift to keep that taller banner clear of the bottom wings. `potCount` defaults
+ * to 1 so the single-pot (and live, pre-showdown) path returns TODAY'S EXACT value unchanged — only a
+ * `potCount > 1` showdown adds the extra +2.
  */
-function completeRise(seatCount: number): number {
-  return seatCount >= 6 ? 4 : 6
+function completeRise(seatCount: number, potCount = 1): number {
+  const base = seatCount >= 6 ? 4 : 6
+  return potCount > 1 ? base + 2 : base
 }
 
 /** Render the pot, board (or a pre-flop street tag), and the result banner once complete. */
@@ -62,7 +68,7 @@ export function Center({ hand, heroSeat, seatLabel }: CenterProps): React.JSX.El
   // On a completed hand the result banner stacks *below* the board; since the whole block is
   // vertically centred, that would push it down toward the bottom seats while leaving a gap up top.
   // Lift the block so the pot/board ride higher and the banner has room below — balanced either way.
-  const top = complete ? cy - completeRise(hand.players.length) : cy
+  const top = complete ? cy - completeRise(hand.players.length, hand.pots.length) : cy
   return (
     <div className="center" style={{ left: `${cx}%`, top: `${top}%` }}>
       {hand.pots.length > 1 ? (
@@ -117,8 +123,25 @@ export interface ResultBannerProps {
 }
 
 /**
+ * Tag label (col 1) for a per-pot attribution line (ticket 0091): `MAIN`, then `SIDE` for a lone
+ * side pot or `SIDE 1` / `SIDE 2` … when several layer. The uppercase showdown sibling of
+ * {@link podLabel}'s live tray tag — mono caps so the grid's first column holds a fixed width.
+ */
+function potTag(index: number, potCount: number): string {
+  if (index === 0) return 'MAIN'
+  if (potCount === 2) return 'SIDE'
+  return `SIDE ${index}`
+}
+
+/**
  * The showdown / fold-win banner for a completed hand: who won, for how much, and (at a showdown)
- * the winning hand description. Reads `handWinners` / `pots` / `showdownHands` / `endReason` — no game logic.
+ * the winning hand description.
+ *
+ * A SINGLE-pot hand keeps the original two-line who/what layout. A MULTI-pot all-in renders a
+ * compact per-pot attribution grid (ticket 0091): one `.pot-line` per pot — tag · winner+hand ·
+ * amount — reading `pot.winningSeats` (the *truth* of who won each pot, not `payouts > 0` and not
+ * the top-level `handWinners`, so a returned uncalled bet never reads as a win — BUG-0002) and
+ * `pot.amount`. No game logic.
  */
 export function ResultBanner({
   hand,
@@ -127,7 +150,47 @@ export function ResultBanner({
 }: ResultBannerProps): React.JSX.Element | null {
   if (!isComplete(hand)) return null
 
-  // The winner(s): the seats the engine actually awarded a pot to. Reading `handWinners`
+  // Multi-pot showdown: attribute each pot to its own winner(s). Multi-pot only arises at an all-in
+  // showdown, so `showdownHands[winnerSeat]` is present — we still guard the description defensively.
+  if (hand.pots.length > 1) {
+    // The hero's win/lose colour reflects winning ANY pot — scooping isn't required to read as a win.
+    // Carried on the banner as a `win`/`lose` modifier (mirroring the single-pot `.who`); each
+    // `.pot-line` then independently colours only the pots the hero actually took.
+    const heroWon = hand.pots.some((pot) => pot.winningSeats.includes(heroSeat))
+    return (
+      <div
+        className={`result-banner result-banner--pots ${heroWon ? 'win' : 'lose'}`}
+        data-testid="result-banner"
+      >
+        {hand.pots.map((pot, i) => {
+          const heroWonPot = pot.winningSeats.includes(heroSeat)
+          const names = pot.winningSeats
+            .map((s) => (s === heroSeat ? 'You' : seatLabel(s)))
+            .join(' + ')
+          // The winning hand description: for a split it's the shared board/hand, so the first
+          // winner's value reads for all. Guarded in case a pot somehow lacks a showdown value.
+          const hv =
+            pot.winningSeats[0] !== undefined ? hand.showdownHands[pot.winningSeats[0]] : undefined
+          return (
+            <div
+              key={i}
+              className={`pot-line${heroWonPot ? ' win' : ''}`}
+              data-testid={`pot-line-${i}`}
+            >
+              <span className="pot-line-tag">{potTag(i, hand.pots.length)}</span>
+              <span className="pot-line-who">
+                <strong>{names}</strong>
+                {hv ? <span className="pot-line-hand"> {describeHand(hv)}</span> : null}
+              </span>
+              <span className="pot-line-amt">{pot.amount}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Single pot: the winner(s) the engine actually awarded the pot to. Reading `handWinners`
   // (not `payouts > 0`) keeps a returned uncalled bet from counting as a win (BUG-0002).
   const winners = handWinners(hand)
   const top = winners[0]

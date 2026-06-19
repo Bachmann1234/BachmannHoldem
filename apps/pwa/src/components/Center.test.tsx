@@ -17,12 +17,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyAction,
   createHand,
+  describeHand,
   parseCards,
   potTotal,
   type Card,
   type HandConfig,
 } from '@holdem/engine'
-import { Center } from './Center.js'
+import { Center, ResultBanner } from './Center.js'
 
 afterEach(cleanup)
 
@@ -120,5 +121,98 @@ describe('Center pot display', () => {
     expect(within(getByTestId('pot-pod-0')).getByText('Main')).toBeTruthy()
     expect(within(getByTestId('pot-pod-1')).getByText('S1')).toBeTruthy()
     expect(within(getByTestId('pot-pod-2')).getByText('S2')).toBeTruthy()
+  })
+})
+
+/**
+ * ResultBanner showdown attribution (ticket 0091). Single-pot hands keep the original two-line
+ * who/what banner; a multi-pot all-in renders a per-pot attribution grid reading `pot.winningSeats`
+ * (the truth of who won each pot) + `pot.amount` + the per-winner showdown hand description.
+ *
+ * The headline two-pot and split-side-pot hands are driven through the real engine so `collectPots`
+ * and `decideWinners` produce the `winningSeats` — we never hand-build the pots.
+ */
+describe('ResultBanner showdown attribution', () => {
+  it('attributes each pot to its own winner when the hero wins main and loses the side', () => {
+    // 3-way all-in 20/50/100. Hero (seat0) is short → eligible for the MAIN pot only, and holds the
+    // best hand of all three (set of Ks) so it wins the main; the deeper seat1 (set of Qs) beats
+    // seat2 (set of 7s) for the SIDE pot. So: hero wins main 60, loses side 60 to seat1.
+    const deck = buildDeck(3, 0, ['Ks Kh', 'Qs Qh', '7s 7d'], 'Kc Qd 7h 2s 5c')
+    let hand = createHand(config({ stacks: [20, 50, 100], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 20 }) // seat0 shoves 20
+    hand = applyAction(hand, { type: 'raise', amount: 50 }) // seat1 shoves 50
+    hand = applyAction(hand, { type: 'call' }) // seat2 calls 50
+
+    expect(hand.pots.length).toBe(2)
+    expect(hand.pots[0]!.winningSeats).toEqual([0]) // sanity: hero won the main pot
+    expect(hand.pots[1]!.winningSeats).toEqual([1]) // sanity: seat1 won the side pot
+
+    const { getByTestId } = render(<ResultBanner hand={hand} {...props} />)
+
+    const main = getByTestId('pot-line-0')
+    const side = getByTestId('pot-line-1')
+
+    // Main: the hero ("You") for the main amount, coloured as a win (the `.win` modifier).
+    expect(within(main).getByText('You')).toBeTruthy()
+    expect(within(main).getByText('MAIN')).toBeTruthy()
+    expect(main.textContent).toContain(String(hand.pots[0]!.amount)) // 60
+    expect(main.className).toContain('win')
+
+    // Side: seat1 ("P1") for the side amount, NOT coloured a win for the hero.
+    expect(within(side).getByText('P1')).toBeTruthy()
+    expect(within(side).getByText('SIDE')).toBeTruthy()
+    expect(side.textContent).toContain(String(hand.pots[1]!.amount)) // 60
+    expect(side.className).not.toContain('win')
+
+    // Per-pot winner hand descriptions render (read from showdownHands[winnerSeat]).
+    expect(main.textContent).toContain(describeHand(hand.showdownHands[0]!))
+    expect(side.textContent).toContain(describeHand(hand.showdownHands[1]!))
+  })
+
+  it('renders both winners when a side pot is split', () => {
+    // Hero (seat0, short) wins the MAIN with a flush; seats 1 & 2 both play the board straight and
+    // TIE the SIDE pot → `winningSeats` has two seats, both must render on one line.
+    const deck = buildDeck(3, 0, ['Tc Td', '2h 3h', '2s 3s'], '5c 6c 7c 8c 9d')
+    let hand = createHand(config({ stacks: [20, 50, 100], deck }))
+    hand = applyAction(hand, { type: 'raise', amount: 20 })
+    hand = applyAction(hand, { type: 'raise', amount: 50 })
+    hand = applyAction(hand, { type: 'call' })
+
+    expect(hand.pots.length).toBe(2)
+    expect(hand.pots[1]!.winningSeats).toEqual([1, 2]) // sanity: the side pot is a two-way split
+
+    const { getByTestId } = render(<ResultBanner hand={hand} {...props} />)
+
+    const side = getByTestId('pot-line-1')
+    // Both winners on the one (non-wrapping) line: "P1 + P2".
+    expect(side.textContent).toContain('P1 + P2')
+  })
+
+  it('leaves the single-pot banner unchanged (the two-line who/what)', () => {
+    // A heads-up showdown → one pot, so the banner keeps today's `.who` / `.what` structure and the
+    // `result-banner` testid, with no per-pot attribution grid.
+    const deck = buildDeck(2, 0, ['As Ks', 'Qd Jd'], '2c 3d 4h 5s 7c')
+    let hand = createHand(config({ stacks: [100, 100], deck }))
+    hand = applyAction(hand, { type: 'call' }) // SB/button completes
+    hand = applyAction(hand, { type: 'check' }) // BB checks → flop
+    hand = applyAction(hand, { type: 'check' })
+    hand = applyAction(hand, { type: 'check' }) // turn
+    hand = applyAction(hand, { type: 'check' })
+    hand = applyAction(hand, { type: 'check' }) // river
+    hand = applyAction(hand, { type: 'check' })
+    hand = applyAction(hand, { type: 'check' }) // showdown
+
+    expect(hand.pots.length).toBe(1)
+
+    const { getByTestId, container, queryByTestId } = render(
+      <ResultBanner hand={hand} {...props} />,
+    )
+
+    const banner = getByTestId('result-banner')
+    expect(banner.className).not.toContain('result-banner--pots')
+    expect(banner.querySelector('.who')).toBeTruthy()
+    expect(banner.querySelector('.what')).toBeTruthy()
+    expect(queryByTestId('pot-line-0')).toBeNull()
+    expect(container.querySelector('.pot-line')).toBeNull()
   })
 })
