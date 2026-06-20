@@ -47,7 +47,14 @@ import {
   type HandCategory,
 } from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
-import { coachDecision, describeHandClass, handClassLabel } from '@holdem/coach'
+import {
+  coachDecision,
+  describeHandClass,
+  gradeSizing,
+  handClassLabel,
+  recommendedBand,
+} from '@holdem/coach'
+import { sizingPegLabel } from '@holdem/format'
 import {
   synthesizeContext,
   type ActionChoice,
@@ -57,6 +64,8 @@ import {
   type HandReadingSpot,
   type NumericChoice,
   type PreflopSpot,
+  type SizingChoice,
+  type SizingSpot,
   type Spot,
   type SpotContext,
 } from '@holdem/curriculum'
@@ -99,6 +108,8 @@ export function generateSpot(seed: number, config?: DrillConfig): Spot {
     return generateCalculationSpot(dealer, resolved.quantity, resolved.difficulty)
   }
   if (resolved.kind === 'hand-reading') return generateHandReadingSpot(dealer, resolved.street)
+  if (resolved.kind === 'sizing')
+    return generateSizingSpot(dealer, resolved.street, resolved.difficulty)
   return generateCoachSpot(
     dealer,
     resolved.priceMode === 'priced',
@@ -717,6 +728,194 @@ function generateHandReadingSpot(dealer: Dealer, street: PostflopStreet): HandRe
     // in the shared Concept vocabulary; the coach has no verdict for board reading. See the spot doc.
     concept: 'ranges',
   }
+}
+
+/**
+ * The pot fraction of the **too-small** sizing option — a ¼-pot bet ({@link SIZE_PEGS}`.quarter`),
+ * comfortably below the smallest postflop band (value/bluff open at ½ pot, protection at ¾) so it always
+ * grades 'too-small' against the recommended band, yet *above* the absurd-min-bet guardrail
+ * ({@link MIN_BET_POT_FRACTION} = 0.1) so the coach explains it with the ordinary "lays too good a price"
+ * band *why* rather than the min-bet arithmetic. A named, tunable knob for the "clearly too small" option.
+ */
+const SIZING_TOO_SMALL_FRACTION = 0.25
+
+/**
+ * The pot fraction of the **too-big** sizing option — a 1.5×-pot overbet, above the top of every postflop
+ * band (value/bluff cap at ¾ pot, protection at pot) so it always grades 'too-big', yet below the
+ * over-shove risk/reward guardrail ({@link OVER_SHOVE_RISK_REWARD} = 4 pots) so the coach explains it with
+ * the ordinary "bigger than the band wants" *why* rather than the over-shove arithmetic. A named, tunable
+ * knob for the "clearly too big" option.
+ */
+const SIZING_TOO_BIG_FRACTION = 1.5
+
+/**
+ * The number of size options a generated {@link SizingSpot} offers — three: one clearly too small, one
+ * in-band, one clearly too big, the same tappable-on-a-phone count the calculation/hand-reading kinds use
+ * ({@link CALC_CHOICES} / {@link HAND_READING_CHOICES}). Exactly ONE grades 'good' (the generator verifies
+ * this); the other two are the plausible "you over/under-bet" distractors a learner must rule out.
+ */
+const SIZING_CHOICES = 3
+
+/**
+ * The number of times {@link generateSizingSpot} will redeal looking for a spot whose three options satisfy
+ * the **exactly-one-in-band** invariant before giving up. With `toCall === 0` and the ¼-pot / band-mid /
+ * 1.5×-pot triple the invariant holds for *every* postflop band (the ¼ is always below ½/¾, the 1.5× always
+ * above ¾/pot, and the mid is the band centre by construction), so a redeal is only ever needed for a
+ * genuinely size-agnostic deal (which an unbet postflop spot never is) — making this a belt-and-braces
+ * ceiling, not a hot path. A throw past it surfaces a generator-invariant violation loudly rather than
+ * looping forever.
+ */
+const SIZING_MAX_REDEALS = 64
+
+/**
+ * Build the three candidate sizes for a sizing spot from the recommended band: a clearly-too-small
+ * ¼-pot bet, the in-band **midpoint** (`round((toLo + toHi) / 2)`), and a clearly-too-big 1.5×-pot
+ * overbet. Each is labelled in peg vocabulary off its *actual* pot fraction via the shared
+ * {@link sizingPegLabel} (single-sourced from the coach's {@link SIZE_PEGS}, so the drill's size words and
+ * the coach's band words can never drift). The options are returned in low→high amount order; the caller
+ * seed-shuffles them so the in-band one is not always in the middle.
+ *
+ * Pure: no randomness here — the band and the pot are the inputs, the amounts a deterministic function of
+ * them.
+ */
+function buildSizingOptions(pot: number, toLo: number, toHi: number): SizingChoice[] {
+  const small = Math.round(SIZING_TOO_SMALL_FRACTION * pot)
+  const mid = Math.round((toLo + toHi) / 2)
+  const big = Math.round(SIZING_TOO_BIG_FRACTION * pot)
+  // Label each off its OWN pot fraction (amount / pot), so a "½ pot" button really is ~half the pot and a
+  // "1.5× pot" overbet reads as the overbet it is — the peg word is derived from the amount, never assumed.
+  return [small, mid, big].map((toAmount) => ({
+    label: sizingPegLabel(toAmount / pot),
+    toAmount,
+  }))
+}
+
+/**
+ * Seed-shuffle a list in place via the dealer's PRNG — a Fisher–Yates over `dealer.nextInt`, the same
+ * algorithm `makeDealer`'s deck shuffle uses, so the option order is a pure, replayable function of the
+ * seed (same seed ⇒ same order). Used to place the in-band sizing option in an unpredictable slot rather
+ * than always the middle, mirroring how {@link pickWindowStart} varies the correct calc/category button's
+ * position. Returns the same array (shuffled), for call-site brevity.
+ */
+function seedShuffle<T>(dealer: Dealer, items: T[]): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = dealer.nextInt(i + 1)
+    ;[items[i], items[j]] = [items[j]!, items[i]!]
+  }
+  return items
+}
+
+/**
+ * Generate a "pick the bet size" {@link SizingSpot} (ticket 0105): deal a coherent **unbet** postflop spot
+ * (`toCall === 0`, so the hero is choosing a *bet* size, not matching one), derive the coach's recommended
+ * band, and offer three sizes — one clearly too small, one in-band, one clearly too big — for the player to
+ * choose between. The drill grades by *reusing the coach's `gradeSizing`* band logic (the band grader IS
+ * the drill grader); this generator only manufactures the inputs and the candidate sizes.
+ *
+ * **The deal.** Hole cards and a `street`-sized board come off one seeded, shuffled deck ({@link Dealer}),
+ * duplicate-free by construction. `street` defaults to `'flop'`; a theme may pass `'turn'`/`'river'`.
+ *
+ * **The money (always unbet — the design choice).** Unlike a coach spot, a sizing spot is *always* dealt
+ * `toCall = 0` and `pot = deadPot` (a {@link POT_BUCKETS} dead pot): an unbet pot is exactly where the hero
+ * genuinely *chooses* a bet size, so `classifySpot` reads it as a postflop c-bet/lead and
+ * {@link recommendedBand} produces a real pot-fraction band. The pot is drawn difficulty-aware
+ * ({@link pickByDifficulty}) toward less-round values on `'hard'`, like the other kinds, so the size math
+ * isn't always "half of 100".
+ *
+ * **The synthesised context (what makes `recommendedBand` behave).** The spot's {@link SpotContext} is
+ * inflated by the SAME `synthesizeContext` the grade path uses. Its defaults are exactly what the band
+ * logic needs for an unbet postflop bet: `isButton` is `true` (default seat 0 === button 0), so the spot
+ * classifies as a `'c-bet'` (an in-position bet) rather than tripping a missing-position read; the inert
+ * hero `stack` (1,000,000) is far above the short-stack jam gate ({@link SHORT_STACK_JAM_BB} × bb = 40), so
+ * a candidate bet is never mis-graded 'good' as a committed jam; and `committed` is 0, so a candidate's
+ * risk equals its `toAmount`. With `toCall === 0` the spot is never an overcall, so the band is never
+ * size-agnostic — the guard below redeals in the (unreachable) event it ever were.
+ *
+ * **The exactly-one-in-band invariant (verified, never assumed).** After building the three options we
+ * run the coach's `gradeSizing` over each and require **exactly one** to grade 'good' (and that it not be
+ * a size-agnostic band). For the ¼-pot / band-mid / 1.5×-pot triple this holds for every postflop band by
+ * construction, but we *verify* it rather than trust it (the ticket's acceptance criterion) and redeal a
+ * fresh spot if some rare band geometry breaks it — throwing past {@link SIZING_MAX_REDEALS} so a broken
+ * invariant fails loudly rather than shipping a spot with no (or two) right answers.
+ *
+ * **Concept.** `'pot-odds'` — matching how the Foundations bet-sizing lesson ([[0072-lesson-bet-sizing]])
+ * is tagged (sizing is taught as the pot-odds price a bet lays), so the theme feeds the same per-concept
+ * mastery bucket.
+ *
+ * @param dealer The seeded dealer every choice is drawn from.
+ * @param street The board street to deal — `'flop'` (default), `'turn'`, or `'river'`.
+ * @param difficulty `'standard'` (uniform, the default) or `'hard'` (less-round pot) — see {@link Difficulty}.
+ */
+function generateSizingSpot(
+  dealer: Dealer,
+  street: PostflopStreet,
+  difficulty: Difficulty,
+): SizingSpot {
+  for (let attempt = 0; attempt < SIZING_MAX_REDEALS; attempt++) {
+    const holeCards = dealer.dealHole()
+    const board = dealer.dealBoard(street)
+    const numActive = MIN_ACTIVE + dealer.nextInt(MAX_ACTIVE - MIN_ACTIVE + 1)
+    const deadPot = pickByDifficulty(dealer, POT_BUCKETS, difficulty, roundness)
+
+    // ALWAYS unbet: the hero chooses a bet, never matches one. So `toCall === 0` and `pot` is the dead
+    // money the bet is sized against — the win-pot convention degenerates to `pot = deadPot` when nothing
+    // is owed. This is what makes classifySpot read a postflop c-bet/lead and recommendedBand produce a
+    // real pot-fraction band to grade the candidate sizes against.
+    const context: SpotContext = { holeCards, board, pot: deadPot, toCall: 0, numActive }
+
+    // Inflate via the SAME path grade uses, then derive the band — so the band we tile options around is
+    // byte-identical to the band gradeSpot/gradeSizing will grade them against.
+    const decisionContext = synthesizeContext(context)
+    const band = recommendedBand(decisionContext)
+    // A size-agnostic band (an overcall) has no single right size; an unbet postflop spot is never one,
+    // but if some future band geometry ever produced it, redeal rather than ship an unanswerable spot.
+    if (band.sizeAgnostic) continue
+
+    const options = buildSizingOptions(deadPot, band.toLo, band.toHi)
+    // Structural guard: the triple is the contracted SIZING_CHOICES count (one too-small, one in-band, one
+    // too-big). A mismatch would be a programming error in buildSizingOptions, caught here, not downstream.
+    if (options.length !== SIZING_CHOICES) {
+      throw new RangeError(`expected ${SIZING_CHOICES} sizing options, built ${options.length}`)
+    }
+    // VERIFY the invariant with the coach's OWN grader: exactly one option must grade 'good'. This is the
+    // grade path (gradeSizing over a bet of each amount), so what we verify here is what gradeSpot rules.
+    const goodCount = options.filter(
+      (o) => gradeSizing(decisionContext, { type: 'bet', amount: o.toAmount })?.verdict === 'good',
+    ).length
+    if (goodCount !== 1) continue
+
+    return {
+      kind: 'sizing',
+      prompt: buildSizingPrompt(holeCards, board, deadPot, numActive),
+      // Seed-shuffle so the in-band size isn't always the middle button — the same "vary the correct
+      // choice's position" idea pickWindowStart gives the calc/category kinds, here via a Fisher–Yates.
+      choices: seedShuffle(dealer, options),
+      context,
+      // 'pot-odds' to match the bet-sizing lesson 0072's tag (sizing is the price a bet lays). See doc.
+      concept: 'pot-odds',
+    }
+  }
+  // Past the redeal ceiling the exactly-one-in-band invariant kept failing — a generator-invariant
+  // violation (it should hold for every postflop band by construction). Fail loudly in the odds/bots idiom.
+  throw new RangeError(
+    `generateSizingSpot could not build a spot with exactly one in-band size in ${SIZING_MAX_REDEALS} deals`,
+  )
+}
+
+/**
+ * Build the question shown on a {@link SizingSpot}. A plain, deterministic sentence of the spot's public
+ * facts — the holding, the board, the table size, and that the pot is **unbet** (checked to the hero) —
+ * then the "what size?" ask. States the situation only; it never hints at the right size (the coach's band
+ * rules that, and the size buttons are the answer surface). Same seed ⇒ same prompt.
+ */
+function buildSizingPrompt(
+  holeCards: readonly [Card, Card],
+  board: readonly Card[],
+  pot: number,
+  numActive: number,
+): string {
+  const opp = describeOpponents(numActive)
+  return `${describeSituation(holeCards, board)}. It's checked to you (pot ${pot}, ${opp}). What size do you bet?`
 }
 
 /**

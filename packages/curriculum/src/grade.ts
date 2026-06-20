@@ -36,9 +36,11 @@ import { evaluate7, HAND_CATEGORY_NAMES } from '@holdem/engine'
 import {
   coachDecision,
   gradePreflop,
+  gradeSizing,
   type Concept,
   type DecisionVerdict,
   type PreflopVerdict,
+  type SizingRead,
 } from '@holdem/coach'
 import { potOdds } from '@holdem/odds'
 import {
@@ -257,6 +259,24 @@ function explainHandReading(answer: string): string {
 }
 
 /**
+ * Grade one {@link SizingSpot} choice's candidate size against the coach's recommended band — the seam
+ * that makes a sizing spot honour the no-answer-key invariant by **reusing the live sizing coach**. The
+ * correct size is *not* stored: {@link gradeSpot} runs the coach's `gradeSizing` over a `{ type: 'bet',
+ * amount: choice.toAmount }` action and the correct choice is whichever it grades `verdict === 'good'`,
+ * so a sizing drill can never disagree with the size the live coach would bless at the table.
+ *
+ * Returns the {@link SizingRead} for the choice's bet. `gradeSizing` returns `null` only for a non-bet
+ * action; a sizing choice is *always* a bet, so this never returns `null` — the `!` documents that
+ * invariant (the action is constructed here as a bet).
+ */
+function gradeSizingChoice(context: DecisionContext, toAmount: number): SizingRead {
+  // Grade a BET (not a raise — the spot is unbet, `toCall === 0`) of the candidate size against the
+  // coach's band. The action is the one the live coach grades a hero's bet by, so the drill's correct
+  // size and the table's size verdict are one and the same read.
+  return gradeSizing(context, { type: 'bet', amount: toAmount })!
+}
+
+/**
  * Run the spot's grader over a coach-graded choice's action and return the verdict. Postflop spots
  * run {@link coachDecision} over the synthesised context; preflop spots run {@link gradePreflop}. One
  * helper so {@link gradeSpot} stays a thin dispatcher and the "grade by running the coach" rule lives
@@ -302,9 +322,18 @@ function gradeChoiceVerdict(
  * their chosen label is that one. It throws when no offered label matches the true category (an ill-posed
  * spot), mirroring the same guard.
  *
+ * **The sizing kind (ticket 0105) derives its answer too — a bet size, not an action/number/hand.** A
+ * {@link SizingSpot} carries no correct flag: {@link gradeSpot} runs the coach's `gradeSizing` (the same
+ * band grader the live play coach grades a hero's bet by) over each offered `{ type: 'bet', amount }` and
+ * the correct choice is whichever it grades `verdict === 'good'`. The player is correct iff their chosen
+ * size is that in-band one, and the explanation is the *chosen* size's own `why` — so an out-of-band pick
+ * is explained with exactly the `why` the coach gives in play. It throws when no offered size grades
+ * 'good' (an ill-posed spot), mirroring the same guard.
+ *
  * Throws {@link RangeError} on a malformed spot (bad context, via {@link synthesizeContext}), an
- * out-of-range `chosenIndex`, a calculation spot whose buckets do not cover the computed value, or a
- * hand-reading spot that offers no label matching the true category, in the odds/bots idiom.
+ * out-of-range `chosenIndex`, a calculation spot whose buckets do not cover the computed value, a
+ * hand-reading spot that offers no label matching the true category, or a sizing spot that offers no
+ * in-band ('good') size, in the odds/bots idiom.
  *
  * @param spot The retrieval check to grade.
  * @param chosenIndex The index into `spot.choices` the player picked.
@@ -379,6 +408,35 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       // No coach verdict to attach (like the calculation/declarative kinds): the made hand IS the grade,
       // and the explanation names it so a wrong read still teaches what the cards were.
       explanation: explainHandReading(answer),
+    }
+  }
+
+  if (spot.kind === 'sizing') {
+    // The "what size?" kind (ticket 0105): grade each candidate bet size against the coach's recommended
+    // band by running the SAME `gradeSizing` the live play coach grades a hero's bet by — the band grader
+    // IS the drill grader. The correct choice is the one it grades 'good'; nothing is stored on the spot
+    // (the no-answer-key invariant, applied to the coach's sizing read).
+    const context = synthesizeContext(spot.context)
+    const correctIndex = spot.choices.findIndex(
+      (choice) => gradeSizingChoice(context, choice.toAmount).verdict === 'good',
+    )
+    if (correctIndex < 0) {
+      // No offered size grades 'good' — an ill-posed spot (the generator failed to offer an in-band size).
+      // Mirror the calculation/hand-reading "no correct choice on offer" guard in the odds/bots idiom.
+      throw new RangeError('sizing spot offers no choice the coach grades as a good size')
+    }
+    // The explanation is the CHOSEN size's own `why` — so an out-of-band pick is explained with exactly
+    // the `why` the coach gives the hero in play (in-band states the purpose, out-of-band the risk/reward
+    // arithmetic), the ticket's headline acceptance criterion.
+    return {
+      // Correct iff the player picked the in-band ('good') size.
+      correct: chosenIndex === correctIndex,
+      chosenIndex,
+      correctIndex,
+      concept: spot.concept,
+      // No coach *continue* verdict to attach (like the calculation/hand-reading kinds): the size grade
+      // IS the teaching, and its `why` is the live coach's own sizing explanation for the chosen size.
+      explanation: gradeSizingChoice(context, spot.choices[chosenIndex]!.toAmount).why,
     }
   }
 

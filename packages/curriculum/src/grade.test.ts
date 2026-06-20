@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { evaluate7, HAND_CATEGORY_NAMES, parseCards, type Card } from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
-import { coachDecision } from '@holdem/coach'
+import { coachDecision, gradeSizing, recommendedBand } from '@holdem/coach'
 import { pct } from '@holdem/format'
 import { gradeSpot } from './grade.js'
 import { synthesizeContext } from './spot.js'
@@ -11,6 +11,7 @@ import type {
   DeclarativeSpot,
   HandReadingSpot,
   PreflopSpot,
+  SizingSpot,
 } from './spot.js'
 
 function hole(text: string): readonly [Card, Card] {
@@ -482,6 +483,89 @@ describe('gradeSpot — hand-reading (board recognition, ticket 0078)', () => {
     const spot = handReadingSpot('As Ah', 'Ac Kd 7h', ['Pair', 'Three of a Kind'])
     expect(() => gradeSpot(spot, 2)).toThrow(RangeError)
     expect(() => gradeSpot(spot, -1)).toThrow(RangeError)
+  })
+})
+
+describe('gradeSpot — sizing (pick the bet size, ticket 0105)', () => {
+  // An UNBET postflop spot (toCall === 0): the hero is choosing a *bet* size. We derive the coach's band
+  // off the SAME synthesizeContext the grade uses, then offer a ¼-pot (too small) / band-midpoint
+  // (in-band) / 1.5×-pot (too big) triple — exactly the shape the generator builds, so the grade test and
+  // the generator agree on what "good" means. (Top set on a dry board ⇒ a value bet, band ½–¾ pot.)
+  const SIZING_CONTEXT = {
+    holeCards: hole('As Ah'),
+    board: parseCards('Ac Kd 7h'),
+    pot: 100,
+    toCall: 0,
+    numActive: 2,
+  } as const
+
+  const band = recommendedBand(synthesizeContext(SIZING_CONTEXT))
+  const mid = Math.round((band.toLo + band.toHi) / 2)
+  const tooSmall = Math.round(0.25 * SIZING_CONTEXT.pot)
+  const tooBig = Math.round(1.5 * SIZING_CONTEXT.pot)
+
+  // choices: [too small, in-band, too big] — index 1 is the in-band ('good') answer.
+  const SIZING_SPOT: SizingSpot = {
+    kind: 'sizing',
+    prompt: "You hold As Ah on Ac Kd 7h. It's checked to you (pot 100). What size?",
+    concept: 'pot-odds',
+    choices: [
+      { label: '¼ pot', toAmount: tooSmall },
+      { label: '½ pot', toAmount: mid },
+      { label: '1.5× pot', toAmount: tooBig },
+    ],
+    context: SIZING_CONTEXT,
+  }
+
+  it('grades the in-band size correct, deriving the answer from gradeSizing — never a stored flag', () => {
+    const res = gradeSpot(SIZING_SPOT, 1)
+    expect(res.correctIndex).toBe(1)
+    expect(res.correct).toBe(true)
+    expect(res.concept).toBe('pot-odds')
+    expect(res.verdict).toBeUndefined() // no coach *continue* verdict on a sizing spot
+    // The explanation is the chosen (in-band) size's own `why` from the coach — exactly the why play gives.
+    const ctx = synthesizeContext(SIZING_CONTEXT)
+    const why = gradeSizing(ctx, { type: 'bet', amount: mid })!.why
+    expect(res.explanation).toBe(why)
+  })
+
+  it("grades a too-big pick incorrect, explained with the coach's OWN too-big why (play parity)", () => {
+    const res = gradeSpot(SIZING_SPOT, 2)
+    expect(res.correct).toBe(false)
+    expect(res.correctIndex).toBe(1)
+    expect(res.chosenIndex).toBe(2)
+    // The cardinal criterion: an out-of-band pick is explained with the SAME why the coach gives in play.
+    const ctx = synthesizeContext(SIZING_CONTEXT)
+    const tooBigRead = gradeSizing(ctx, { type: 'bet', amount: tooBig })!
+    expect(tooBigRead.verdict).toBe('too-big')
+    expect(res.explanation).toBe(tooBigRead.why)
+  })
+
+  it("grades a too-small pick incorrect, explained with the coach's OWN too-small why", () => {
+    const res = gradeSpot(SIZING_SPOT, 0)
+    expect(res.correct).toBe(false)
+    expect(res.correctIndex).toBe(1)
+    const ctx = synthesizeContext(SIZING_CONTEXT)
+    const tooSmallRead = gradeSizing(ctx, { type: 'bet', amount: tooSmall })!
+    expect(tooSmallRead.verdict).toBe('too-small')
+    expect(res.explanation).toBe(tooSmallRead.why)
+  })
+
+  it('throws when no offered size grades good (an ill-posed spot)', () => {
+    // Only the two out-of-band sizes offered — no in-band size, so the coach blesses none.
+    const noGood: SizingSpot = {
+      ...SIZING_SPOT,
+      choices: [
+        { label: '¼ pot', toAmount: tooSmall },
+        { label: '1.5× pot', toAmount: tooBig },
+      ],
+    }
+    expect(() => gradeSpot(noGood, 0)).toThrow(RangeError)
+  })
+
+  it('throws RangeError on an out-of-range chosen index', () => {
+    expect(() => gradeSpot(SIZING_SPOT, 3)).toThrow(RangeError)
+    expect(() => gradeSpot(SIZING_SPOT, -1)).toThrow(RangeError)
   })
 })
 

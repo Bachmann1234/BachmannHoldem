@@ -9,6 +9,7 @@
     { "path": "../engine" },
     { "path": "../odds" },
     { "path": "../coach" },
-    { "path": "../curriculum" }
+    { "path": "../curriculum" },
+    { "path": "../format" }
   ]
 }

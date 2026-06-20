@@ -148,6 +148,11 @@ export interface DrillTheme {
  *   and Call are both coach-graded *continues* (both correct when continuing is EV-correct), so the third
  *   button is still entirely coach-ruled, never an authored key. Drills `'pot-odds'` (the continue
  *   decision), now with a non-binary action set.
+ * - `bet-sizing` → `{ kind: 'sizing' }`. A "pick the bet size" ask (ticket 0105): an *unbet* postflop
+ *   pot, three candidate sizes (one too small, one in-band, one too big), graded by reusing the coach's
+ *   `gradeSizing` band logic — the band grader IS the drill grader, so an out-of-band pick is explained
+ *   with the SAME `why` the coach gives in play, never an authored key. Drills `'pot-odds'` — matching how
+ *   the bet-sizing lesson 0072 is tagged (sizing is the price a bet lays).
  *
  * Each theme's {@link DrillTheme.concept} is the idea its {@link DrillTheme.config} is built to
  * exercise; the per-spot grade-time concept the coach derives will agree with it on the spots that
@@ -210,6 +215,12 @@ export const DRILL_THEMES = [
     title: 'Call, raise, or fold',
     concept: 'pot-odds',
     config: { kind: 'coach', priceMode: 'priced', actions: 'call-raise-fold' },
+  },
+  {
+    id: 'bet-sizing',
+    title: 'Pick the bet size',
+    concept: 'pot-odds',
+    config: { kind: 'sizing' },
   },
 ] as const satisfies readonly DrillTheme[]
 

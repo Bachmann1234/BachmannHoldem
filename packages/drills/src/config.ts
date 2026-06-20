@@ -46,8 +46,13 @@ import type { BoardStreet } from './deal.js'
  *   board. Still no answer key — the correct category is *derived* from the engine's `evaluate7` at
  *   grade time (the same evaluator the showdown ranks every real hand with), so a board-reading drill
  *   can never disagree with the live evaluator — the no-answer-key invariant applied to the engine.
+ * - `'sizing'` — a "what size?" ask graded by `gradeSpot`'s sizing branch (a {@link SizingSpot}, ticket
+ *   0105): the player taps the bet size to make into an *unbet* postflop pot. Still no answer key — the
+ *   correct size is *derived* from the coach's `gradeSizing` band grader at grade time (the SAME band
+ *   logic the live play coach grades a hero's bet by), so a sizing drill can never disagree with the
+ *   live sizing coach — the no-answer-key invariant applied to the coach's sizing read.
  */
-export type DrillKind = 'coach' | 'preflop' | 'calculation' | 'hand-reading'
+export type DrillKind = 'coach' | 'preflop' | 'calculation' | 'hand-reading' | 'sizing'
 
 /**
  * Which numeric quantity a generated `'calculation'` spot asks for. **Re-exported from the curriculum's

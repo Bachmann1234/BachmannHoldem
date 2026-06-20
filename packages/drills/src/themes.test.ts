@@ -6,7 +6,8 @@ import {
   type CoachSpot,
   type PreflopSpot,
 } from '@holdem/curriculum'
-import type { HandReadingSpot } from '@holdem/curriculum'
+import type { HandReadingSpot, SizingSpot } from '@holdem/curriculum'
+import { gradeSizing } from '@holdem/coach'
 import {
   composeSession,
   DRILL_THEMES,
@@ -41,6 +42,8 @@ describe('DRILL_THEMES — the catalogue', () => {
     // The calculation themes (ticket 0077): the numeric-retrieval topics.
     expect(ids).toContain('pot-odds-math')
     expect(ids).toContain('equity-estimate')
+    // The sizing theme (ticket 0105): pick the bet size.
+    expect(ids).toContain('bet-sizing')
     expect(DRILL_THEMES.length).toBeGreaterThanOrEqual(3)
     // ids are the persisted keys — they must be unique.
     expect(new Set(ids).size).toBe(ids.length)
@@ -165,6 +168,25 @@ describe('DRILL_THEMES — each theme generates only legal spots of its declared
       expect(spot.kind).toBe('coach')
       expect(spot.choices.map((c) => c.label)).toEqual(['Call', 'Raise', 'Fold'])
       expect(spot.context.toCall).toBeGreaterThan(0) // priced
+    }
+  })
+
+  it('bet-sizing → unbet SizingSpots with exactly one in-band size, reusing gradeSizing (ticket 0105)', () => {
+    // The composer includes the catalogue uniformly, so the sizing theme composes like any other; the spot
+    // it yields is an UNBET sizing spot whose three sizes the coach's OWN gradeSizing rules — exactly one
+    // 'good'. (A small seed slice: generation runs the coach's Monte-Carlo read.)
+    for (const seed of SEEDS.slice(0, 4)) {
+      const [item] = composeSession([theme('bet-sizing')], 1, seed)
+      const spot = item!.spot as SizingSpot
+      expect(spot.kind).toBe('sizing')
+      expect(spot.context.toCall).toBe(0) // unbet — the hero picks a bet
+      expect(spot.choices).toHaveLength(3)
+      expect(item!.theme.concept).toBe('pot-odds')
+      const ctx = synthesizeContext(spot.context)
+      const goods = spot.choices.filter(
+        (c) => gradeSizing(ctx, { type: 'bet', amount: c.toAmount })?.verdict === 'good',
+      )
+      expect(goods).toHaveLength(1)
     }
   })
 })

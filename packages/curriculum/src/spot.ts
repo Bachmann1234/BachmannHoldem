@@ -304,6 +304,73 @@ export interface HandReadingSpot {
 }
 
 /**
+ * One answer on a {@link SizingSpot} (ticket 0105): a human `label` in the bet-sizing lesson's **peg
+ * vocabulary** (e.g. `"½ pot"`, `"¼ pot"`, `"1.5× pot"`) plus the candidate bet-**to** chip amount it
+ * stands for. The player taps the size they would bet; the grader runs the coach's `gradeSizing` over a
+ * `{ type: 'bet', amount: toAmount }` action.
+ *
+ * **No `correct` flag — the right size is derived, not authored.** Exactly like a {@link NumericChoice}
+ * stores a bucket but never *which* is right and a {@link HandReadingChoice} stores a category but never
+ * *which* is right, this stores a candidate size but never *which* size is good. {@link gradeSpot}
+ * runs the coach's `gradeSizing` over each choice's `toAmount` at grade time and the correct choice is
+ * the one whose `verdict === 'good'` — the no-answer-key invariant applied to the coach's *sizing* read
+ * (the band grader **is** the drill grader). The `label` is purely presentational; the grade keys on
+ * `toAmount` alone.
+ */
+export interface SizingChoice {
+  /** The button text shown to the player, in peg vocabulary, e.g. `"½ pot"` / `"1.5× pot"`. */
+  readonly label: string
+  /** The candidate bet-**to** chip amount this choice commits to — what the coach is asked to grade. */
+  readonly toAmount: number
+}
+
+/**
+ * A **bet-sizing** spot — the "what size?" retrieval check that asks the player to *pick a bet size*,
+ * not a line (ticket 0105). The gap on the practice side was that the coach grades whether to *put
+ * chips in* (call/fold, or — for a bet — whether the size is right via [[0100-coach-betting-sizing-guidance]]),
+ * but no drill ever asked the learner to **choose the size**. This kind closes that gap: it presents an
+ * **unbet** postflop spot (`context.toCall === 0`, so the hero is choosing a *bet*, not matching one)
+ * and offers a small set of {@link SizingChoice} sizes ("¼ pot", "½ pot", "1.5× pot") and asks the
+ * player to pick the one that serves the bet's purpose.
+ *
+ * **It is graded against the coach's own sizing read — never an authored answer key.** The spot carries
+ * the {@link SpotContext} inputs and the candidate sizes; at grade time {@link gradeSpot} runs the
+ * coach's `gradeSizing` (the **same** band grader the live play coach uses to grade a hero's bet size)
+ * over each choice's `toAmount` and the correct choice is the one it grades `verdict === 'good'`. So
+ * exactly like a {@link CoachSpot} can never disagree with the live coach and a {@link CalculationSpot}
+ * can never disagree with the math, a sizing spot can never disagree with the live *sizing coach* — the
+ * correct size is *derived* from the same band logic that grades a real bet, not stored. This is the
+ * cardinal rule extended from "which action / which number / which hand" to "which size", and the
+ * **out-of-band** picks are explained with the *same* `why` the coach gives the hero in play.
+ *
+ * **Always unbet (the design choice).** The spot is dealt with `context.toCall === 0`: an unbet pot is
+ * where the hero genuinely *chooses* a bet size (a raise is sized off a bet faced; a call matches a
+ * number and picks none). The generator guarantees this, so `classifySpot` reads the spot as a postflop
+ * c-bet/lead and `recommendedBand` produces a real pot-fraction band to grade the candidate sizes
+ * against.
+ *
+ * **Pot accounting (the same pitfall as every priced spot).** `context.pot` is the dead money in the
+ * pot the bet is sized against, and `context.toCall` is `0` (unbet) — forwarded untouched, exactly as
+ * {@link CoachSpot} does, so a sizing spot's band is computed off the same pot the live coach would read.
+ */
+export interface SizingSpot {
+  readonly kind: 'sizing'
+  /** The question shown to the player, e.g. "You hold A♠ K♠ on K♦ 7♠ 2♠ — pot 100, unbet. What size?". */
+  readonly prompt: string
+  /**
+   * The ordered size buttons, each a candidate bet-to amount (see {@link SizingChoice}). At least two;
+   * the correct one — the in-band ('good') size — is *derived* by {@link gradeSpot} from the coach's
+   * `gradeSizing`, never stored. {@link gradeSpot} throws if no offered size grades 'good' (an ill-posed
+   * spot, mirroring the calculation kind's "no bucket contains the value" guard).
+   */
+  readonly choices: readonly SizingChoice[]
+  /** The coach-read inputs; {@link synthesizeContext} inflates them for the band grader. `toCall` is `0`. */
+  readonly context: SpotContext
+  /** The `concept` this spot exercises — `'pot-odds'`, matching how the bet-sizing lesson 0072 is tagged. */
+  readonly concept: Concept
+}
+
+/**
  * A **declarative** spot — the flagged last-resort carve-out.
  *
  * Some concepts the content ticket needs (position, board texture) do not map onto a single coach
@@ -332,9 +399,17 @@ export interface DeclarativeSpot {
  * correct bucket is *derived* from the same `potOdds`/coach math at grade time, still no answer key. The
  * {@link HandReadingSpot} (ticket 0078) is another: a board-reading recognition ask whose correct
  * category is *derived* from `evaluate7` at grade time — the no-answer-key invariant applied to the
- * engine's evaluator.
+ * engine's evaluator. The {@link SizingSpot} (ticket 0105) is a third: a "what size?" ask whose correct
+ * size is *derived* from the coach's `gradeSizing` band grader at grade time — the no-answer-key
+ * invariant applied to the coach's sizing read (the band grader **is** the drill grader).
  */
-export type Spot = CoachSpot | PreflopSpot | CalculationSpot | HandReadingSpot | DeclarativeSpot
+export type Spot =
+  | CoachSpot
+  | PreflopSpot
+  | CalculationSpot
+  | HandReadingSpot
+  | SizingSpot
+  | DeclarativeSpot
 
 /**
  * The inert seat the synthesised {@link DecisionContext} is built for. The coach's postflop read

@@ -8,7 +8,7 @@ import {
   type Card,
 } from '@holdem/engine'
 import { potOdds } from '@holdem/odds'
-import { classifyPosition, coachDecision, gradePreflop } from '@holdem/coach'
+import { classifyPosition, coachDecision, gradePreflop, gradeSizing } from '@holdem/coach'
 import {
   gradeSpot,
   synthesizeContext,
@@ -16,6 +16,7 @@ import {
   type CoachSpot,
   type HandReadingSpot,
   type PreflopSpot,
+  type SizingSpot,
 } from '@holdem/curriculum'
 import { buildBuckets, buildCategoryChoices, generateSpot, pickWindowStart } from './generate.js'
 import { makeDealer } from './deal.js'
@@ -939,6 +940,89 @@ describe('postflop generators only ever deal a real (≥3-card) board (the prefl
     // 'evaluate7 expects 5..7 cards, got 2'.
     for (const kind of ['coach', 'hand-reading'] as const) {
       expect(() => generateSpot(1, { kind, street: 'preflop' as never })).toThrow(RangeError)
+    }
+  })
+})
+
+describe('generateSpot — sizing spots (pick the bet size, ticket 0105)', () => {
+  // A sizing spot's generation AND grade both run the coach's seeded Monte-Carlo equity read (per choice),
+  // so — like the other coach-graded sweeps in this file — these iterate over the small COACH_SEEDS slice.
+  // The invariants here are structural (unbet, three options, exactly one in-band), not statistical, so a
+  // handful of distinct deals proves them while keeping the sweep well under CI's per-test timeout.
+  it('same seed → identical sizing spot (deep-equal), for every postflop street', () => {
+    for (const street of ['flop', 'turn', 'river'] as const) {
+      for (const seed of COACH_SEEDS) {
+        expect(generateSpot(seed, { kind: 'sizing', street })).toEqual(
+          generateSpot(seed, { kind: 'sizing', street }),
+        )
+      }
+    }
+  })
+
+  it('defaults to a flop board when street is omitted', () => {
+    for (const seed of COACH_SEEDS) {
+      expect(generateSpot(seed, { kind: 'sizing' })).toEqual(
+        generateSpot(seed, { kind: 'sizing', street: 'flop' }),
+      )
+    }
+  })
+
+  it('emits a well-formed, ALWAYS-UNBET postflop sizing spot with 3 size options', () => {
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, { kind: 'sizing' }) as SizingSpot
+      expect(spot.kind).toBe('sizing')
+      expect(spot.concept).toBe('pot-odds')
+      // The hero is choosing a BET, never matching a price: the spot is unbet (toCall === 0) and the pot is
+      // a real dead pot the bet is sized against.
+      expect(spot.context.toCall).toBe(0)
+      expect(spot.context.pot).toBeGreaterThan(0)
+      expect(spot.context.board.length).toBeGreaterThanOrEqual(3)
+      expect(spot.choices).toHaveLength(3)
+      // Every option is a positive bet-to amount with a peg-vocabulary label.
+      for (const choice of spot.choices) {
+        expect(choice.toAmount).toBeGreaterThan(0)
+        expect(typeof choice.label).toBe('string')
+        expect(choice.label.length).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('offers EXACTLY ONE in-band (good) size, the other two out of band — verified with gradeSizing', () => {
+    // The generator's headline invariant, checked through the SAME band grader gradeSpot rules with. Exactly
+    // one option grades 'good'; the other two must be 'too-big'/'too-small' (never a second 'good').
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, { kind: 'sizing' }) as SizingSpot
+      const ctx = synthesizeContext(spot.context)
+      const verdicts = spot.choices.map(
+        (c) => gradeSizing(ctx, { type: 'bet', amount: c.toAmount })?.verdict,
+      )
+      const goods = verdicts.filter((v) => v === 'good')
+      expect(goods).toHaveLength(1)
+      // The other two are out of band (and none is undefined — gradeSizing always grades a bet).
+      const others = verdicts.filter((v) => v !== 'good')
+      expect(others).toHaveLength(2)
+      for (const v of others) expect(v === 'too-big' || v === 'too-small').toBe(true)
+    }
+  })
+
+  it('grades a generated sizing spot end-to-end: the good pick is correct, an out-of-band pick is not', () => {
+    // The no-answer-key invariant honoured through gradeSpot: grading EVERY choice, exactly the in-band one
+    // comes back correct, and a wrong pick's explanation is the coach's OWN why for the chosen size (play
+    // parity — the same why the live coach gives).
+    for (const seed of COACH_SEEDS) {
+      const spot = generateSpot(seed, { kind: 'sizing' }) as SizingSpot
+      const ctx = synthesizeContext(spot.context)
+      let goodCount = 0
+      for (let i = 0; i < spot.choices.length; i++) {
+        const res = gradeSpot(spot, i)
+        const read = gradeSizing(ctx, { type: 'bet', amount: spot.choices[i]!.toAmount })!
+        // gradeSpot's correctness for choice i agrees with whether the coach grades that size 'good'.
+        expect(res.correct).toBe(read.verdict === 'good')
+        // The explanation is the chosen size's own coach `why` — the play-parity criterion.
+        expect(res.explanation).toBe(read.why)
+        if (res.correct) goodCount++
+      }
+      expect(goodCount).toBe(1)
     }
   })
 })

@@ -122,8 +122,12 @@ export function SpotView({ spot }: { readonly spot: Spot }): React.JSX.Element {
       </div>
     )
   }
-  if (spot.kind === 'coach' || spot.kind === 'calculation') {
+  if (spot.kind === 'coach' || spot.kind === 'calculation' || spot.kind === 'sizing') {
     const { pot, toCall, board, holeCards } = spot.context
+    // The sizing spot (ticket 0105) is ALWAYS unbet — the hero is choosing a *bet* size, not matching a
+    // price — so its money chip reads "Unbet · pick a size" rather than the coach/calc "Free · nothing to
+    // call". A coach/calc spot keeps the free-vs-to-call chip it always had. Same felt pixels otherwise.
+    const sizing = spot.kind === 'sizing'
     const free = toCall === 0
     return (
       <div className="spot">
@@ -150,7 +154,7 @@ export function SpotView({ spot }: { readonly spot: Spot }): React.JSX.Element {
           </div>
           <div className="price-chip" data-testid="price-chip">
             {free ? null : <span className="pc-k">To call</span>}
-            {free ? 'Free · nothing to call' : toCall}
+            {sizing ? 'Unbet · pick a size' : free ? 'Free · nothing to call' : toCall}
           </div>
         </div>
         <p className="spot-prompt">{spot.prompt}</p>
@@ -242,6 +246,9 @@ export interface ResultSheetProps {
  *   the headline answer + the derivation `explanation` (the show-the-math feedback). No coach verdict.
  * - **Hand-reading** (no `verdict`, a `'hand-reading'` spot — ticket 0078) → the made-hand category as
  *   the headline answer + the `explanation` naming the hand the evaluator derived. No coach verdict.
+ * - **Sizing** (no `verdict`, a `'sizing'` spot — ticket 0105) → the in-band size as the headline answer
+ *   + the `explanation`, which is the CHOSEN size's own `why` from the coach's `gradeSizing` (in-band the
+ *   purpose, out-of-band the risk/reward) — the same why the coach gives in play. No coach verdict.
  * - **Declarative** (no `verdict`, the carve-out) → the authored `explanation` alone.
  *
  * **Show-the-math depth + reference cross-links (ticket 0079).** On a priced postflop spot the sheet
@@ -426,14 +433,16 @@ export function ResultSheet({
               </p>
             ) : null}
           </>
-        ) : spot.kind === 'calculation' || spot.kind === 'hand-reading' ? (
-          // Calculation (ticket 0077) / hand-reading (ticket 0078): identical layouts — no coach verdict, the
-          // retrieved value IS the teaching. Surface the correct bucket / made-hand category as the headline
-          // answer, then the derivation (`result.explanation`, built by gradeSpot from the spot's own
-          // pot/toCall via @holdem/format, or from evaluate7) — pairing the retrieval with show-the-math
-          // feedback so a wrong pick still teaches. The only per-kind difference is the wrapper testid, so
-          // the two surfaces share one branch and keep their own `result-calculation` / `result-hand-reading`
-          // testids via the template below.
+        ) : spot.kind === 'calculation' ||
+          spot.kind === 'hand-reading' ||
+          spot.kind === 'sizing' ? (
+          // Calculation (0077) / hand-reading (0078) / sizing (0105): identical layouts — no coach continue
+          // verdict, the *derived answer* IS the teaching. Surface the correct value — the number bucket, the
+          // made-hand category, or (sizing) the in-band size — as the headline answer, then the derivation
+          // (`result.explanation`): for sizing that explanation is the CHOSEN size's own `why` from the
+          // coach's `gradeSizing`, so an out-of-band pick is explained with exactly the why the coach gives
+          // in play (in-band the purpose, out-of-band the risk/reward). The only per-kind difference is the
+          // wrapper testid, so the surfaces share one branch and keep their own `result-<kind>` testid below.
           <div data-testid={`result-${spot.kind}`}>
             <div className="metric-row">
               <div className="metric-inline">

@@ -218,6 +218,9 @@ importers:
       '@holdem/engine':
         specifier: workspace:*
         version: link:../engine
+      '@holdem/format':
+        specifier: workspace:*
+        version: link:../format
       '@holdem/odds':
         specifier: workspace:*
         version: link:../odds

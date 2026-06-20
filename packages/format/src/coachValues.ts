@@ -194,6 +194,28 @@ function pegWord(fraction: number): string {
   return best.word
 }
 
+/**
+ * The **single bet-size button label** for a candidate pot fraction (ticket 0105) — the peg-vocabulary
+ * spelling a "pick the bet size" drill shows on each size button. Single-sourced from the SAME
+ * {@link SIZE_PEGS}-keyed {@link PEG_WORD} table {@link formatBand} renders bands with, so a drill's size
+ * label and the coach's band words can never drift.
+ *
+ * Two shapes:
+ * - **Within the standard sizes** (`fraction <= 1`, a ¼/⅓/½/¾/pot bet) → the nearest peg word with the
+ *   `"pot"` unit, e.g. `"½ pot"`, `"¾ pot"`, `"pot"` (the full-pot peg is its own word, no trailing unit).
+ * - **An overbet** (`fraction > 1`, e.g. a 1.5×-pot bet) → the multiple of the pot, e.g. `"1.5× pot"`,
+ *   because no standard peg names a size above the pot and rounding it to `"pot"` would mislabel it.
+ *
+ * Pure formatting off the peg vocabulary — it picks a word, it computes no sizing math.
+ */
+export function sizingPegLabel(fraction: number): string {
+  // An overbet has no standard peg — name it as a multiple of the pot rather than rounding it to "pot".
+  if (fraction > 1) return `${bbNum(fraction)}× pot`
+  // A standard size: the nearest peg word. "pot" is its own word; a fraction peg carries the "pot" unit.
+  const word = pegWord(fraction)
+  return word === 'pot' ? 'pot' : `${word} pot`
+}
+
 /** A big-blind amount with the trailing `.0` trimmed (`2 → "2"`, `2.5 → "2.5"`) — the `bb` unit is added once. */
 function bbNum(amount: number): string {
   return (Math.round(amount * 10) / 10).toString()

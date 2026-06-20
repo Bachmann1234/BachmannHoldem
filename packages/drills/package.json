@@ -16,6 +16,7 @@
     "@holdem/engine": "workspace:*",
     "@holdem/odds": "workspace:*",
     "@holdem/coach": "workspace:*",
-    "@holdem/curriculum": "workspace:*"
+    "@holdem/curriculum": "workspace:*",
+    "@holdem/format": "workspace:*"
   }
 }

@@ -20,6 +20,7 @@ import {
   priceComparison,
   signedChips,
   SIZE_GRADE_LABEL,
+  sizingPegLabel,
   VERDICT_LABEL,
 } from './coachValues.js'
 
@@ -502,6 +503,29 @@ describe('formatBand', () => {
 
   it('collapses a single-peg band to the lone word', () => {
     expect(formatBand(base({ lo: 1, hi: 1 }))).toBe('pot')
+  })
+})
+
+describe('sizingPegLabel (ticket 0105)', () => {
+  it('labels a standard size in the nearest peg word with the "pot" unit', () => {
+    expect(sizingPegLabel(0.25)).toBe('¼ pot')
+    expect(sizingPegLabel(0.5)).toBe('½ pot')
+    expect(sizingPegLabel(0.75)).toBe('¾ pot')
+  })
+
+  it('labels a full-pot bet as the lone word "pot" (no trailing unit)', () => {
+    expect(sizingPegLabel(1)).toBe('pot')
+  })
+
+  it('labels an overbet as a multiple of the pot, never rounding it to "pot"', () => {
+    expect(sizingPegLabel(1.5)).toBe('1.5× pot')
+    expect(sizingPegLabel(2)).toBe('2× pot')
+  })
+
+  it('snaps a near-peg fraction to the nearest peg word', () => {
+    // ~0.55 is nearest the ½ peg; ~0.8 nearest the ¾ peg — the same nearest-peg rule formatBand uses.
+    expect(sizingPegLabel(0.55)).toBe('½ pot')
+    expect(sizingPegLabel(0.8)).toBe('¾ pot')
   })
 })
 
