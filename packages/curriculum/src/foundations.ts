@@ -53,8 +53,23 @@
  */
 
 import { parseCards, type Card } from '@holdem/engine'
+import { SIZE_PEGS } from '@holdem/coach'
 import type { Lesson } from './lesson.js'
 import type { CoachSpot, DeclarativeSpot, PreflopSpot } from './spot.js'
+
+/**
+ * Render a {@link SIZE_PEGS} peg's price as the rounded percentage the lessons quote (`0.17` → `"17%"`).
+ *
+ * The peg→price vocabulary (¼≈17%, ⅓≈20%, ½≈25%, ¾≈30%, pot≈33%) is **single-sourced in
+ * `@holdem/coach`** ({@link SIZE_PEGS}) so the bet-sizing lesson and the coach's recommended bands can
+ * never drift — the acceptance criterion of [[0101-coach-sizing-intent-and-bands]]. The lesson prose
+ * interpolates these numbers through this helper rather than hard-coding `"~25%"` strings; the readable
+ * sentences are kept (only the numbers are sourced), and the dependency direction is the safe one
+ * (`curriculum → @holdem/coach`, never the reverse, which would close a cycle).
+ */
+function pegPct(peg: keyof typeof SIZE_PEGS): string {
+  return `${Math.round(SIZE_PEGS[peg].price * 100)}%`
+}
 
 /**
  * Tiny authoring helper: parse a two-card string (`"As Ah"`) into the `[Card, Card]` tuple the spot
@@ -169,8 +184,9 @@ const POT_ODDS_LESSON: Lesson = {
     'simple. Divide what you must call by the total pot after you call. Face a half-pot bet, call 50 ' +
     'into a pot that becomes 200, and your price is 50 / 200 = 25%; face a full-pot bet, call 100 ' +
     'into a pot that becomes 300, and your price is 100 / 300 ≈ 33%. You will not divide for long: ' +
-    'bet sizes cluster, so memorize the pegs. A third-pot bet is about 20%, a half-pot about 25%, a ' +
-    'full-pot about 33%. Recognize the size and the price comes for free. The bigger the bet relative ' +
+    'bet sizes cluster, so memorize the pegs. A third-pot bet is about ' +
+    `${pegPct('third')}, a half-pot about ${pegPct('half')}, a full-pot about ${pegPct('pot')}. ` +
+    'Recognize the size and the price comes for free. The bigger the bet relative ' +
     'to the pot, the higher the price, and the more equity you need to continue.',
   spots: [POT_ODDS_SPOT],
 }
@@ -705,7 +721,7 @@ const BET_SIZING_SPOT: DeclarativeSpot = {
     'Bet big. You have the best hand on a board where flush and straight draws are everywhere, so a big ' +
     'bet does two jobs at once: it gets VALUE (worse hands and draws pay you off) and it PROTECTS, ' +
     'because the size you pick is the price you offer. A three-quarter-pot bet lays the draws a steep ' +
-    '~30% price, so chasing is a mistake for them. A small quarter-pot bet offers a cheap ~17% price ' +
+    `~${pegPct('threeQuarter')} price, so chasing is a mistake for them. A small quarter-pot bet offers a cheap ~${pegPct('quarter')} price ` +
     'every draw happily pays, letting them outdraw you for next to nothing; checking hands them the next ' +
     'card for free. The stronger your hand and the wetter the board, the bigger you bet.',
 }
@@ -716,7 +732,7 @@ const BET_SIZING_LESSON: Lesson = {
   concept: 'pot-odds',
   explanation:
     'When you are the one betting, the size you choose IS the price you offer: the pot-odds pegs read ' +
-    'backwards: bet a third of the pot and you lay about 20%, half-pot about 25%, full-pot about 33%. So ' +
+    `backwards: bet a third of the pot and you lay about ${pegPct('third')}, half-pot about ${pegPct('half')}, full-pot about ${pegPct('pot')}. So ` +
     'pick the size on purpose. There are three reasons to bet. For VALUE, bet big with a strong hand so ' +
     'worse hands pay you off. For PROTECTION on a wet board, bet big so draws must pay a steep price to ' +
     'chase: a cheap bet just lets them draw out. To BLUFF, bet only as much as you need to make them ' +
