@@ -2,7 +2,7 @@
 id: 0100
 title: Coach betting & sizing guidance
 type: epic
-status: todo
+status: in-progress
 milestone: M8
 priority: medium
 created: 2026-06-19
