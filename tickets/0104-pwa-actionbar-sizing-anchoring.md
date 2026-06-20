@@ -2,7 +2,7 @@
 id: 0104
 title: Anchor the bet slider with the recommended band & purpose-labelled pegs
 type: feature
-status: todo
+status: done
 milestone: M8
 priority: medium
 created: 2026-06-19
@@ -19,21 +19,21 @@ chart and glossary, consulted before acting, never deciding for the player.
 
 ## Acceptance criteria
 
-- [ ] The recommended band from `recommendedSizing(ctx)` ([[0101-coach-sizing-intent-and-bands]],
+- [x] The recommended band from `recommendedSizing(ctx)` ([[0101-coach-sizing-intent-and-bands]],
       computed **before** the hero acts — it depends only on the spot) is shown on the slider track
       (e.g. a shaded region) with a short intent label ("value · ½–¾ pot").
-- [ ] The `min`/`½`/`pot`/`all-in` pegs carry their meaning (purpose and/or the pot-odds price they
+- [x] The `min`/`½`/`pot`/`all-in` pegs carry their meaning (purpose and/or the pot-odds price they
       lay), in the primer's peg vocabulary, so the buttons teach rather than just set a number.
-- [ ] It is strictly **reference**: the slider still seeds where it does today and the hero freely
+- [x] It is strictly **reference**: the slider still seeds where it does today and the hero freely
       chooses; nothing auto-snaps to the band. The anchoring appears only when choosing a bet/raise
       size (not on fold/call/check).
-- [ ] Honest about uncertainty: a size-agnostic spot shows a wide/neutral band or no band rather than
+- [x] Honest about uncertainty: a size-agnostic spot shows a wide/neutral band or no band rather than
       a misleadingly precise one.
-- [ ] Works within the M7 responsive felt / action-bar layout (don't reintroduce overlap or clip the
+- [x] Works within the M7 responsive felt / action-bar layout (don't reintroduce overlap or clip the
       controls); degrades cleanly on the narrowest phone.
-- [ ] Component tests: band renders for a bet/raise spot, absent for fold/call/check, and never mutates
+- [x] Component tests: band renders for a bet/raise spot, absent for fold/call/check, and never mutates
       the hero's selected size.
-- [ ] `pnpm verify` green.
+- [x] `pnpm verify` green.
 
 ## Notes
 

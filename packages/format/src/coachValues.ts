@@ -233,6 +233,37 @@ export function formatBand(band: SizeBand): string {
   return hiWord === 'pot' ? `${loWord}–pot` : `${loWord}–${hiWord} pot`
 }
 
+/**
+ * The **purpose / pot-odds-price sublabel** for an ActionBar quick-size peg (ticket 0104) — the small
+ * line under the `min` / `½` / `pot` / `all-in` buttons that gives each peg its *meaning* in the
+ * bet-sizing lesson's vocabulary, so the buttons teach rather than just set a number.
+ *
+ * The `½` and `pot` pegs carry the **pot-odds price they lay** the caller, single-sourced from
+ * {@link SIZE_PEGS} (½ ≈ 25%, pot ≈ 33%) so the felt and the lesson never quote a different number;
+ * `min` and `all-in` carry a short **purpose word** (the min-raise is the cheap re-open; all-in is the
+ * commit) since neither is a fixed pot fraction. Returns `null` for a peg with no sublabel.
+ *
+ * Pure formatting off the peg vocabulary — the price math lives in {@link SIZE_PEGS} (the coach), this
+ * only renders it. Kept compact (`"lays 25%"`, `"commit"`) so the sublabels never clip on a narrow phone.
+ */
+export function pegPurposeLabel(peg: 'min' | 'half' | 'pot' | 'allin'): string | null {
+  switch (peg) {
+    // The pot-odds price each value peg lays the caller, quoted from the single-sourced lesson pegs so
+    // the felt's sublabel and the lesson's "½-pot ≈ 25%" can never drift. Rounded to a whole percent
+    // (not `pct`'s one-decimal) to stay compact under a narrow-phone peg button.
+    case 'half':
+      return `lays ${Math.round(SIZE_PEGS.half.price * 100)}%`
+    case 'pot':
+      return `lays ${Math.round(SIZE_PEGS.pot.price * 100)}%`
+    // The min-raise is the cheapest legal re-open; all-in commits the stack. Neither is a pot fraction,
+    // so they carry a purpose word instead of a price.
+    case 'min':
+      return 're-open'
+    case 'allin':
+      return 'commit'
+  }
+}
+
 /** The display word for a sizing {@link Intent} — the *job* the bet is doing (ticket 0103). */
 export const INTENT_LABEL: Readonly<Record<Intent, string>> = {
   value: 'Value',

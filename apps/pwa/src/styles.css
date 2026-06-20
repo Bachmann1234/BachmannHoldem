@@ -829,7 +829,24 @@ body {
 .bet-row {
   display: flex;
   align-items: center;
+  /* `wrap` so the full-width sizing-anchor label (ticket 0104) sits on its own line above the
+     amount/slider/pegs rather than squeezing them — the anchor is `flex-basis: 100%` below. */
+  flex-wrap: wrap;
   gap: 10px;
+}
+/* The passive sizing anchor (ticket 0104): the coach's recommended-band reference line, copy-matched to
+   the 0103 review drawer ("Value · ½–¾ pot"). A quiet caption — secondary text, no accent block — so it
+   reads as reference (like the starting-hand chart), not as an instruction the felt is giving. Spans the
+   row so it never competes with the controls below it. */
+.bet-anchor {
+  flex: 1 0 100%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.01em;
+  /* No bottom gap eating into the controls — the row gap handles the spacing to the next line. */
+  line-height: 1.2;
 }
 .bet-amount {
   font-family: var(--font-mono);
@@ -842,22 +859,60 @@ body {
   color: var(--text-3);
   font-size: 11px;
 }
+/* Positioning context for the shaded band region (ticket 0104) — it grows to fill the row like the bare
+   `.slider` used to (`width: 100%` on a flex child), and the absolutely-positioned region + the slider
+   stack inside it. */
+.slider-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+/* The recommended-band region shaded onto the track (ticket 0104): a SUBTLE tint over the 4px track, not
+   a hard accent block, so it anchors the eye without reading as a selection. Centred on the track height
+   and pinned behind the thumb (which paints above it), purely decorative (aria-hidden). */
+.band-region {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  opacity: 0.5;
+  pointer-events: none;
+}
 .sizes {
   display: flex;
   gap: 6px;
   margin-left: auto;
 }
 .size-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
-  padding: 6px 9px;
+  padding: 5px 9px;
   border-radius: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--text-2);
   cursor: pointer;
   transition: 0.12s;
+}
+/* The peg purpose / pot-odds-price sublabel (ticket 0104): a tiny caption under the peg word giving it
+   meaning ("lays 25%", "commit"). Quiet and compact so it never clips on a narrow phone. */
+.peg-price {
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-3);
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 .size-btn:hover {
   border-color: var(--line-2);
@@ -866,6 +921,9 @@ body {
 .size-btn.active {
   background: var(--accent-soft);
   border-color: var(--accent);
+  color: var(--accent);
+}
+.size-btn.active .peg-price {
   color: var(--accent);
 }
 .slider {
@@ -877,6 +935,8 @@ body {
   background: var(--surface-3);
   outline: none;
   cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1018,15 +1078,23 @@ body {
   .bet-row {
     flex: 1 1 auto;
     min-width: 0; /* let the slider shrink rather than push the buttons off-screen */
+    /* Landscape lays the bet-row out as a single horizontal line (amount · slider · pegs); the anchor
+       caption rides above on its own line still, but the controls must NOT wrap here, so keep nowrap
+       and let the slider-wrap flex-shrink instead. */
+    flex-wrap: wrap;
+    align-content: center;
   }
-  /* The slider is the load-bearing control: give it the flexible space so it never collapses to zero
-     while the (content-sized) amount + pegs hold their width. Reset the base `width: 100%` to `auto`
-     so its size is the flex-basis (0) + grow, not 100% of the row shrunk back down — deterministic
-     rather than relying on flex-shrink to rescue an over-wide basis. */
-  .bet-row .slider {
-    width: auto;
+  /* The slider-wrap is the load-bearing control: give it the flexible space so it never collapses to
+     zero while the (content-sized) amount + pegs hold their width. flex-basis 0 + grow so its size is
+     the grow, not 100% of the row shrunk back down — deterministic rather than relying on flex-shrink
+     to rescue an over-wide basis. */
+  .bet-row .slider-wrap {
     flex: 1 1 0;
     min-width: 80px;
+  }
+  /* The anchor caption still spans the row (its own line above the controls) in landscape. */
+  .bet-anchor {
+    flex: 1 0 100%;
   }
   .bet-amount,
   .sizes {

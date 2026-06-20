@@ -13,11 +13,23 @@
  * `onAction(...)` / `onNext()` / `onQuit()`. The bet-size buffer is transient *view* state
  * (component-local `useState`); only the committed {@link Action} flows through the reducer. The
  * size math mirrors the prototype's `applySize` exactly (`hero.bet + toCall + frac·pot`, clamped).
+ *
+ * **Sizing anchoring (ticket 0104) — passive reference, never an answer.** On a bet/raise spot the
+ * slider track is shaded with the coach's recommended {@link recommendedBand} and the pegs carry their
+ * purpose (the pot-odds price ½/pot lay, the min/all-in job). This is the same category of aid as the
+ * starting-hand chart / glossary: it shows the map, the hero still drives. It is strictly reference —
+ * the slider still seeds at {@link DEFAULT_BET_FRACTION}, nothing auto-snaps to the band, and a commit
+ * always sends the slider `value`, never the band. The seeded band sim is memoised to run ONCE per
+ * decision (never on every render / slider drag). A size-agnostic spot (an overcall) shows the neutral
+ * "any reasonable size" copy with no precise shaded region rather than a misleading anchor.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { potTotal, type Action, type HandState, type LegalActions } from '@holdem/engine'
+import { decisionContext } from '@holdem/bots'
+import { recommendedBand, type SizeBand } from '@holdem/coach'
+import { formatBand, INTENT_LABEL, pegPurposeLabel } from '@holdem/format'
 
 /** Props for {@link ActionBar}. */
 export interface ActionBarProps {
@@ -56,6 +68,34 @@ const HALF_POT_FRACTION = 0.5
 /** Clamp `v` into the inclusive `[min, max]` range. */
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max)
+}
+
+/**
+ * Map a coach band's `[toLo, toHi]` "bet/raise-to" chip range onto the slider track `[sizeMin, sizeMax]`,
+ * returning the shaded region as `{ left, width }` CSS percentages — or `null` when there is nothing to
+ * shade (ticket 0104). This is the ONLY sizing math the component does: it does not pick or judge a size,
+ * it only positions the coach's already-computed band over the legal range (all band/peg/price logic
+ * stays in `@holdem/coach` + `@holdem/format`).
+ *
+ * - `null` band → `null` (no anchor for this spot).
+ * - A degenerate track (`sizeMax <= sizeMin`) → `null` (nothing to map onto).
+ * - The band is clamped to `[sizeMin, sizeMax]`; if it falls **entirely** outside the legal range the
+ *   clamp collapses it to zero width, which we hide (`null`) rather than render a misleading sliver.
+ */
+function bandRegion(
+  band: SizeBand | null,
+  sizeMin: number,
+  sizeMax: number,
+): { readonly left: number; readonly width: number } | null {
+  if (band === null || sizeMax <= sizeMin) return null
+  const span = sizeMax - sizeMin
+  const lo = clamp(band.toLo, sizeMin, sizeMax)
+  const hi = clamp(band.toHi, sizeMin, sizeMax)
+  const width = ((hi - lo) / span) * 100
+  // A band wholly outside the legal range clamps to zero width — hide it rather than draw a sliver that
+  // sits misleadingly at the rail. (A size-agnostic band is handled by the caller, not here.)
+  if (width <= 0) return null
+  return { left: ((lo - sizeMin) / span) * 100, width }
 }
 
 /**
@@ -181,6 +221,26 @@ export function ActionBar({
   const heroCommitted = hand.players[heroSeat]?.committed ?? 0
   const pot = potTotal(hand)
 
+  // The coach's recommended sizing band for this spot — PASSIVE REFERENCE only (ticket 0104), the same
+  // category of aid as the starting-hand chart: it shades the slider so a beginner has an anchor on a
+  // continuous range, but it NEVER auto-selects a size (the slider still seeds at DEFAULT_BET_FRACTION
+  // and committing always sends the slider `value`, never the band — see `commitAggressive`).
+  //
+  // Keyed on the DECISION POINT — the SAME deps as the reseed effect below — because `recommendedBand`
+  // runs a seeded Monte-Carlo equity read ({@link recommendedBand} → coachAssumedRead + estimateEquity):
+  // it must run ONCE per decision, never on every render or slider drag. Returns `null` when it isn't the
+  // hero's turn or the spot has no bet/raise (so there is nothing to anchor), or — defensively — if
+  // `decisionContext` throws on a transient inconsistent state (it throws when `hand.toAct !== heroSeat`).
+  const band = useMemo<SizeBand | null>(() => {
+    if (!isHeroTurn || sizing === null) return null
+    try {
+      return recommendedBand(decisionContext(hand, heroSeat))
+    } catch {
+      return null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: one seeded sim PER DECISION, mirroring the reseed effect's deps; never on every render/drag
+  }, [isHeroTurn, hand.street, hand.toAct, hand.currentBet, heroSeat])
+
   // Re-seed the slider whenever the hero faces a fresh spot: a ~⅔-pot default, clamped to legal.
   // Keyed off the engine state that defines a new decision (street + who's to act + the bet level).
   // The deps are DELIBERATELY narrowed to those four fields — re-seeding on every `pot`/`sizeMin`
@@ -264,25 +324,53 @@ export function ActionBar({
     onAction(isRaise ? { type: 'raise', amount } : { type: 'bet', amount })
   }
 
+  // The shaded band region over the track. A genuinely size-agnostic spot (the overcall — you *match*
+  // the bet, you pick no number) gets NO precise shaded region: anchoring a sliver there would be
+  // misleadingly precise (ticket 0104). The label below states the neutral "any reasonable size" copy
+  // (`formatBand` already renders that), so the band reads honestly as reference without a false anchor.
+  const region = band !== null && !band.sizeAgnostic ? bandRegion(band, sizeMin, sizeMax) : null
+
   return (
     <div className="actionbar" data-testid="actionbar">
       {canAggress ? (
         <div className="bet-row">
+          {band !== null ? (
+            // Passive sizing anchor (ticket 0104): the coach's recommended band labelled with its intent
+            // + peg-vocabulary range — copy MATCHES the 0103 review drawer ("Value · ½–¾ pot"). Reference
+            // only; nothing here changes the slider value or what `commitAggressive` sends.
+            <div
+              className="bet-anchor"
+              data-testid="sizing-anchor"
+              data-agnostic={band.sizeAgnostic}
+            >
+              {INTENT_LABEL[band.intent]} · {formatBand(band)}
+            </div>
+          ) : null}
           <div className="bet-amount" data-testid="bet-to">
             {value} <span>to</span>
           </div>
-          <input
-            className="slider"
-            type="range"
-            aria-label="Bet size"
-            min={sizeMin}
-            max={sizeMax}
-            value={value}
-            onChange={(e) => {
-              setBetTo(Number(e.target.value))
-              setSizeKey(null)
-            }}
-          />
+          <div className="slider-wrap">
+            {region !== null ? (
+              <div
+                className="band-region"
+                data-testid="band-region"
+                aria-hidden="true"
+                style={{ left: `${region.left}%`, width: `${region.width}%` }}
+              />
+            ) : null}
+            <input
+              className="slider"
+              type="range"
+              aria-label="Bet size"
+              min={sizeMin}
+              max={sizeMax}
+              value={value}
+              onChange={(e) => {
+                setBetTo(Number(e.target.value))
+                setSizeKey(null)
+              }}
+            />
+          </div>
           <div className="sizes">
             {isRaise ? (
               <button
@@ -291,6 +379,9 @@ export function ActionBar({
                 onClick={() => applySize('min')}
               >
                 min
+                <small className="peg-price" aria-hidden="true">
+                  {pegPurposeLabel('min')}
+                </small>
               </button>
             ) : null}
             <button
@@ -299,6 +390,9 @@ export function ActionBar({
               onClick={() => applySize('half')}
             >
               ½
+              <small className="peg-price" aria-hidden="true">
+                {pegPurposeLabel('half')}
+              </small>
             </button>
             <button
               type="button"
@@ -306,6 +400,9 @@ export function ActionBar({
               onClick={() => applySize('pot')}
             >
               pot
+              <small className="peg-price" aria-hidden="true">
+                {pegPurposeLabel('pot')}
+              </small>
             </button>
             <button
               type="button"
@@ -313,6 +410,9 @@ export function ActionBar({
               onClick={() => applySize('allin')}
             >
               all-in
+              <small className="peg-price" aria-hidden="true">
+                {pegPurposeLabel('allin')}
+              </small>
             </button>
           </div>
         </div>

@@ -16,6 +16,8 @@ import {
   type Action,
   type HandState,
 } from '@holdem/engine'
+import { decisionContext } from '@holdem/bots'
+import { recommendedBand } from '@holdem/coach'
 import { ActionBar } from './ActionBar.js'
 
 afterEach(cleanup)
@@ -337,5 +339,200 @@ describe('ActionBar — live-session quit confirm (ticket 0082)', () => {
     act(() => screen.getByRole('button', { name: /View summary/ }).click())
     expect(onQuit).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('ActionBar — sizing anchoring (ticket 0104)', () => {
+  /** A heads-up hand checked through to the flop: BB to act with no bet — a postflop *bet* spot. */
+  function flopBetSpot(): { hand: HandState; seat: number } {
+    let hand = freshHand()
+    hand = applyAction(hand, { type: 'call' }) // SB completes
+    hand = applyAction(hand, { type: 'check' }) // BB checks → flop
+    return { hand, seat: hand.toAct! }
+  }
+
+  /** A heads-up flop spot where the hero faces a bet — a postflop *raise* spot. */
+  function flopRaiseSpot(): { hand: HandState; seat: number } {
+    let hand = freshHand()
+    hand = applyAction(hand, { type: 'call' }) // SB completes
+    hand = applyAction(hand, { type: 'check' }) // BB checks → flop
+    hand = applyAction(hand, { type: 'bet', amount: 6 }) // first-to-act leads
+    return { hand, seat: hand.toAct! } // the other seat faces the bet → a raise spot
+  }
+
+  /** A 3-handed limped pot the hero is flat-calling into — a *size-agnostic* overcall spot. */
+  function overcallSpot(): { hand: HandState; seat: number } {
+    let hand = createHand({
+      stacks: [200, 200, 200],
+      buttonIndex: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      deck: makeDeck(),
+    })
+    hand = applyAction(hand, { type: 'call' }) // button limps
+    return { hand, seat: hand.toAct! } // SB faces a limped pot → an overcall
+  }
+
+  it('shows the recommended band region + intent label on a postflop BET spot', () => {
+    const { hand, seat } = flopBetSpot()
+    const legal = legalActions(hand)
+    expect(legal.bet).not.toBeNull()
+    // Sanity: the coach reads this as a precise (non-agnostic) value band, so a region must shade.
+    const band = recommendedBand(decisionContext(hand, seat))
+    expect(band.sizeAgnostic).toBe(false)
+
+    render(
+      <ActionBar
+        hand={hand}
+        legal={legal}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={vi.fn()}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+
+    // The anchor label is copy-matched to the 0103 drawer ("Value · ½–¾ pot").
+    const anchor = screen.getByTestId('sizing-anchor')
+    expect(anchor.textContent).toContain('Value')
+    expect(anchor.textContent).toContain('pot')
+    // A precise shaded region is drawn (not the agnostic no-band treatment).
+    expect(screen.getByTestId('band-region')).toBeTruthy()
+    expect(anchor.getAttribute('data-agnostic')).toBe('false')
+  })
+
+  it('shows the band region on a postflop RAISE spot', () => {
+    const { hand, seat } = flopRaiseSpot()
+    const legal = legalActions(hand)
+    expect(legal.raise).not.toBeNull()
+
+    render(
+      <ActionBar
+        hand={hand}
+        legal={legal}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={vi.fn()}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    expect(screen.getByTestId('sizing-anchor')).toBeTruthy()
+    expect(screen.getByTestId('band-region')).toBeTruthy()
+  })
+
+  it('gives the ½ / pot pegs their pot-odds price and min / all-in a purpose word', () => {
+    const { hand, seat } = flopRaiseSpot()
+    render(
+      <ActionBar
+        hand={hand}
+        legal={legalActions(hand)}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={vi.fn()}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    // The pegs teach: ½/pot carry the pot-odds price they lay (25% / 33%), min/all-in a purpose word.
+    expect(screen.getByRole('button', { name: /½/ }).textContent).toContain('lays 25%')
+    expect(screen.getByRole('button', { name: /pot/ }).textContent).toContain('lays 33%')
+    expect(screen.getByRole('button', { name: /min/ }).textContent).toContain('re-open')
+    expect(screen.getByRole('button', { name: /all-in/ }).textContent).toContain('commit')
+  })
+
+  it('shows the neutral no-band treatment on a size-agnostic overcall (no precise region)', () => {
+    const { hand, seat } = overcallSpot()
+    const band = recommendedBand(decisionContext(hand, seat))
+    expect(band.sizeAgnostic).toBe(true) // the overcall — you match the bet, you pick no number
+
+    render(
+      <ActionBar
+        hand={hand}
+        legal={legalActions(hand)}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={vi.fn()}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    // The anchor still appears (it IS the hero's turn with a raise option) but reads as neutral copy...
+    const anchor = screen.getByTestId('sizing-anchor')
+    expect(anchor.getAttribute('data-agnostic')).toBe('true')
+    expect(anchor.textContent).toContain('any reasonable size')
+    // ...and NO precise shaded region is drawn — anchoring a sliver there would be misleadingly precise.
+    expect(screen.queryByTestId('band-region')).toBeNull()
+  })
+
+  it('is ABSENT on a non-hero turn and between hands', () => {
+    const hand = freshHand()
+    const { rerender } = render(
+      <ActionBar
+        hand={hand}
+        legal={null}
+        heroSeat={hand.toAct!}
+        isHeroTurn={false}
+        handOver={false}
+        onAction={() => {}}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    expect(screen.queryByTestId('sizing-anchor')).toBeNull()
+    expect(screen.queryByTestId('band-region')).toBeNull()
+
+    // Between hands: no anchoring either (the play-again CTA renders instead).
+    rerender(
+      <ActionBar
+        hand={hand}
+        legal={null}
+        heroSeat={hand.toAct!}
+        isHeroTurn={false}
+        handOver
+        onAction={() => {}}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    expect(screen.queryByTestId('sizing-anchor')).toBeNull()
+    expect(screen.queryByTestId('band-region')).toBeNull()
+  })
+
+  it('the anchoring is reference-only: it never changes the seeded size or what a commit sends', () => {
+    // The flop bet spot seeds the slider at ~⅔ pot regardless of the band (which is ½–¾ pot here). The
+    // anchoring must NOT snap the value to the band, and committing must send the slider value verbatim.
+    const { hand, seat } = flopBetSpot()
+    const legal = legalActions(hand)
+    const pot = hand.players.reduce((s, p) => s + p.totalCommitted, 0)
+    const expectedSeed = Math.round(pot * 0.66) // DEFAULT_BET_FRACTION, clamped is a no-op in this range
+
+    const onAction = vi.fn<(a: Action) => void>()
+    render(
+      <ActionBar
+        hand={hand}
+        legal={legal}
+        heroSeat={seat}
+        isHeroTurn
+        handOver={false}
+        onAction={onAction}
+        onNext={() => {}}
+        onQuit={() => {}}
+      />,
+    )
+    const betTo = () => Number(screen.getByTestId('bet-to').textContent!.trim().split(/\s+/)[0])
+    // The seed is the ⅔-pot default — NOT snapped to the band's toLo/toHi.
+    expect(betTo()).toBe(expectedSeed)
+
+    // Committing sends exactly the slider value, never the band.
+    act(() => screen.getByRole('button', { name: /^Bet/ }).click())
+    const action = onAction.mock.calls[0]![0]
+    expect(action.type).toBe('bet')
+    if (action.type === 'bet') expect(action.amount).toBe(expectedSeed)
   })
 })
