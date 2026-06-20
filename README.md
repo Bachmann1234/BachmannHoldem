@@ -28,7 +28,7 @@ packages/odds        equity simulation (Web Worker), pot odds, EV            (pu
 packages/bots        heuristic opponents (range + pot-odds driven)           (pure TS)
 packages/coach       deterministic coaching verdicts (good / leak)           (pure TS)
 packages/curriculum  lesson engine (spot → ask → grade → explain) + primer   (pure TS)
-packages/drills      seeded spot generator (action/calc/hand-reading, adaptive difficulty) + bias-aware composer (pure TS)
+packages/drills      seeded spot generator (action/calc/hand-reading/sizing, adaptive difficulty) + bias-aware composer (pure TS)
 packages/format      action-input grammar + coach value formatters           (pure TS)
 packages/session     shared MVU model + reducer (session state machine)      (pure TS)
 apps/tui             Ink (React-for-the-terminal) play client — the play UI   (Node)

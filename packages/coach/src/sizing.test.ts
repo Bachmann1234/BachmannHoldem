@@ -314,6 +314,30 @@ describe('classifyIntent', () => {
     expect(['protection', 'value']).toContain(intent)
   })
 
+  it('protection (DETERMINISTIC): a marginal pair on a wet 9-8-5 two-flush board reads protection exactly', () => {
+    // The sharper sibling of the guarded test above: a spot pinned to land squarely in the protection
+    // case rather than on the value boundary. Under the seeded ({@link COACH_SEED}) coach read, pocket
+    // sixes on 9♠ 8♠ 5♦ — middle pair on a two-suited, connected (9-8-5 spans 4) board — reads ~0.517
+    // equity, comfortably inside the marginal band (BLUFF_EQUITY_THRESHOLD 0.4 ≤ eq < VALUE_BET_THRESHOLD
+    // 0.6) and well clear of both edges, while the board shows BOTH draw signals (flush + straight) so it
+    // is unambiguously vulnerable. That is exactly the (marginal equity × wet board) routing the
+    // 'protection' intent exists for, so the classification is deterministic — not a coin-flip on the cut.
+    const c = ctx({
+      holeCards: hole('6c 6d'), // middle pair, marginal vs. the assumed range on this texture
+      board: parseCards('9s 8s 5d'), // two spades (flush draw) + connected 9-8-5 (straight draws)
+      street: 'flop',
+      toCall: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    // The board is genuinely vulnerable: both texture signals fire (≥ the vulnerable threshold).
+    expect(boardDrawSignals(c)).toBe(2)
+    expect(boardDrawSignals(c)).toBeGreaterThanOrEqual(VULNERABLE_BOARD_DRAW_SIGNALS)
+    // And the equity read lands inside the marginal band — neither value nor bluff — so a wet board routes
+    // it to protection. We assert the exact label, not a guarded set.
+    expect(classifyIntent(c)).toBe('protection')
+  })
+
   it('steal: a wide button open with a weak holding is a steal, not a bluff', () => {
     const c = ctx({
       holeCards: hole('Kc 7d'), // trash, a classic button steal
@@ -732,6 +756,48 @@ describe('gradeSizing — in-band good, keyed to intent', () => {
     expect(read.verdict).toBe('good')
     expect(read.intent).toBe('value')
     expect(read.why.toLowerCase()).toContain('value')
+  })
+
+  it('value RAISE inside the band grades good (the band is computed off pot + toCall)', () => {
+    // The existing in-band 'good' tests are all BETS (toCall 0); this pins a postflop RAISE (toCall > 0).
+    // recommendedBand sizes a raise's band off the pot AFTER calling (`pot + toCall`) and adds the call to
+    // the "to" total — so we reproduce that arithmetic to pick a "raise to" amount squarely inside it.
+    const c = ctx({
+      holeCards: hole('Kh Kd'), // top set → value
+      board: parseCards('Ks 7c 2d'),
+      street: 'flop',
+      toCall: 20, // a bet is in front → a RAISE spot
+      pot: 60, // dead money before the hero calls (already includes villain's bet)
+      committed: 0,
+      stack: 200, // 100bb at bb 2 — far above SHORT_STACK_JAM_BB, so the short-jam gate cannot fire
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    const band = recommendedBand(c)
+    expect(band.spot).toBe('raise')
+    expect(band.intent).toBe('value')
+    // Recompute the band exactly as the code does: value band [0.5, 0.75] off (pot + toCall) = 80, plus
+    // the 20-chip call → toLo 60, toHi 80. (Pin the values so a band-formula change surfaces here.)
+    const base = 60 + 20
+    expect(band.toLo).toBe(Math.round(VALUE_BAND.lo * base) + 20) // 60
+    expect(band.toHi).toBe(Math.round(VALUE_BAND.hi * base) + 20) // 80
+    // A "raise to" 70 sits strictly inside [60, 80].
+    const amount = 70
+    expect(amount).toBeGreaterThan(band.toLo)
+    expect(amount).toBeLessThan(band.toHi)
+    // The short-jam gate does NOT fire: this raise is not all-in (risk 70 ≠ stack 200) and the stack is
+    // deep (100bb ≫ 20bb), so 'good' comes from the band, not the committed-jam shortcut.
+    expect(70).not.toBe(c.stack) // chipsRisked (70 - committed 0) ≠ stack → not all-in
+    expect(c.stack / c.bigBlind).toBeGreaterThan(SHORT_STACK_JAM_BB)
+    // And the over-shove guardrail does not fire either (risk/reward 70/60 well below the ratio).
+    expect(70 / c.pot).toBeLessThan(OVER_SHOVE_RISK_REWARD)
+
+    const read = gradeSizing(c, { type: 'raise', amount } as Action)!
+    expect(read.verdict).toBe('good')
+    expect(read.intent).toBe('value')
+    // The in-band purpose wording (the value `goodWhy`), NOT the risk/reward guardrail sentence.
+    expect(read.why.toLowerCase()).toContain('value')
+    expect(read.why.toLowerCase()).not.toContain('risked')
   })
 
   it('a bluff in-band names the bluff job (never "value")', () => {

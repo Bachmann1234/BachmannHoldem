@@ -28,15 +28,19 @@
  *    continue decision falls straight out of `evOfCall`'s sign. We re-derive **none** of
  *    this.
  *
- * **Scope — the hard verdict is the continue decision only.** The deterministic call we
- * own exactly is *fold vs. continue* (call/check) measured against pot odds, plus a
- * coarse value-vs-pot-control read on an unbet pot. We deliberately do **not** grade an
- * exact bet/raise *size*: correct sizing needs fold-equity assumptions
- * ({@link evOfBet}'s `villainCallProbability`) we do not own deterministically. Sizing is
- * left to a later ticket / the optional LLM narration ([[0011-llm-coaching]]). We *do* carry
- * one deterministic aggression signal alongside the verdict — {@link DecisionVerdict.missedValueBet},
- * a heuristic "you checked an unbet pot while comfortably ahead — bet for value" flag (ticket
- * 0055) — but that flags *whether* value is being left on the table, never *how much* to bet.
+ * **Scope — the hard verdict is the continue decision; sizing is graded for *purpose*.** The
+ * deterministic call we own exactly is *fold vs. continue* (call/check) measured against pot odds,
+ * plus a coarse value-vs-pot-control read on an unbet pot. We deliberately do **not** grade the
+ * *optimal* bet/raise size — the truly optimal number needs fold-equity assumptions
+ * ({@link evOfBet}'s `villainCallProbability`) and a solver, neither of which we own. But we **do**
+ * grade a bet/raise size for its **purpose** (M8, [[0100-coach-betting-sizing-guidance]]): the
+ * {@link DecisionVerdict.sizing} read classifies the intent (value / bluff / protection / steal),
+ * recommends a size *band* (never a single number), and flags egregious sizes — the over-shove, the
+ * absurd min-bet — from pure risk/reward arithmetic that needs no fold-equity assumption. So we say
+ * whether a size makes sense *for the job the bet is doing*, not "the GTO size is X". The continue
+ * verdict is unchanged; sizing rides alongside it as an additional signal, exactly like
+ * {@link DecisionVerdict.missedValueBet} — the heuristic "you checked an unbet pot while comfortably
+ * ahead — bet for value" flag (ticket 0055) that says *whether* value is left on the table.
  *
  * **Determinism.** {@link estimateEquity} is Monte-Carlo sampled against a range, so we
  * pin a fixed {@link COACH_SEED}: the same `(ctx, action)` always yields the same verdict,

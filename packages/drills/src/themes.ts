@@ -236,9 +236,11 @@ export const DRILL_THEMES = [
  */
 export interface SessionItem {
   /**
-   * The generated curriculum {@link Spot} — a postflop {@link CoachSpot} or a preflop
-   * {@link PreflopSpot} — exactly as {@link generateSpot} produced it for this item's {@link theme}.
-   * Graded by the *existing* `gradeSpot`; it carries **no** stored correct flag.
+   * The generated curriculum {@link Spot} — any of its kinds (a postflop continue {@link CoachSpot},
+   * a preflop {@link PreflopSpot}, a numeric-retrieval {@link CalculationSpot}, a board-reading
+   * {@link HandReadingSpot}, or a bet-{@link SizingSpot}) — exactly as {@link generateSpot} produced
+   * it for this item's {@link theme}. Graded by the *existing* `gradeSpot`; it carries **no** stored
+   * correct flag.
    */
   readonly spot: Spot
   /**

@@ -26,10 +26,22 @@ const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1)
 
 /**
  * A smaller seed slice for the invariants whose grade runs the coach's Monte-Carlo equity read
- * (`coachDecision`, ~4000 iterations per choice — and the turn/river + Call/Raise/Fold sweeps run it
- * several times per spot). A handful of distinct deals is plenty to prove the no-answer-key invariant —
- * the property is structural, not statistical — and keeping this small is what keeps these sweeps well
- * under the per-test timeout on CI's contended 2-core runner (they were the M5.5 CI timeouts).
+ * (`coachDecision`, ~4000 iterations per choice — and the turn/river + Call/Raise/Fold + sizing sweeps
+ * run it several times per spot). A handful of distinct deals is plenty to prove these invariants — they
+ * are STRUCTURAL, proven by construction, not statistical:
+ *
+ * - The no-answer-key invariant holds because the generator stores NO correct flag and the grade is
+ *   re-derived from the live coach for every choice — true for any deal, so a few deals exercise the
+ *   same code path the full sweep would.
+ * - The sizing-spot "exactly one in-band (good) option" invariant holds because the generator BUILDS the
+ *   three options from the recommended band itself (one inside, two outside) — again true by
+ *   construction, deal for deal, not a frequency we are sampling.
+ *
+ * So the small slice is NOT a coverage compromise: it runs the identical assertions the full 40-seed
+ * sweep would, just on fewer deals. The full sweep is omitted ONLY to keep these coach-graded tests well
+ * under the per-test timeout on CI's contended 2-core runner (they were the M5.5 CI timeouts) — a
+ * CI-time trade-off, not a doubt about the property. Widen the slice freely if a regression ever needs
+ * more deals; nothing about correctness depends on the count.
  */
 const COACH_SEEDS = SEEDS.slice(0, 4)
 
