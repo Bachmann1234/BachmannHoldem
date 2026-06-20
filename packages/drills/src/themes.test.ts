@@ -194,6 +194,18 @@ describe('DRILL_THEMES — each theme generates only legal spots of its declared
 describe('composeSession — interleaving (the headline)', () => {
   const all = [...DRILL_THEMES]
 
+  // The interleave / randomization ORDER properties below are a pure function of the theme LIST and the
+  // seeded draw — they do NOT depend on the generated spot content. So the order sweeps run over the themes
+  // whose spot GENERATION is cheap, excluding the two that run the coach's ~4000-iteration Monte-Carlo
+  // equity read at generation time ('equity-estimate' builds its buckets around the coach equity;
+  // 'bet-sizing' derives + verifies the recommended band — several sims per spot). Composing long mixed
+  // sessions that include those two re-tripped CI's per-test timeout once M8 added 'bet-sizing' to the
+  // catalogue (ticket 0105). Their composition is covered by their own per-theme tests above, and the
+  // composer draws from every theme by the SAME uniform logic regardless of a theme's spot cost — so the
+  // ordering invariants are proven identically on the cheap subset.
+  const MONTE_CARLO_GEN_THEMES = new Set(['equity-estimate', 'bet-sizing'])
+  const cheap = all.filter((t) => !MONTE_CARLO_GEN_THEMES.has(t.id))
+
   /** The longest run of consecutive items sharing the same theme id in a session. */
   function longestSameThemeRun(items: readonly SessionItem[]): number {
     let longest = 0
@@ -214,7 +226,7 @@ describe('composeSession — interleaving (the headline)', () => {
     // seeds and lengths so it is not an accident of one draw.
     for (const seed of SEEDS) {
       for (const length of [3, 6, 7, 12]) {
-        const items = composeSession(all, length, seed)
+        const items = composeSession(cheap, length, seed)
         expect(items).toHaveLength(length)
         // Strongest pin: max run is exactly 1 (no consecutive repeat at all) — comfortably under the
         // "no 3-in-a-row" floor, and proof the session is not accidentally blocked by topic.
@@ -230,10 +242,10 @@ describe('composeSession — interleaving (the headline)', () => {
     // (1) The order is NOT the fixed `themes[i % n]` round-robin pattern for every seed. If it were, the
     //     theme-id sequence would always equal [t0, t1, t2, t0, t1, t2, …] regardless of seed. We show at
     //     least one seed deviates from that fixed cycle.
-    const length = all.length * 4
-    const fixedRoundRobin = Array.from({ length }, (_, i) => all[i % all.length]!.id)
+    const length = cheap.length * 4
+    const fixedRoundRobin = Array.from({ length }, (_, i) => cheap[i % cheap.length]!.id)
     const matchesFixedCycle = (seed: number): boolean => {
-      const ids = composeSession(all, length, seed).map((i) => i.theme.id)
+      const ids = composeSession(cheap, length, seed).map((i) => i.theme.id)
       return ids.every((id, i) => id === fixedRoundRobin[i])
     }
     expect(SEEDS.some((seed) => !matchesFixedCycle(seed))).toBe(true)
@@ -241,7 +253,7 @@ describe('composeSession — interleaving (the headline)', () => {
     // (2) Different seeds produce a different theme-id ORDER (not merely different spots) for at least
     //     some seed pair — i.e. the topic order genuinely depends on the seed.
     const orderFor = (seed: number): string =>
-      composeSession(all, length, seed)
+      composeSession(cheap, length, seed)
         .map((i) => i.theme.id)
         .join(',')
     const orders = new Set(SEEDS.map(orderFor))
@@ -251,9 +263,13 @@ describe('composeSession — interleaving (the headline)', () => {
   it('every theme actually appears across a long-enough session (not just one topic)', () => {
     // Across enough seeds the randomized draw must reach every topic at least once. (A single session is
     // not guaranteed to hit all three with random draws, so sweep seeds and union what was seen.)
+    // Keeps the FULL catalogue (this is the one order test that must see every real theme, including the
+    // two Monte-Carlo-at-generation ones), but composes `all.length` items per seed rather than ×4: across
+    // the 10 seeds that is ~110 draws over the catalogue, which reaches every theme by a wide margin while
+    // running far fewer of the heavy sizing/equity generations than the ×4 length did.
     const seen = new Set<string>()
     for (const seed of SEEDS) {
-      for (const item of composeSession(all, all.length * 4, seed)) seen.add(item.theme.id)
+      for (const item of composeSession(all, all.length, seed)) seen.add(item.theme.id)
     }
     for (const t of all) expect(seen.has(t.id)).toBe(true)
   })
