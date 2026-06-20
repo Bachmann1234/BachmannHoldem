@@ -2,7 +2,7 @@
 id: 0100
 title: Coach betting & sizing guidance
 type: epic
-status: in-progress
+status: done
 milestone: M8
 priority: medium
 created: 2026-06-19
@@ -55,20 +55,20 @@ would only ever _explain_ it.
 
 ## Acceptance criteria
 
-- [ ] The coach produces a deterministic, seeded, testable sizing read for every bet/raise spot:
+- [x] The coach produces a deterministic, seeded, testable sizing read for every bet/raise spot:
       classified intent, a recommended size band, and a grade (good / too-big / too-small) with a
       plain-language _why_ — surfaced through the existing `explainDecision` path.
-- [ ] The egregious cases are caught with risk/reward arithmetic that needs **no** fold-equity
+- [x] The egregious cases are caught with risk/reward arithmetic that needs **no** fold-equity
       assumption (the over-shove, the absurd min-bet) — this alone flips the ATo-shove green check to a
       sizing leak.
-- [ ] The recommendation uses the **same peg vocabulary** as [[0072-lesson-bet-sizing]]; it is a band,
+- [x] The recommendation uses the **same peg vocabulary** as [[0072-lesson-bet-sizing]]; it is a band,
       never a single "optimal" number, and never claims solver authority.
-- [ ] Review-drawer surface: the sizing verdict reads cleanly alongside the existing equity/pot-odds
+- [x] Review-drawer surface: the sizing verdict reads cleanly alongside the existing equity/pot-odds
       review.
-- [ ] ActionBar surface: the recommended band is anchored on the slider and the pegs carry their
+- [x] ActionBar surface: the recommended band is anchored on the slider and the pegs carry their
       purpose, as reference (it never auto-selects a size for the hero).
-- [ ] No regression to the continue-decision verdict, the bots, or the shared assumed-range read.
-- [ ] `pnpm verify` green.
+- [x] No regression to the continue-decision verdict, the bots, or the shared assumed-range read.
+- [x] `pnpm verify` green.
 
 ## Notes
 
