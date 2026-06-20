@@ -1662,6 +1662,91 @@ body {
   font-weight: 600;
 }
 
+/* The structured Sizing section (ticket 0103) — the size grade beside the continue verdict on a
+   bet/raise. A panel in the `.metric` / `.verdict` family (same surface, line, radius) so it reads as
+   part of the review, not bolted on. The grade chip is a SEPARATE signal from the continue verdict
+   badge: a "right call, wrong size" hand shows both, never one conflated badge. Holds at ~360px (the
+   head wraps the chip under the title rather than overflowing) and in landscape (it stacks below the
+   metrics in the scrollable sheet, so it never pushes the metric cards off-screen). */
+.sizing {
+  margin-top: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sizing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sizing-title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+/* The grade chip — its own tone, distinct from the continue verdict badge above. */
+.sizing-grade {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 750;
+  border-radius: 999px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-2);
+}
+.sizing-grade.good {
+  background: var(--good-soft);
+  border-color: color-mix(in oklch, var(--good) 40%, transparent);
+  color: var(--good);
+}
+.sizing-grade.leak {
+  background: var(--bad-soft);
+  border-color: color-mix(in oklch, var(--bad) 40%, transparent);
+  color: var(--bad);
+}
+.sizing-grade-badge {
+  font-weight: 800;
+}
+.sizing-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* The intent (the job the bet is doing) — a small pill, like the opponent-read kind tag. */
+.sizing-tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.sizing-band {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.sizing-why {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
 /* The coach's opt-in per-opponent archetype read (the felt hides the style; this is behind a tap).
    Rides just under the verdict headline, above the metrics (ticket 0063), so the reveal toggle is
    discoverable without scrolling on a tall postflop verdict. Rules above and below fence it off as a

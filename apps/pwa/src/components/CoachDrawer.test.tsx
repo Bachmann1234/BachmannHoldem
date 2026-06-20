@@ -10,9 +10,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseCards, type Action, type Card } from '@holdem/engine'
-import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict, SizeBand, SizingRead } from '@holdem/coach'
 import type { DecisionContext } from '@holdem/bots'
-import { pct, signedChips, VERDICT_LABEL } from '@holdem/format'
+import {
+  formatBand,
+  INTENT_LABEL,
+  pct,
+  signedChips,
+  SIZE_GRADE_LABEL,
+  VERDICT_LABEL,
+} from '@holdem/format'
 import type { CoachResult } from '@holdem/session'
 import { CoachDrawer } from './CoachDrawer.js'
 
@@ -238,6 +245,103 @@ describe('CoachDrawer — verdict state', () => {
   it('shows no preflop starting-hand line postflop (the chart is preflop only)', () => {
     render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
     expect(screen.queryByTestId('coach-preflop')).toBeNull()
+  })
+})
+
+describe('CoachDrawer — sizing section (ticket 0103)', () => {
+  /** A postflop value band (½–¾ pot), the band the size grade is measured against. */
+  const VALUE_BAND: SizeBand = {
+    spot: 'c-bet',
+    intent: 'value',
+    lo: 0.5,
+    hi: 0.75,
+    bbLo: null,
+    bbHi: null,
+    toLo: 50,
+    toHi: 75,
+    sizeAgnostic: false,
+  }
+
+  /** Build a `sizing` read for a grade, defaulting to the value band + an intent-named why. */
+  const sizing = (v: Partial<SizingRead> & { verdict: SizingRead['verdict'] }): SizingRead => ({
+    intent: 'value',
+    band: VALUE_BAND,
+    why: 'A solid value size.',
+    ...v,
+  })
+
+  /** A bet/raise verdict that carries a graded sizing read (the hero bet into an unbet pot). */
+  const betWith = (s: SizingRead): DecisionVerdict => ({
+    ...GOOD,
+    potOddsThreshold: 0,
+    heroBet: true,
+    callEv: 60,
+    sizing: s,
+  })
+
+  it('renders the section with the intent, band, why, and a good grade chip', () => {
+    const v = betWith(sizing({ verdict: 'good', intent: 'value', why: 'A solid value size.' }))
+    render(<CoachDrawer coach={verdictResult(v)} open onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('coach-sizing')).toBeTruthy()
+    // The intent (the job the bet is doing) and the band, both via the shared format helpers.
+    expect(screen.getByTestId('sizing-intent').textContent).toBe(INTENT_LABEL.value)
+    expect(screen.getByTestId('sizing-band').textContent).toContain(formatBand(VALUE_BAND))
+    // The why is the graded sentence.
+    expect(screen.getByTestId('sizing-why').textContent).toBe('A solid value size.')
+    // The grade chip carries the size verdict, distinct from the continue badge.
+    const grade = screen.getByTestId('sizing-grade')
+    expect(grade.getAttribute('data-grade')).toBe('good')
+    expect(grade.className).toContain('good')
+    expect(grade.textContent).toContain(SIZE_GRADE_LABEL.good)
+  })
+
+  it('renders a too-big grade as a leak-toned chip', () => {
+    const v = betWith(sizing({ verdict: 'too-big', why: 'You risked 200 to win 3.' }))
+    render(<CoachDrawer coach={verdictResult(v)} open onClose={vi.fn()} />)
+    const grade = screen.getByTestId('sizing-grade')
+    expect(grade.getAttribute('data-grade')).toBe('too-big')
+    expect(grade.className).toContain('leak')
+    expect(grade.textContent).toContain(SIZE_GRADE_LABEL['too-big'])
+    expect(screen.getByTestId('sizing-why').textContent).toBe('You risked 200 to win 3.')
+  })
+
+  it('renders a too-small grade as a leak-toned chip', () => {
+    const v = betWith(sizing({ verdict: 'too-small', why: 'A min-bet this size charges nothing.' }))
+    render(<CoachDrawer coach={verdictResult(v)} open onClose={vi.fn()} />)
+    const grade = screen.getByTestId('sizing-grade')
+    expect(grade.getAttribute('data-grade')).toBe('too-small')
+    expect(grade.className).toContain('leak')
+    expect(grade.textContent).toContain(SIZE_GRADE_LABEL['too-small'])
+  })
+
+  it('renders NO sizing section on a fold/call/check (sizing is null)', () => {
+    // GOOD is a facing-a-bet call: sizing is null, so there must be no (empty) sizing container.
+    render(<CoachDrawer coach={verdictResult(GOOD)} open onClose={vi.fn()} />)
+    expect(screen.queryByTestId('coach-sizing')).toBeNull()
+  })
+
+  it('shows the continue verdict and the size grade as TWO distinct signals (right call, wrong size)', () => {
+    // A good continue (the hero was ahead and bet) but the size is too big: the continue badge stays
+    // good while the sizing grade reads too-big — never one conflated good/bad badge.
+    const v = betWith(sizing({ verdict: 'too-big', why: 'Bigger than the band wants for value.' }))
+    render(<CoachDrawer coach={verdictResult(v)} open onClose={vi.fn()} />)
+
+    // Signal 1: the continue verdict badge is still good.
+    expect(screen.getByTestId('coach-verdict').className).toContain('good')
+    // Signal 2: the SEPARATE sizing grade is a leak (too-big) — a distinct element, not the same badge.
+    const grade = screen.getByTestId('sizing-grade')
+    expect(grade.getAttribute('data-grade')).toBe('too-big')
+    expect(grade.className).toContain('leak')
+    expect(screen.getByTestId('coach-sizing')).not.toBe(screen.getByTestId('coach-verdict'))
+  })
+
+  it('does not duplicate the sizing why: the coach-note shows the continue narration only', () => {
+    const v = betWith(sizing({ verdict: 'too-big', why: 'UNIQUE-SIZING-WHY-MARKER' }))
+    render(<CoachDrawer coach={verdictResult(v)} open onClose={vi.fn()} />)
+    // The why appears exactly once — in the sizing section, NOT in the continue coach-note.
+    expect(screen.getByTestId('sizing-why').textContent).toContain('UNIQUE-SIZING-WHY-MARKER')
+    expect(screen.getByTestId('coach-why').textContent).not.toContain('UNIQUE-SIZING-WHY-MARKER')
   })
 })
 

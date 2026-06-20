@@ -10,11 +10,16 @@ import { describe, it, expect } from 'vitest'
 import type { DecisionVerdict, PreflopVerdict, SizeBand, SizingRead } from '@holdem/coach'
 import {
   evMetric,
+  explainContinue,
   explainDecision,
   explainPreflop,
+  explainSizing,
+  formatBand,
+  INTENT_LABEL,
   pct,
   priceComparison,
   signedChips,
+  SIZE_GRADE_LABEL,
   VERDICT_LABEL,
 } from './coachValues.js'
 
@@ -326,6 +331,189 @@ describe('explainDecision', () => {
     expect(s).toContain('value bet') // the base unbet-pot sentence is preserved
     expect(s).toContain("You're all-in for 20")
     expect(s).toContain('60 main pot')
+  })
+
+  // --- The 0103 refactor: explainDecision is now explainContinue + explainSizing, and its combined
+  //     output must be byte-identical to before (the CLI/TUI render the combined string). ---
+
+  it('combined output equals explainContinue + the sizing sentence (byte-identical, ticket 0103)', () => {
+    const v = verdict({
+      equity: 0.6,
+      potOddsThreshold: 0.3,
+      callEv: 12,
+      verdict: 'good',
+      correctDecision: 'continue',
+      sizing: sizing({ intent: 'value', verdict: 'good', why: 'A solid value size.' }),
+    })
+    expect(explainDecision(v)).toBe(`${explainContinue(v)} ${explainSizing(v)}`)
+  })
+
+  it('combined output equals explainContinue exactly when there is no sizing (byte-identical)', () => {
+    const v = verdict({
+      potOddsThreshold: 0.4,
+      correctDecision: 'fold',
+      verdict: 'leak',
+      sizing: null,
+    })
+    expect(explainSizing(v)).toBeNull()
+    expect(explainDecision(v)).toBe(explainContinue(v))
+  })
+})
+
+describe('explainContinue', () => {
+  const verdict = (v: Partial<DecisionVerdict>): DecisionVerdict => ({
+    equity: 0.5,
+    potOddsThreshold: 0.33,
+    callEv: 1,
+    correctDecision: 'continue',
+    heroContinued: true,
+    verdict: 'good',
+    missedValueBet: false,
+    heroBet: false,
+    concept: 'equity-vs-price',
+    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    shortAllIn: null,
+    sizing: null,
+    ...v,
+  })
+
+  it('is the continue narration with the sizing sentence stripped (never carries the why)', () => {
+    const s = explainContinue(
+      verdict({
+        equity: 0.6,
+        potOddsThreshold: 0.3,
+        callEv: 12,
+        verdict: 'good',
+        correctDecision: 'continue',
+        sizing: {
+          intent: 'value',
+          band: {
+            spot: 'c-bet',
+            intent: 'value',
+            lo: 0.5,
+            hi: 0.75,
+            bbLo: null,
+            bbHi: null,
+            toLo: 50,
+            toHi: 75,
+            sizeAgnostic: false,
+          },
+          verdict: 'too-big',
+          why: 'You risked 200 to win 3.',
+        },
+      }),
+    )
+    expect(s).toContain('continuing is the +EV play')
+    // The sizing why is NOT in the continue half — that is what keeps the drawer's why un-duplicated.
+    expect(s).not.toContain('You risked 200 to win 3.')
+  })
+
+  it('still carries the short-all-in side-pot note (it belongs to the continue half)', () => {
+    const s = explainContinue(
+      verdict({
+        equity: 0.6,
+        potOddsThreshold: 0.33,
+        correctDecision: 'continue',
+        verdict: 'good',
+        shortAllIn: { allInFor: 20, mainPot: 60 },
+      }),
+    )
+    expect(s).toContain("You're all-in for 20")
+  })
+})
+
+describe('explainSizing', () => {
+  const verdict = (v: Partial<DecisionVerdict>): DecisionVerdict => ({
+    equity: 0.5,
+    potOddsThreshold: 0.33,
+    callEv: 1,
+    correctDecision: 'continue',
+    heroContinued: true,
+    verdict: 'good',
+    missedValueBet: false,
+    heroBet: false,
+    concept: 'equity-vs-price',
+    trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
+    shortAllIn: null,
+    sizing: null,
+    ...v,
+  })
+
+  it('returns the graded why verbatim when sizing is present', () => {
+    const s = explainSizing(
+      verdict({
+        sizing: {
+          intent: 'value',
+          band: {
+            spot: 'c-bet',
+            intent: 'value',
+            lo: 0.5,
+            hi: 0.75,
+            bbLo: null,
+            bbHi: null,
+            toLo: 50,
+            toHi: 75,
+            sizeAgnostic: false,
+          },
+          verdict: 'good',
+          why: 'A solid value size.',
+        },
+      }),
+    )
+    expect(s).toBe('A solid value size.')
+  })
+
+  it('returns null when sizing is null (a fold/call/check)', () => {
+    expect(explainSizing(verdict({ sizing: null }))).toBeNull()
+  })
+})
+
+describe('formatBand', () => {
+  const base = (v: Partial<SizeBand>): SizeBand => ({
+    spot: 'c-bet',
+    intent: 'value',
+    lo: null,
+    hi: null,
+    bbLo: null,
+    bbHi: null,
+    toLo: 0,
+    toHi: 0,
+    sizeAgnostic: false,
+    ...v,
+  })
+
+  it('renders a postflop value band in the peg words ("½–¾ pot")', () => {
+    expect(formatBand(base({ lo: 0.5, hi: 0.75 }))).toBe('½–¾ pot')
+  })
+
+  it('renders the protection band with the "pot" high end ("¾–pot")', () => {
+    expect(formatBand(base({ intent: 'protection', lo: 0.75, hi: 1 }))).toBe('¾–pot')
+  })
+
+  it('renders a preflop open band in big blinds ("2–2.5bb")', () => {
+    expect(formatBand(base({ spot: 'open', bbLo: 2, bbHi: 2.5 }))).toBe('2–2.5bb')
+  })
+
+  it('renders "any reasonable size" for a size-agnostic spot (the overcall)', () => {
+    expect(formatBand(base({ spot: 'overcall', sizeAgnostic: true, lo: 0.25, hi: 1 }))).toBe(
+      'any reasonable size',
+    )
+  })
+
+  it('collapses a single-peg band to the lone word', () => {
+    expect(formatBand(base({ lo: 1, hi: 1 }))).toBe('pot')
+  })
+})
+
+describe('INTENT_LABEL / SIZE_GRADE_LABEL', () => {
+  it('has a display word for every intent and every size grade', () => {
+    expect(INTENT_LABEL.value).toBe('Value')
+    expect(INTENT_LABEL.bluff).toBe('Bluff')
+    expect(INTENT_LABEL.protection).toBe('Protection')
+    expect(INTENT_LABEL.steal).toBe('Steal')
+    expect(SIZE_GRADE_LABEL.good).toContain('Good')
+    expect(SIZE_GRADE_LABEL['too-big']).toContain('big')
+    expect(SIZE_GRADE_LABEL['too-small']).toContain('small')
   })
 })
 

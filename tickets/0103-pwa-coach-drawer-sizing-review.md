@@ -2,7 +2,7 @@
 id: 0103
 title: Surface the sizing verdict in the coach drawer
 type: feature
-status: todo
+status: done
 milestone: M8
 priority: medium
 created: 2026-06-19
@@ -16,16 +16,16 @@ existing equity / pot-odds / EV review, on the decide-then-review surface the co
 
 ## Acceptance criteria
 
-- [ ] When a graded decision has a `sizing` read, the coach drawer shows the intent, the recommended
+- [x] When a graded decision has a `sizing` read, the coach drawer shows the intent, the recommended
       band (in the primer's pegs), the grade (good / too-big / too-small), and the _why_ — reading
       naturally next to the continue-decision verdict, not bolted on.
-- [ ] A "right call, wrong size" hand reads clearly as exactly that: the continue verdict and the
+- [x] A "right call, wrong size" hand reads clearly as exactly that: the continue verdict and the
       sizing verdict are visually distinct and not conflated into one good/bad badge.
-- [ ] Fold/call/check decisions (no `sizing`) show no empty sizing section.
-- [ ] Layout holds in the drawer across seat counts / orientations (respecting the in-flight M7 work)
+- [x] Fold/call/check decisions (no `sizing`) show no empty sizing section.
+- [x] Layout holds in the drawer across seat counts / orientations (respecting the in-flight M7 work)
       and doesn't push the existing metrics off-screen on a small phone.
-- [ ] Component tests cover the present/absent sizing section and the three grades.
-- [ ] `pnpm verify` green.
+- [x] Component tests cover the present/absent sizing section and the three grades.
+- [x] `pnpm verify` green.
 
 ## Notes
 

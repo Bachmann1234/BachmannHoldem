@@ -11,7 +11,14 @@
  * lives only here.
  */
 
-import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import {
+  SIZE_PEGS,
+  type DecisionVerdict,
+  type Intent,
+  type PreflopVerdict,
+  type SizeBand,
+  type SizingRead,
+} from '@holdem/coach'
 
 /** Format a `0..1` equity/pot-odds fraction as a one-decimal percent, e.g. `0.625 → "62.5%"`. */
 export function pct(fraction: number): string {
@@ -76,16 +83,38 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
  * The sentence is **label-free** (no "Good"/"Leak" prefix) so a client can pair it with its own
  * headline — the play coach's {@link VERDICT_LABEL}, the primer's encouraging copy — without
  * repeating the tag.
+ *
+ * **Composition (ticket 0103).** The narration is built from two single-sourced pieces so a client
+ * that renders the size grade as its *own* structured section never duplicates the sizing sentence:
+ * {@link explainContinue} (the continue-decision narration + the short-all-in note) and
+ * {@link explainSizing} (just the appended sizing sentence, or `null`). `explainDecision` is exactly
+ * their join — its combined output is **byte-identical** to before, so the CLI/TUI (which render this
+ * combined string) are untouched; the PWA renders {@link explainContinue} for its coach-note and
+ * {@link explainSizing} (or `verdict.sizing.why`) in its structured Sizing section, so the *why*
+ * appears once.
  */
 export function explainDecision(verdict: DecisionVerdict): string {
+  // The combined narration is the continue-decision sentence (+ short-all-in note) followed by the
+  // sizing sentence, exactly as before — composed from the two single-sourced accessors so the PWA can
+  // render the halves separately without the sizing why showing up twice. The join keeps the combined
+  // output byte-identical (the sizing note already carried its own leading space).
+  const sizing = explainSizing(verdict)
+  return explainContinue(verdict) + (sizing ? ` ${sizing}` : '')
+}
+
+/**
+ * The **continue-decision narration alone** — `explainDecision`'s sentence *without* the appended
+ * sizing sentence (ticket 0103). It is the continue verdict's `equity`/`potOddsThreshold`/`callEv`
+ * walk-through (plus the short-all-in side-pot note), exactly the prose that always rode in front of
+ * the sizing line.
+ *
+ * Extracted so the PWA coach drawer can render the continue narration in its coach-note while a
+ * *separate* structured Sizing section renders {@link explainSizing} / `verdict.sizing.why` — the size
+ * grade then appears exactly once. The CLI/TUI keep rendering the combined {@link explainDecision},
+ * whose output is unchanged. Pure formatting off the verdict, like the rest of this module.
+ */
+export function explainContinue(verdict: DecisionVerdict): string {
   const equity = pct(verdict.equity)
-  // The sizing line (ticket 0102): when the action was a bet/raise, the verdict carries a graded
-  // `sizing` read whose `why` is already a fully-formed, label-free, peg-vocabulary sentence that names
-  // the intent (so a protection bet is never described as value, etc.) — in-band it states the purpose,
-  // out-of-band it states the risk/reward arithmetic. We render it directly as one appended sentence
-  // after the continue-decision sentence, in the one place every client shares. `null` (a fold/call/
-  // check has no size to grade) appends nothing, so those branches read exactly as before.
-  const sizingNote = verdict.sizing ? ` ${verdict.sizing.why}` : ''
   // The short-all-in side-pot eligibility note (ticket 0092): appended to the priced sentence when
   // the action put the hero all-in for less than two-or-more live opponents (a real side pot they
   // can't win). One tight, concrete sentence naming the main pot they're actually playing for. It
@@ -108,22 +137,115 @@ export function explainDecision(verdict: DecisionVerdict): string {
     // priced ones below. (`missedValueBet`/free-card are checks, never all-in, so `sidePotNote` is
     // empty there.)
     if (verdict.heroBet) {
-      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.${sidePotNote}${sizingNote}`
+      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.${sidePotNote}`
     }
     return `There's no price to call, so taking the free card is automatic: you keep your ${equity} share for nothing.`
   }
   const price = pct(verdict.potOddsThreshold)
   // Break-even: equity is within the tolerance band of the price, so the call is a coin-flip.
   if (verdict.verdict === 'breakEven') {
-    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.${sidePotNote}${sizingNote}`
+    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.${sidePotNote}`
   }
   // Clear decision: equity is meaningfully above or below the break-even price. `callEv`'s sign is
   // the EV-correct side; report the chip EV of calling either way so the magnitude teaches too.
   const chips = `calling is worth ${signedChips(verdict.callEv)} chips`
   if (verdict.correctDecision === 'continue') {
-    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.${sidePotNote}${sizingNote}`
+    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.${sidePotNote}`
   }
-  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.${sidePotNote}${sizingNote}`
+  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.${sidePotNote}`
+}
+
+/**
+ * The **sizing sentence alone** — just the graded {@link SizingRead.why} the verdict carries when the
+ * action was a bet/raise, or `null` when there is no size to grade (a fold/call/check, ticket 0103).
+ *
+ * It is the half of {@link explainDecision} that the CLI/TUI render *inline* (after the continue
+ * sentence) and the PWA renders in its own structured Sizing section — single-sourced here so the same
+ * `why` is never phrased two ways and, in the drawer, never duplicated (the drawer renders
+ * {@link explainContinue} for its coach-note and this for its Sizing section). The `why` is already a
+ * fully-formed, label-free, intent-named, peg-vocabulary sentence (it states the purpose in-band and
+ * the risk/reward arithmetic out-of-band — never a fabricated optimal number or a solver claim); this
+ * accessor only surfaces it, doing no formatting of its own.
+ */
+export function explainSizing(verdict: DecisionVerdict): string | null {
+  return verdict.sizing ? verdict.sizing.why : null
+}
+
+/**
+ * The smallest→largest peg words {@link formatBand} renders a pot-fraction band in — the *display*
+ * spelling of the {@link SIZE_PEGS} vocabulary the bet-sizing lesson teaches ("½", "¾", "pot"). Keyed
+ * by the peg's pot fraction so the word and the math come from the one {@link SIZE_PEGS} table and can
+ * never drift: change a peg's fraction in the coach and the band words follow.
+ */
+const PEG_WORD: ReadonlyArray<{ readonly fraction: number; readonly word: string }> = [
+  { fraction: SIZE_PEGS.quarter.fraction, word: '¼' },
+  { fraction: SIZE_PEGS.third.fraction, word: '⅓' },
+  { fraction: SIZE_PEGS.half.fraction, word: '½' },
+  { fraction: SIZE_PEGS.threeQuarter.fraction, word: '¾' },
+  { fraction: SIZE_PEGS.pot.fraction, word: 'pot' },
+]
+
+/** The peg word for a pot fraction — the nearest {@link SIZE_PEGS} peg's display spelling. */
+function pegWord(fraction: number): string {
+  let best = PEG_WORD[0]!
+  for (const peg of PEG_WORD) {
+    if (Math.abs(peg.fraction - fraction) < Math.abs(best.fraction - fraction)) best = peg
+  }
+  return best.word
+}
+
+/** A big-blind amount with the trailing `.0` trimmed (`2 → "2"`, `2.5 → "2.5"`) — the `bb` unit is added once. */
+function bbNum(amount: number): string {
+  return (Math.round(amount * 10) / 10).toString()
+}
+
+/**
+ * The recommended {@link SizeBand}, rendered in the bet-sizing lesson's peg vocabulary (ticket 0103) —
+ * the band the coach drawer (and, later, the ActionBar) shows beside the size grade. Always a *band*,
+ * never a single number, matching the no-solver-authority rule the band itself was built under.
+ *
+ * Three shapes, single-sourcing the peg words from {@link SIZE_PEGS} so the drawer and the lesson never
+ * drift:
+ * - **size-agnostic** (an overcall — you *match* the bet, you pick no number) → `"any reasonable size"`.
+ * - **preflop opens / 3-bets** (sized natively in big blinds, `bbLo`/`bbHi` set) → e.g. `"2–2.5bb"`.
+ * - **postflop pot-fraction bands** → the peg words, e.g. `"½–¾ pot"`, `"¾–pot"`. When both ends map to
+ *   the same peg the word is not repeated (`"pot"`).
+ */
+export function formatBand(band: SizeBand): string {
+  // Size-agnostic (the overcall): there is no single band to anchor, so say so rather than render the
+  // widened placeholder as if it were a real recommendation.
+  if (band.sizeAgnostic) return 'any reasonable size'
+  // Preflop opens / 3-bets are sized in big blinds, not pot fraction — the `bb` unit rides on the high
+  // end only, so the band reads "2–2.5bb" (the lesson's spelling), not "2bb–2.5bb".
+  if (band.bbLo !== null && band.bbHi !== null) {
+    return band.bbLo === band.bbHi
+      ? `${bbNum(band.bbHi)}bb`
+      : `${bbNum(band.bbLo)}–${bbNum(band.bbHi)}bb`
+  }
+  // Postflop pot-fraction band: render in the peg words. The high end carries the "pot" unit; a band
+  // that collapses to one peg ("pot"–"pot") shows the single word.
+  const lo = band.lo ?? 0
+  const hi = band.hi ?? 0
+  const loWord = pegWord(lo)
+  const hiWord = pegWord(hi)
+  if (loWord === hiWord) return hiWord === 'pot' ? 'pot' : `${hiWord} pot`
+  // "pot" is its own word (no trailing "pot"); a fraction peg pairs with the "pot" unit on the high end.
+  return hiWord === 'pot' ? `${loWord}–pot` : `${loWord}–${hiWord} pot`
+}
+
+/** The display word for a sizing {@link Intent} — the *job* the bet is doing (ticket 0103). */
+export const INTENT_LABEL: Readonly<Record<Intent, string>> = {
+  value: 'Value',
+  bluff: 'Bluff',
+  protection: 'Protection',
+  steal: 'Steal',
+}
+
+/** The display word for a sizing grade — the size verdict, distinct from the continue {@link VERDICT_LABEL}. */
+export const SIZE_GRADE_LABEL: Readonly<Record<SizingRead['verdict'], string>> = {
+  good: 'Good size',
+  'too-big': 'Too big',
+  'too-small': 'Too small',
 }
 
 /**

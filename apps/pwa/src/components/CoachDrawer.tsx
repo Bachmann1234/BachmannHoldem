@@ -34,8 +34,18 @@ import {
   serializeSpot,
   type DecisionVerdict,
   type PreflopVerdict,
+  type SizingRead,
 } from '@holdem/coach'
-import { explainDecision, explainPreflop, pct, evMetric, VERDICT_LABEL } from '@holdem/format'
+import {
+  explainContinue,
+  explainPreflop,
+  formatBand,
+  pct,
+  evMetric,
+  INTENT_LABEL,
+  SIZE_GRADE_LABEL,
+  VERDICT_LABEL,
+} from '@holdem/format'
 import { BOT_LABELS, type CoachResult, type OpponentRead } from '@holdem/session'
 import { ChartOverlay } from './ChartOverlay.js'
 
@@ -95,6 +105,26 @@ function verdictTone(tag: DecisionVerdict['verdict']): {
       return { cls: 'neutral', badge: '~' }
     default:
       return { cls: 'neutral', badge: '~' }
+  }
+}
+
+/**
+ * The tone class + badge glyph for a *sizing* grade — the visual signal for the size verdict, kept
+ * **separate from** {@link verdictTone} so a "right call, wrong size" hand shows two distinct signals
+ * (a good continue badge AND a too-big size chip), never one conflated good/bad badge (ticket 0103).
+ * A good size is positive, too-big/too-small are both leaks against the recommended band.
+ */
+function sizingTone(grade: SizingRead['verdict']): {
+  readonly cls: string
+  readonly badge: string
+} {
+  switch (grade) {
+    case 'good':
+      return { cls: 'good', badge: '✓' }
+    case 'too-big':
+      return { cls: 'leak', badge: '↑' }
+    case 'too-small':
+      return { cls: 'leak', badge: '↓' }
   }
 }
 
@@ -445,10 +475,68 @@ function VerdictBody({
         <span>lose {pct(1 - verdict.equity)}</span>
       </div>
       <div className="coach-note" data-testid="coach-why">
-        {explainDecision(verdict)}
+        {explainContinue(verdict)}
       </div>
+      {/* The size grade rides as its OWN structured block — a separate signal from the continue
+          verdict above, so a "right call, wrong size" hand reads as exactly that (ticket 0103). Only
+          a bet/raise carries a graded `sizing`; a fold/call/check leaves it null and renders nothing.
+          The why is rendered HERE (not in the coach-note, which now shows only the continue narration)
+          so it appears exactly once. */}
+      {verdict.sizing ? <SizingSection sizing={verdict.sizing} /> : null}
       <CopyRulingButton ctx={ctx} action={action} verdict={verdict} />
     </>
+  )
+}
+
+/**
+ * The structured **Sizing** section (ticket 0103) — the size grade beside the continue verdict, the
+ * review side of the betting & sizing guidance ([[0100-coach-betting-sizing-guidance]]). Rendered only
+ * when the action was a bet/raise (the verdict carries a non-null `sizing`); a fold/call/check has no
+ * size to grade and this section is never rendered (no empty container).
+ *
+ * It is its own signal, visually distinct from the continue verdict badge above: a "right call, wrong
+ * size" hand shows a good continue check AND a too-big size chip, never one conflated badge. The grade
+ * chip ({@link sizingTone}) carries the size verdict; the body names the bet's **intent** (the job),
+ * the recommended **band** in the lesson's pegs (via `formatBand`), and the **why** (via
+ * `explainSizing` / `sizing.why` — the same string the CLI/TUI append inline, surfaced here exactly
+ * once since the coach-note now renders only the continue narration).
+ *
+ * Presentational only, like the rest of the drawer: it does NO sizing logic — every word comes from
+ * the `sizing` read the coach produced and the shared `@holdem/format` helpers.
+ */
+function SizingSection({ sizing }: { readonly sizing: SizingRead }): React.JSX.Element {
+  const tone = sizingTone(sizing.verdict)
+  // The why is the same single-sourced sentence `explainSizing` surfaces from the verdict; we already
+  // hold the non-null `sizing` read here, so we read its `why` directly (identical string), keeping it
+  // out of the coach-note above so it appears exactly once.
+  const why = sizing.why
+  return (
+    <div className="sizing" data-testid="coach-sizing">
+      <div className="sizing-head">
+        <span className="sizing-title">Sizing</span>
+        <span
+          className={`sizing-grade ${tone.cls}`}
+          data-testid="sizing-grade"
+          data-grade={sizing.verdict}
+        >
+          <span className="sizing-grade-badge" aria-hidden="true">
+            {tone.badge}
+          </span>
+          {SIZE_GRADE_LABEL[sizing.verdict]}
+        </span>
+      </div>
+      <div className="sizing-meta">
+        <span className="sizing-tag" data-testid="sizing-intent">
+          {INTENT_LABEL[sizing.intent]}
+        </span>
+        <span className="sizing-band" data-testid="sizing-band">
+          aim {formatBand(sizing.band)}
+        </span>
+      </div>
+      <p className="sizing-why" data-testid="sizing-why">
+        {why}
+      </p>
+    </div>
   )
 }
 
