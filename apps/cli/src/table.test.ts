@@ -137,6 +137,7 @@ const goodCall: DecisionVerdict = {
   missedValueBet: false,
   heroBet: false,
   shortAllIn: null,
+  sizing: null,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
 }
@@ -152,6 +153,7 @@ const leakCall: DecisionVerdict = {
   missedValueBet: false,
   heroBet: false,
   shortAllIn: null,
+  sizing: null,
   concept: 'equity-vs-price',
   trace: { assumedRange: 'ultraTight', lineReason: 'barreled', betFraction: 0.7, polarized: null },
 }
@@ -204,6 +206,7 @@ describe('renderCoachFeedback', () => {
       missedValueBet: false,
       heroBet: false,
       shortAllIn: null,
+      sizing: null,
       concept: 'equity-vs-price',
       trace: {
         assumedRange: 'board-aware',
@@ -235,6 +238,7 @@ describe('renderCoachFeedback', () => {
       missedValueBet: true,
       heroBet: false,
       shortAllIn: null,
+      sizing: null,
       concept: 'equity',
       trace: { assumedRange: 'medium', lineReason: 'unbet', betFraction: null, polarized: null },
     }
@@ -257,6 +261,7 @@ describe('renderCoachFeedback', () => {
       missedValueBet: false,
       heroBet: false,
       shortAllIn: null,
+      sizing: null,
       concept: 'equity-vs-price',
       trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     }

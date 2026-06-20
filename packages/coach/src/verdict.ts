@@ -54,6 +54,8 @@ import {
   type RangeWidth,
 } from '@holdem/bots'
 import { evOfCall, potOdds, type Range } from '@holdem/odds'
+import { gradeSizing } from './sizing.js'
+import type { SizingRead } from './sizing.js'
 
 /**
  * The villain range the coach assumes when reading the hero's equity *with no betting-line
@@ -825,6 +827,22 @@ export interface DecisionVerdict {
    * side-pot split. See {@link coachDecision} for the derivation.
    */
   readonly shortAllIn: ShortAllInEligibility | null
+  /**
+   * The graded sizing read (ticket 0102) — the classified {@link SizingRead.intent}, the recommended
+   * {@link SizingRead.band}, a `good`/`too-big`/`too-small` {@link SizingRead.verdict}, and a
+   * plain-language {@link SizingRead.why} — or `null` when the action is **not** a bet/raise (a
+   * fold/call/check picks no size to grade).
+   *
+   * This is an **additional** signal layered on top of {@link verdict}, **mutually consistent** with the
+   * continue decision and **never** a re-grade of it — exactly the way {@link missedValueBet} /
+   * {@link heroBet} / {@link shortAllIn} ride alongside without changing the continue verdict. A good
+   * continue with a bad size reads as "right call, wrong size": the continue verdict stays correct while
+   * the sizing read flags the leak (the ATo 100bb open-shove keeps its correct continue grade and gains
+   * a `too-big` sizing read). Computed by {@link gradeSizing} — see it for the band comparison and the
+   * arithmetic-only risk/reward guardrail (the over-shove / absurd min-bet) that needs no fold-equity
+   * assumption. Surfaced once for all clients through {@link explainDecision}.
+   */
+  readonly sizing: SizingRead | null
 }
 
 /**
@@ -939,6 +957,13 @@ export function coachDecision(
   // every return below; it is `null` on a free check (a check is never all-in).
   const shortAllIn = shortAllInNote(ctx, action)
 
+  // The graded sizing read (ticket 0102): the intent/band/grade/why for the hero's chosen bet/raise
+  // size, or `null` for a fold/call/check (no size to grade). An ADDITIONAL signal layered on — it
+  // never re-grades the continue verdict — so, exactly like `shortAllIn`, it is computed once here and
+  // stamped onto every return branch below. The risk/reward guardrail inside `gradeSizing` is what
+  // flips the ATo open-shove to a sizing leak while the continue verdict below stays unchanged.
+  const sizing = gradeSizing(ctx, action, villainArchetype)
+
   // --- The read: equity against the assumed range, seeded for determinism. ---
   // The range is a deterministic, pure function of the betting line + board: the no-read
   // COACH_ASSUMED_RANGE baseline width on an unbet pot, narrowing tighter the more the villain
@@ -992,6 +1017,9 @@ export function coachDecision(
       trace,
       // A free check is never all-in, so this is always null here — stamped for shape uniformity.
       shortAllIn,
+      // The sizing read (ticket 0102): non-null only when the hero bet/raised into this unbet pot
+      // (`heroBet`), null on a free check. An additional signal — the continue grade above is unchanged.
+      sizing,
     }
   }
 
@@ -1014,6 +1042,9 @@ export function coachDecision(
       trace,
       // An all-in call is a priced decision, so the short-all-in note can co-occur here.
       shortAllIn,
+      // The sizing read (ticket 0102): non-null only for a bet/raise (a min-raise into a priced spot),
+      // null for a call/fold/check. Layered on — the break-even continue grade above is unchanged.
+      sizing,
     }
   }
 
@@ -1042,5 +1073,9 @@ export function coachDecision(
     trace,
     // An all-in call/raise is a priced decision, so the short-all-in note can co-occur here.
     shortAllIn,
+    // The sizing read (ticket 0102): non-null only for a bet/raise, null for a call/fold. Layered on —
+    // the continue grade above is unchanged (a +EV raise sized as an over-shove keeps its 'good' continue
+    // verdict and gains a 'too-big' sizing read).
+    sizing,
   }
 }

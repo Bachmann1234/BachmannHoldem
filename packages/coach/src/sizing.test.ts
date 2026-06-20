@@ -11,10 +11,13 @@ import { describe, expect, it } from 'vitest'
 import { parseCards, type Card } from '@holdem/engine'
 import type { DecisionContext, OpponentView } from '@holdem/bots'
 
+import type { Action } from '@holdem/engine'
+
 import {
   classifySpot,
   classifyIntent,
   recommendedBand,
+  gradeSizing,
   boardDrawSignals,
   SIZE_PEGS,
   OPEN_BB_BAND,
@@ -24,6 +27,9 @@ import {
   PROTECTION_BAND,
   BLUFF_EQUITY_THRESHOLD,
   VULNERABLE_BOARD_DRAW_SIGNALS,
+  OVER_SHOVE_RISK_REWARD,
+  MIN_BET_POT_FRACTION,
+  SHORT_STACK_JAM_BB,
 } from './sizing.js'
 import { VALUE_BET_THRESHOLD } from './verdict.js'
 
@@ -678,5 +684,366 @@ describe('tunable invariants', () => {
 
   it('the vulnerable-board threshold is at least one signal', () => {
     expect(VULNERABLE_BOARD_DRAW_SIGNALS).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------
+// gradeSizing — the graded sizing read + the risk/reward guardrail (ticket 0102).
+// ---------------------------------------------------------------------------------------------------
+
+describe('gradeSizing — null for non-bet/raise actions (no size to grade)', () => {
+  const c = ctx({
+    holeCards: hole('Kh Kd'),
+    board: parseCards('Ks 7c 2d'),
+    street: 'flop',
+    toCall: 20,
+    pot: 60,
+    numActive: 2,
+    opponents: [opp({ seat: 1 })],
+  })
+
+  it('fold → null', () => {
+    expect(gradeSizing(c, { type: 'fold' } as Action)).toBeNull()
+  })
+  it('check → null', () => {
+    expect(gradeSizing(c, { type: 'check' } as Action)).toBeNull()
+  })
+  it('call → null', () => {
+    expect(gradeSizing(c, { type: 'call', amount: 20 } as Action)).toBeNull()
+  })
+})
+
+describe('gradeSizing — in-band good, keyed to intent', () => {
+  it('value c-bet inside the ½–¾ band grades good with a value purpose', () => {
+    const c = ctx({
+      holeCards: hole('Kh Kd'),
+      board: parseCards('Ks 7c 2d'),
+      street: 'flop',
+      toCall: 0,
+      pot: 100,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    const band = recommendedBand(c)
+    expect(band.intent).toBe('value')
+    // Mid-band bet (between toLo 50 and toHi 75).
+    const read = gradeSizing(c, { type: 'bet', amount: 60 } as Action)!
+    expect(read.verdict).toBe('good')
+    expect(read.intent).toBe('value')
+    expect(read.why.toLowerCase()).toContain('value')
+  })
+
+  it('a bluff in-band names the bluff job (never "value")', () => {
+    const c = ctx({
+      holeCards: hole('7c 2d'),
+      board: parseCards('Ah Kc Qd'),
+      street: 'flop',
+      toCall: 0,
+      pot: 100,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    const band = recommendedBand(c)
+    expect(band.intent).toBe('bluff')
+    const read = gradeSizing(c, { type: 'bet', amount: 60 } as Action)!
+    expect(read.verdict).toBe('good')
+    expect(read.intent).toBe('bluff')
+    // It must describe the bluff job, not call a bluff a value bet.
+    expect(read.why.toLowerCase()).toContain('bluff')
+    expect(read.why.toLowerCase()).not.toContain('worse hands paying')
+  })
+})
+
+describe('gradeSizing — band comparison: too-big / too-small (non-guardrail)', () => {
+  const c = ctx({
+    holeCards: hole('Kh Kd'),
+    board: parseCards('Ks 7c 2d'),
+    street: 'flop',
+    toCall: 0,
+    pot: 100,
+    committed: 0,
+    numActive: 2,
+    opponents: [opp({ seat: 1 })],
+  })
+
+  it('above toHi but below the over-shove ratio → too-big from the band, not the guardrail', () => {
+    const band = recommendedBand(c) // value: toLo 50, toHi 75
+    // 90 chips into a 100 pot: above toHi (75), ratio 0.9 — far below OVER_SHOVE_RISK_REWARD.
+    const read = gradeSizing(c, { type: 'bet', amount: 90 } as Action)!
+    expect(read.verdict).toBe('too-big')
+    expect(90).toBeGreaterThan(band.toHi)
+    expect(90 / 100).toBeLessThan(OVER_SHOVE_RISK_REWARD)
+    // Not the risk/reward sentence — the band-overshoot one.
+    expect(read.why.toLowerCase()).not.toContain('risked')
+  })
+
+  it('a non-value (bluff) over-band size uses the generic too-big wording (not the value one)', () => {
+    const cb = ctx({
+      holeCards: hole('7c 2d'),
+      board: parseCards('Ah Kc Qd'),
+      street: 'flop',
+      toCall: 0,
+      pot: 100,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    expect(recommendedBand(cb).intent).toBe('bluff')
+    // 90 into 100: above the value/bluff band's toHi (75), ratio 0.9 — below the over-shove threshold.
+    const read = gradeSizing(cb, { type: 'bet', amount: 90 } as Action)!
+    expect(read.verdict).toBe('too-big')
+    expect(read.why.toLowerCase()).toContain('risking more than the job needs')
+  })
+
+  it('below toLo but above the min-bet floor → too-small from the band, not the guardrail', () => {
+    // 30 chips into a 100 pot: below toLo (50) but bet fraction 0.3 > MIN_BET_POT_FRACTION (0.1).
+    const read = gradeSizing(c, { type: 'bet', amount: 30 } as Action)!
+    expect(read.verdict).toBe('too-small')
+    expect(0.3).toBeGreaterThan(MIN_BET_POT_FRACTION)
+    expect(read.why.toLowerCase()).not.toContain('min-bet')
+  })
+})
+
+describe('gradeSizing — the risk/reward guardrail (arithmetic-only, no fold-equity)', () => {
+  it('over-shove: an open-jam of 200 into a ~3-chip pot flips to a sizing leak with the risk/reward why', () => {
+    // The ATo-style 100bb open-shove: stack 200 (=100bb at bb 2), pot 3 (the blinds). A bet "to" 200
+    // risks 200 to win 3 — the guardrail catches it from arithmetic alone.
+    const c = ctx({
+      holeCards: hole('Ah Td'), // ATo
+      board: [],
+      street: 'preflop',
+      isButton: true,
+      currentBet: 2,
+      bigBlind: 2,
+      toCall: 0,
+      pot: 3,
+      stack: 200,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1, committed: 2 })],
+    })
+    const read = gradeSizing(c, { type: 'raise', amount: 200 } as Action)!
+    expect(read.verdict).toBe('too-big')
+    expect(read.why.toLowerCase()).toContain('risked 200 to win 3')
+    // The guardrail is arithmetic-only: it never cites a fold-equity / call-probability / EV-of-bet
+    // QUANTITY. (Plain words like "fold"/"call" describe the arithmetic and are fine; what's forbidden
+    // is a numeric probability or an EV-of-the-bet figure.)
+    expect(read.why.toLowerCase()).not.toContain('fold equity')
+    expect(read.why.toLowerCase()).not.toContain('call probability')
+    expect(read.why.toLowerCase()).not.toContain('villaincallprobability')
+    expect(read.why).not.toMatch(/\bev\b/i)
+    expect(read.why).not.toMatch(/\d+%/) // no fabricated call-frequency / equity percentage
+    // The ratio that fired is well past the threshold.
+    expect(200 / 3).toBeGreaterThanOrEqual(OVER_SHOVE_RISK_REWARD)
+  })
+
+  it('absurd min-bet: a tiny bet into a big pot is too-small with the min-bet why', () => {
+    const c = ctx({
+      holeCards: hole('Kh Kd'),
+      board: parseCards('Ks 7c 2d'),
+      street: 'flop',
+      toCall: 0,
+      pot: 100,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    // 5 into 100 = 0.05 of the pot, ≤ MIN_BET_POT_FRACTION (0.1).
+    const read = gradeSizing(c, { type: 'bet', amount: 5 } as Action)!
+    expect(read.verdict).toBe('too-small')
+    expect(read.why.toLowerCase()).toContain('min-bet')
+    expect(read.why.toLowerCase()).toContain('charges nothing')
+    expect(5 / 100).toBeLessThanOrEqual(MIN_BET_POT_FRACTION)
+  })
+
+  it('still flags the DEEP shove: 100bb stack is far above the short-jam threshold so the gate does not apply', () => {
+    // Sanity that the short-jam gate did not swallow the deep case: stack 200 = 100bb >> 20bb threshold.
+    expect(200 / 2).toBeGreaterThan(SHORT_STACK_JAM_BB)
+  })
+})
+
+describe('gradeSizing — short-stack all-in jams are the correct SIZE, not over-shoves', () => {
+  it('a 12bb button open-jam grades good (NOT a leak) despite a ~8:1 risk/reward', () => {
+    // Blinds 1/2, stack 24 (=12bb), jam "to" 24 into the 3-chip blind pot. risk 24, reward 3 → ratio 8,
+    // far past OVER_SHOVE_RISK_REWARD — yet a 12bb open-jam is textbook push/fold, so the SIZE is right.
+    const c = ctx({
+      holeCards: hole('Ah Td'),
+      board: [],
+      street: 'preflop',
+      isButton: true,
+      smallBlind: 1,
+      bigBlind: 2,
+      currentBet: 2,
+      toCall: 0,
+      pot: 3,
+      stack: 24,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1, committed: 2 })],
+    })
+    const read = gradeSizing(c, { type: 'raise', amount: 24 } as Action)!
+    expect(read.verdict).toBe('good')
+    // The over-shove ratio WOULD have fired without the depth gate.
+    expect(24 / 3).toBeGreaterThanOrEqual(OVER_SHOVE_RISK_REWARD)
+    // It must NOT carry the over-shove "can't profit" / "only worse hands fold" wording.
+    expect(read.why.toLowerCase()).not.toContain('risked')
+    expect(read.why.toLowerCase()).not.toContain('only worse hands fold')
+    expect(read.why.toLowerCase()).not.toContain("can't profit")
+    // It explains the committed short stack instead.
+    expect(read.why.toLowerCase()).toContain('jams')
+  })
+
+  it('a ~20bb BB 3-bet-jam over an open grades good (NOT a leak)', () => {
+    // Blinds 1/2, a raise to 6 in front, hero stack 40 (=20bb) jams "to" 38 (the 2 already posted + 38
+    // behind). risk = 38, pot 9 → ratio ~4.2 ≥ the over-shove threshold, but a 20bb 3-bet-jam is push/fold.
+    const c = ctx({
+      holeCards: hole('Ah Kd'),
+      board: [],
+      street: 'preflop',
+      isButton: false,
+      seat: 1,
+      smallBlind: 1,
+      bigBlind: 2,
+      currentBet: 6, // a raise already in → 3bet+ spot
+      toCall: 4, // owes 4 more (already posted the 2 BB)
+      pot: 9,
+      stack: 38, // chips behind before acting (=19bb)
+      committed: 2, // the posted big blind this street
+      numActive: 2,
+      opponents: [opp({ seat: 0, committed: 6 })],
+    })
+    // chipsRisked = amount(40) - committed(2) = 38 = stack → all-in; 38 = 19bb ≤ 20bb → short.
+    const read = gradeSizing(c, { type: 'raise', amount: 40 } as Action)!
+    expect(read.verdict).toBe('good')
+    expect(38 / 9).toBeGreaterThanOrEqual(OVER_SHOVE_RISK_REWARD)
+    expect(read.why.toLowerCase()).not.toContain('risked')
+    expect(read.why.toLowerCase()).not.toContain('only worse hands fold')
+  })
+
+  it('boundary: a jam at exactly SHORT_STACK_JAM_BB deep is still good, just above it flips to the over-shove leak', () => {
+    // At exactly 20bb (stack 40, bb 2) the gate applies (good). One bb deeper (stack 42 = 21bb) it does
+    // not, and a jam risking >= OVER_SHOVE_RISK_REWARD pots flips to the over-shove leak.
+    const base = {
+      holeCards: hole('Ah Td'),
+      board: [] as Card[],
+      street: 'preflop' as const,
+      isButton: true,
+      smallBlind: 1,
+      bigBlind: 2,
+      currentBet: 2,
+      toCall: 0,
+      pot: 3,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1, committed: 2 })],
+    }
+    const atCeiling = ctx({ ...base, stack: SHORT_STACK_JAM_BB * 2 }) // 40 chips = 20bb
+    const atRead = gradeSizing(atCeiling, { type: 'raise', amount: 40 } as Action)!
+    expect(atRead.verdict).toBe('good')
+
+    const justDeeper = ctx({ ...base, stack: SHORT_STACK_JAM_BB * 2 + 2 }) // 42 chips = 21bb
+    const deepRead = gradeSizing(justDeeper, { type: 'raise', amount: 42 } as Action)!
+    expect(deepRead.verdict).toBe('too-big')
+    expect(deepRead.why.toLowerCase()).toContain('risked')
+  })
+})
+
+describe('gradeSizing — intent-specific in-band / out-of-band wording', () => {
+  it('a steal open in-band names the steal job (not value)', () => {
+    // A wide button steal, sized in bb: open band ~2–2.5bb → "to" 4–5 chips at bb 2.
+    // Heads-up button steal: button is the SB heads-up, BB is seat 1. The BB seat is excluded from the
+    // limper count, so the open stays at the base 2–2.5bb band (→ "to" 4–5 chips at bb 2).
+    const c = ctx({
+      holeCards: hole('Kc 7d'),
+      board: [],
+      street: 'preflop',
+      isButton: true,
+      buttonIndex: 0,
+      seat: 0,
+      numPlayers: 2,
+      currentBet: 2,
+      bigBlind: 2,
+      toCall: 0,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1, committed: 2 })], // the BB (not a limper, excluded by bbSeat)
+    })
+    const band = recommendedBand(c)
+    expect(band.intent).toBe('steal')
+    expect(band.toHi).toBe(5)
+    const read = gradeSizing(c, { type: 'raise', amount: 5 } as Action)! // to 2.5bb, in-band
+    expect(read.verdict).toBe('good')
+    expect(read.why.toLowerCase()).toContain('steal')
+  })
+
+  it('a protection bet uses protection wording in-band and out-of-band (never "value")', () => {
+    // Middle pair on a two-flush connected board: a marginal read on a wet board → protection (the
+    // read may land as value for a strong overpair, so the wording assertion is guarded on the intent).
+    const c = ctx({
+      holeCards: hole('9h 9d'),
+      board: parseCards('8s 7s 3c'),
+      street: 'flop',
+      toCall: 0,
+      pot: 80,
+      committed: 0,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    const band = recommendedBand(c)
+    if (band.intent === 'protection') {
+      // In-band (¾–pot → to 60–80): a mid value names the protection job.
+      const good = gradeSizing(c, { type: 'bet', amount: 70 } as Action)!
+      expect(good.verdict).toBe('good')
+      expect(good.why.toLowerCase()).toContain('protection')
+      // Out-of-band too-small (but above the min-bet floor): 0.3-pot → 24 chips, below toLo 60.
+      const small = gradeSizing(c, { type: 'bet', amount: 24 } as Action)!
+      expect(small.verdict).toBe('too-small')
+      expect(small.why.toLowerCase()).toContain('protection')
+    } else {
+      // If it read as value, at least exercise the value good wording so the test is not vacuous.
+      const good = gradeSizing(c, { type: 'bet', amount: 50 } as Action)!
+      expect(good.why.toLowerCase()).toContain('value')
+    }
+  })
+})
+
+describe('gradeSizing — size-agnostic spots never produce a false leak', () => {
+  it('an overcall (size-agnostic) grades good and says there is no size to pick', () => {
+    const c = ctx({
+      holeCards: hole('7h 6h'),
+      isButton: true,
+      currentBet: 2,
+      bigBlind: 2,
+      toCall: 2,
+      pot: 6,
+      committed: 0,
+    })
+    const band = recommendedBand(c)
+    expect(band.sizeAgnostic).toBe(true)
+    // Even an action.amount far off the widened placeholder band must NOT be a leak.
+    const read = gradeSizing(c, { type: 'call', amount: 2 } as Action)
+    // A call is not a bet/raise → null. Use a (contrived) bet to exercise the size-agnostic branch.
+    expect(read).toBeNull()
+    const betRead = gradeSizing(c, { type: 'bet', amount: 2 } as Action)!
+    expect(betRead.verdict).toBe('good')
+    expect(betRead.why.toLowerCase()).toContain('no size to pick')
+  })
+})
+
+describe('gradeSizing — determinism', () => {
+  it('same (ctx, action) → same read', () => {
+    const c = ctx({
+      holeCards: hole('Kh Kd'),
+      board: parseCards('Ks 7c 2d'),
+      street: 'flop',
+      toCall: 0,
+      pot: 100,
+      numActive: 2,
+      opponents: [opp({ seat: 1 })],
+    })
+    const a = { type: 'bet', amount: 60 } as Action
+    expect(gradeSizing(c, a)).toEqual(gradeSizing(c, a))
   })
 })

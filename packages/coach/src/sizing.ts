@@ -41,7 +41,7 @@
  * `.js` specifiers.
  */
 
-import { rankIndex, suitIndex } from '@holdem/engine'
+import { rankIndex, suitIndex, type Action } from '@holdem/engine'
 import { estimateEquity, type DecisionContext } from '@holdem/bots'
 import { onlyBlindsBehind } from './position.js'
 import {
@@ -626,4 +626,287 @@ export function recommendedBand(
     toHi,
     sizeAgnostic: false,
   }
+}
+
+/**
+ * The risk/reward ratio — `risk / reward`, the chips the hero stakes this action over the dead money
+ * the pot can pay them — **at or above** which a bet/raise is an **over-shove**: a massively-too-big
+ * size flagged from *arithmetic alone*, with **no fold-equity assumption** ([[0102-coach-sizing-verdict-and-explain]]).
+ *
+ * This is the cheap tier-1 win the epic names ([[0100-coach-betting-sizing-guidance]]): the egregiously-
+ * dominated sizes — the 100bb open-shove to win a ~3bb pot — are wrong for a reason that needs no solver
+ * and no `villainCallProbability`. Risking many times the pot to win it is a leak *whatever* villain
+ * does: against a hand that folds you only ever win the pot you already could have won smaller, and the
+ * only hands that call have you crushed (a calling range that *can* pay off a 60:1 over-bet is, by
+ * definition, the top of villain's range). So "you risked 200 to win 3" is true regardless of fold
+ * equity — that is exactly why this guardrail is allowed to fire deterministically where the EV-of-a-bet
+ * (which *would* need the call probability) cannot.
+ *
+ * `4` means "you staked four pots or more to win one" — comfortably past any legitimate over-bet (a
+ * standard over-bet is ~1.5–2× pot; even a 3× pot jam is inside the band) while still catching the
+ * open-shove (≈66× pot) by a wide margin. A named, tunable knob in the house style (cf.
+ * {@link LARGE_BET_POT_FRACTION} / {@link VALUE_BET_THRESHOLD} in verdict.ts).
+ */
+export const OVER_SHOVE_RISK_REWARD = 4
+
+/**
+ * The effective-stack depth, in **big blinds**, at or **below** which an all-in is a committed
+ * **short-stack jam** rather than an over-shove — the depth gate the {@link OVER_SHOVE_RISK_REWARD}
+ * guardrail must respect so it stops flagging textbook push/fold jams as sizing leaks.
+ *
+ * **Why a depth gate at all.** The over-shove guardrail's whole justification is *arithmetic with a
+ * smaller bet available*: risking many pots to win one is a leak only because a meaningfully smaller
+ * size was a real option (the deep 100bb ATo open-shove could have opened to 2.5bb instead — see
+ * {@link OVER_SHOVE_RISK_REWARD}). When the hero is **short**, that premise fails: with this little
+ * behind there *is* no smaller size that keeps options open — the stack is committed, and jamming is
+ * the purpose-correct size, not an over-shove. A 12bb button open-jam risks ~8 pots and a 20bb 3-bet-
+ * jam ~4, both well past the ratio, yet both are standard push/fold — flagging them too-big is wrong.
+ *
+ * **Why ~20bb.** Twenty big blinds is the conventional push/fold ceiling the short-stack literature
+ * (and the Foundations push/fold intuition) teaches: below it, open-jamming dominates raise-fold
+ * because any raise leaves you pot-committed anyway, so jam-or-fold is the correct grammar. Above it
+ * you have room to raise small and fold, so a jam is once again a *chosen* over-bet the guardrail
+ * should judge. Twenty is the line where "committed, jam is the size" gives way to "you had options".
+ *
+ * Read against `ctx.stack` (the chips behind *before* acting) in big blinds — the effective-depth
+ * proxy this module owns. A named, tunable knob in the house style (cf. {@link OVER_SHOVE_RISK_REWARD}
+ * / {@link LARGE_BET_POT_FRACTION} in verdict.ts); retune the push/fold ceiling by editing this one
+ * value. Grading the SIZE only — whether the *hand* should be jamming is the separate continue grade.
+ */
+export const SHORT_STACK_JAM_BB = 20
+
+/**
+ * The bet-as-fraction-of-pot at or **below** which a postflop bet is an **absurd min-bet**: a
+ * massively-too-small size that lays the field a tiny price and charges its draws nothing, flagged from
+ * the bet-as-fraction-of-pot arithmetic alone (again, **no fold-equity assumption** — a bet this small
+ * is a leak whatever villain holds). A min-bet of `f` of the pot lays the caller `f / (1 + 2f)`: at
+ * `0.1` that is ~8% (≈11:1), so any hand with two live cards has a trivially-correct call and the bet
+ * neither folds anything out nor builds the pot — it just rebuilds villain's pot odds for free.
+ *
+ * Sits a hair below the lesson's smallest *real* size (the ¼-pot probe, {@link SIZE_PEGS}`.quarter`,
+ * which lays ~17%): below this we are no longer in "a small but purposeful bet", we are in "a bet that
+ * does nothing". Postflop-only (it is a pot-fraction read; preflop opens/3-bets are graded in bb against
+ * their band). A named, tunable knob in the house style.
+ */
+export const MIN_BET_POT_FRACTION = 0.1
+
+/**
+ * A graded sizing **read** for the action the hero actually took — the output of {@link gradeSizing},
+ * the layer [[0102-coach-sizing-verdict-and-explain]] adds on top of [[0101]]'s recommendation. Where
+ * {@link recommendedBand} answers *what size should the spot want?* (a pre-action recommendation), this
+ * answers *was the hero's chosen size right for the job?* — the graded verdict that rides on
+ * {@link DecisionVerdict.sizing} alongside (never replacing) the continue verdict.
+ *
+ * It is the sizing twin of the continue verdict: an **additional**, mutually-consistent signal. A good
+ * continue with a bad size reads as "right call, wrong size" — the size grade here never re-grades or
+ * flips the continue decision.
+ */
+export interface SizingRead {
+  /** The classified {@link Intent} of the bet (from {@link classifyIntent}) — the job the size serves. */
+  readonly intent: Intent
+  /** The recommended {@link SizeBand} (from {@link recommendedBand}) the chosen size is graded against. */
+  readonly band: SizeBand
+  /**
+   * How the hero's chosen "to" size compares to the band:
+   *
+   * - `'good'` — within `[band.toLo, band.toHi]`, a size-agnostic spot, or a committed short-stack
+   *   all-in jam ({@link SHORT_STACK_JAM_BB}) — none of which produce a false leak (see {@link gradeSizing}).
+   * - `'too-big'` — above `band.toHi`, **or** an over-shove the risk/reward guardrail caught
+   *   ({@link OVER_SHOVE_RISK_REWARD}).
+   * - `'too-small'` — below `band.toLo`, **or** an absurd min-bet the guardrail caught
+   *   ({@link MIN_BET_POT_FRACTION}).
+   */
+  readonly verdict: 'good' | 'too-big' | 'too-small'
+  /**
+   * Plain-language, peg-vocabulary *why* — the purpose of an in-band size, or the risk/reward arithmetic
+   * of an out-of-band one. **Never** a fabricated optimal number and **never** a solver claim, and the
+   * out-of-band cases never reference any `villainCallProbability` / fold-equity / EV-of-bet quantity
+   * (the guardrail is arithmetic-only by construction). The format layer ({@link explainDecision}) may
+   * render this directly.
+   */
+  readonly why: string
+}
+
+/**
+ * The chips the hero **risks** with `action` this turn — the additional money this action commits beyond
+ * what the hero already wagered this street, the *risk* side of the risk/reward guardrail. Mirrors the
+ * `chipsIn` computation in verdict.ts's `shortAllInNote` exactly (a bet/raise's "to" total minus what is
+ * already committed this street), so the two reads of "how much did this action stake" never disagree.
+ * A bet/raise is the only caller, so `action.amount` is always present.
+ */
+function chipsRisked(ctx: DecisionContext, action: Action): number {
+  // `action.amount` is the "bet/raise-to" total; subtracting the chips already in this street leaves the
+  // fresh chips this action stakes. `gradeSizing` only ever calls this for a bet/raise, so `amount` exists.
+  return (action as Extract<Action, { amount: number }>).amount - ctx.committed
+}
+
+/**
+ * Grade the hero's chosen bet/raise **size** against the recommended {@link recommendedBand}, returning a
+ * {@link SizingRead} — the graded counterpart to [[0101]]'s recommendation and the surface
+ * [[0102-coach-sizing-verdict-and-explain]] rides on {@link DecisionVerdict.sizing}.
+ *
+ * **Returns `null`** when `action` is not a `'bet'` or `'raise'`: a fold/call/check puts in no
+ * *chosen* size to grade (a call *matches* a number, it does not pick one), so there is nothing to read.
+ *
+ * **The short-stack jam gate runs first.** Before the guardrail, a committed short-stack all-in is
+ * graded `'good'`: when the action puts the hero all-in (`chipsRisked === ctx.stack`) and the hero is
+ * short ({@link SHORT_STACK_JAM_BB} or fewer big blinds behind), there is no smaller size that keeps
+ * options open, so jamming IS the purpose-correct size — not an over-shove. This grades the SIZE only;
+ * whether the hand should be jamming is the separate continue grade. It sits ahead of the guardrail so
+ * a deep shove (stack far above the threshold) is *not* short, falls through, and still flags.
+ *
+ * **The guardrail fires next (the tier-1 win).** Before the band comparison, two egregiously-dominated
+ * sizes are caught from *arithmetic alone*, needing **no fold-equity assumption** — this is what flips
+ * the ATo 100bb open-shove from a green "exactly right" continue-check to a clear sizing leak while the
+ * continue grade itself stays correct (and, with the gate above, only the genuinely *deep* shove flips):
+ *
+ * - **Over-shove** ({@link OVER_SHOVE_RISK_REWARD}): the hero risks far more than the pot can reward —
+ *   `chipsRisked / ctx.pot >=` the ratio. The *why* is the risk/reward arithmetic ("you risked 200 to
+ *   win 3 — only worse hands fold and only better hands call"). True whatever villain does (see the
+ *   constant), so it is allowed to grade deterministically where an EV-of-bet read could not.
+ * - **Absurd min-bet** ({@link MIN_BET_POT_FRACTION}): a bet that is a tiny fraction of the pot lays a
+ *   trivial price and charges nothing. Caught from the bet-as-fraction-of-pot arithmetic. Postflop only
+ *   (a pot-fraction read).
+ *
+ * **Size-agnostic spots never produce a false leak.** When the band is {@link SizeBand.sizeAgnostic}
+ * (an overcall — you *match* the bet, you pick no number), the grade is always `'good'` with a "you
+ * matched the bet, there's no size to pick" *why*, never an out-of-band leak off the widened placeholder.
+ *
+ * **Otherwise the band comparison.** The chosen "to" size (`action.amount`) against `[band.toLo,
+ * band.toHi]`: within → `'good'` (the *why* states the purpose), above `toHi` → `'too-big'`, below
+ * `toLo` → `'too-small'`. The in-band *why* is keyed to the {@link Intent} so a protection bet is never
+ * described as value, etc.
+ *
+ * Pure and deterministic: the band and intent come from the seeded ({@link COACH_SEED}) read
+ * {@link recommendedBand} runs, so the same `(ctx, action)` always yields the same read. The *why* is
+ * risk/reward and purpose only — never a fabricated optimal number, never a solver claim, never a
+ * fold-equity/EV-of-bet quantity.
+ */
+export function gradeSizing(
+  ctx: DecisionContext,
+  action: Action,
+  villainArchetype?: VillainArchetype,
+): SizingRead | null {
+  // Only a bet/raise picks a size to grade. A fold/call/check has none.
+  if (action.type !== 'bet' && action.type !== 'raise') return null
+
+  const band = recommendedBand(ctx, villainArchetype)
+  const intent = band.intent
+
+  const risk = chipsRisked(ctx, action)
+  const reward = ctx.pot
+
+  // --- Short-stack all-in jam: a committed jam is the correct SIZE — checked BEFORE the guardrail. ---
+
+  // The over-shove guardrail below would otherwise flag any all-in risking >= OVER_SHOVE_RISK_REWARD
+  // pots, with no stack-depth awareness — wrongly catching textbook push/fold jams (a 12bb open-jam
+  // risks ~8 pots, a 20bb 3-bet-jam ~4). Gate it on depth: when the action puts the hero ALL-IN
+  // (`risk === ctx.stack`, the exact `isAllIn` test verdict.ts's shortAllInNote uses) AND the hero is
+  // SHORT (`ctx.stack <= SHORT_STACK_JAM_BB * ctx.bigBlind`), there is no smaller size that keeps
+  // options open — the stack is committed and jamming is the purpose-correct size, so grade the SIZE
+  // `good`. (Whether the HAND should jam is the separate continue grade, not this sizing read.) This
+  // sits before the guardrail so a short jam never reaches it; a deep shove (stack >> the threshold)
+  // is not short, falls through, and still flags as the over-shove leak.
+  const isAllIn = risk === ctx.stack
+  const isShort = ctx.stack <= SHORT_STACK_JAM_BB * ctx.bigBlind
+  if (isAllIn && isShort) {
+    return {
+      intent,
+      band,
+      verdict: 'good',
+      why: `With only ${Math.round(ctx.stack / ctx.bigBlind)}bb behind there's no smaller size that keeps options open — a short stack this committed correctly jams, so the size is right (whether to be in the hand at all is the separate call).`,
+    }
+  }
+
+  // --- The risk/reward guardrail (arithmetic-only, no fold-equity) — checked after the short-jam gate. ---
+
+  // Over-shove: the chips staked dwarf the pot they can win. `ctx.pot` is the dead money already there
+  // (the reward); `chipsRisked` is what this action puts at risk. The ratio is true whatever villain
+  // holds, so no call-probability is consulted. Guard a zero/empty pot (no reward) as the strong signal
+  // rather than dividing by zero — a bet into nothing risking real chips is the over-shove case. Only
+  // reachable when the hero is NOT a short all-in (handled above), so deep shoves still flag here.
+  const riskReward = reward > 0 ? risk / reward : Infinity
+  if (riskReward >= OVER_SHOVE_RISK_REWARD) {
+    return {
+      intent,
+      band,
+      verdict: 'too-big',
+      why: `You risked ${risk} to win ${reward} — only worse hands fold and only better hands call, so the size can't profit no matter what they do.`,
+    }
+  }
+
+  // Absurd min-bet (postflop only — a pot-fraction read): a bet that is a tiny fraction of the pot lays
+  // a trivial price and charges nothing. `ctx.pot` is the pot the bet is sized against; a raise carries
+  // a `toCall`, and a min-*raise* is governed by the band comparison below, so this only fires on a true
+  // bet (toCall === 0) into a live pot. The bet fraction is `risk / pot`.
+  const betFraction = reward > 0 ? risk / reward : Infinity
+  if (ctx.board.length >= 3 && ctx.toCall === 0 && betFraction <= MIN_BET_POT_FRACTION) {
+    return {
+      intent,
+      band,
+      verdict: 'too-small',
+      why: `A min-bet this size lays the pot ${Math.round(1 / Math.max(betFraction, 1e-9))}:1 and charges nothing — it neither folds anything out nor builds the pot.`,
+    }
+  }
+
+  // --- Size-agnostic spots: never a false leak. You match the bet, you pick no number. ---
+  if (band.sizeAgnostic) {
+    return {
+      intent,
+      band,
+      verdict: 'good',
+      why: `You matched the bet — there's no size to pick here, so any reasonable amount is fine.`,
+    }
+  }
+
+  // --- The band comparison: the chosen "to" size against [toLo, toHi]. ---
+  if (action.amount > band.toHi) {
+    return { intent, band, verdict: 'too-big', why: tooBigWhy(band) }
+  }
+  if (action.amount < band.toLo) {
+    return { intent, band, verdict: 'too-small', why: tooSmallWhy(band) }
+  }
+  return { intent, band, verdict: 'good', why: goodWhy(intent) }
+}
+
+/**
+ * The in-band *why* for a `'good'` size, keyed to {@link Intent} so the purpose is named correctly — a
+ * protection bet is never described as value, a bluff never as value, etc. Peg-vocabulary, label-free,
+ * no fabricated number (the band itself carries the sizes; this states the *job* the size does).
+ */
+function goodWhy(intent: Intent): string {
+  switch (intent) {
+    case 'value':
+      return `A solid value size: big enough that worse hands paying you off is real money, not so big it folds them out.`
+    case 'bluff':
+      return `Sized like your value bets on this line, so the bluff is unreadable — exactly the job a bluff size has to do.`
+    case 'protection':
+      return `A big protection size: it charges the board's draws a steep price to chase rather than letting them draw cheaply.`
+    case 'steal':
+      return `A standard steal size: small enough to risk little, big enough to take the blinds uncontested.`
+  }
+}
+
+/**
+ * The out-of-band *why* for a `'too-big'` size that the risk/reward guardrail did **not** catch — a size
+ * above the band but not an over-shove. States the cost in the band's own terms (it folds out the hands
+ * the bet wanted to keep around / over-prices the spot), never a fabricated optimal number.
+ */
+function tooBigWhy(band: SizeBand): string {
+  if (band.intent === 'value') {
+    return `Bigger than the band wants for value: oversize it and the worse hands you're trying to get paid by just fold, so you win less, not more.`
+  }
+  return `Bigger than the spot calls for: you're risking more than the job needs, with the extra chips buying nothing.`
+}
+
+/**
+ * The out-of-band *why* for a `'too-small'` size that the min-bet guardrail did **not** catch — a size
+ * below the band but not an absurd min-bet. States that the small size under-charges (lays too good a
+ * price / fails to build the pot or protect), in the band's own terms, never a fabricated number.
+ */
+function tooSmallWhy(band: SizeBand): string {
+  if (band.intent === 'protection') {
+    return `Smaller than the band wants on a draw-heavy board: it lays the draws too cheap a price to chase — protection wants a bigger bet.`
+  }
+  return `Smaller than the band wants: it lays too good a price and leaves value (and fold equity) on the table.`
 }

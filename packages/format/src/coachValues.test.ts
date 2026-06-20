@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import type { DecisionVerdict, PreflopVerdict } from '@holdem/coach'
+import type { DecisionVerdict, PreflopVerdict, SizeBand, SizingRead } from '@holdem/coach'
 import {
   evMetric,
   explainDecision,
@@ -72,6 +72,7 @@ describe('explainDecision', () => {
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     shortAllIn: null,
+    sizing: null,
     ...v,
   })
 
@@ -212,6 +213,102 @@ describe('explainDecision', () => {
     expect(s.toLowerCase()).not.toContain('all-in')
   })
 
+  // --- The sizing line (ticket 0102): the graded `sizing` read's `why`, appended after the
+  //     continue-decision sentence, distinguishing intent and never mis-describing a leak. ---
+
+  /** A minimal placeholder band — only `intent`/`spot` matter to the explanation. */
+  const band = (intent: SizeBand['intent']): SizeBand => ({
+    spot: 'c-bet',
+    intent,
+    lo: 0.5,
+    hi: 0.75,
+    bbLo: null,
+    bbHi: null,
+    toLo: 50,
+    toHi: 75,
+    sizeAgnostic: false,
+  })
+  const sizing = (v: Partial<SizingRead> & { intent: SizingRead['intent'] }): SizingRead => ({
+    band: band(v.intent),
+    verdict: 'good',
+    why: 'WHY-PLACEHOLDER',
+    ...v,
+  })
+
+  it('appends the sizing why-line after the continue sentence when sizing is set', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.6,
+        potOddsThreshold: 0.3,
+        callEv: 12,
+        verdict: 'good',
+        correctDecision: 'continue',
+        sizing: sizing({ intent: 'value', verdict: 'good', why: 'A solid value size.' }),
+      }),
+    )
+    // The continue sentence is still there, and the sizing why follows it.
+    expect(s).toContain('continuing is the +EV play')
+    expect(s).toContain('A solid value size.')
+    expect(s.indexOf('A solid value size.')).toBeGreaterThan(s.indexOf('+EV play'))
+  })
+
+  it('renders the risk/reward why on an out-of-band (too-big) size, no fabricated optimal number', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.55,
+        potOddsThreshold: 0,
+        callEv: 110,
+        verdict: 'good',
+        heroBet: true,
+        sizing: sizing({
+          intent: 'value',
+          verdict: 'too-big',
+          why: 'You risked 200 to win 3 — only worse hands fold and only better hands call.',
+        }),
+      }),
+    )
+    expect(s.toLowerCase()).toContain('risked 200 to win 3')
+    // Still the value-bet description for the continue half (the size leak rides alongside, no flip).
+    expect(s.toLowerCase()).toContain('value bet')
+  })
+
+  it('does not mis-describe a protection bet as value (intent-distinguished wording rides through)', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.55,
+        potOddsThreshold: 0,
+        callEv: 110,
+        verdict: 'good',
+        heroBet: true,
+        sizing: sizing({
+          intent: 'protection',
+          verdict: 'good',
+          why: 'A big protection size: it charges the board’s draws a steep price to chase.',
+        }),
+      }),
+    )
+    expect(s.toLowerCase()).toContain('protection size')
+    expect(s.toLowerCase()).toContain('charges the board')
+  })
+
+  it('appends NO sizing line when sizing is null (fold/call/check)', () => {
+    const s = explainDecision(
+      verdict({
+        equity: 0.25,
+        potOddsThreshold: 0.4,
+        callEv: -8,
+        correctDecision: 'fold',
+        verdict: 'leak',
+        sizing: null,
+      }),
+    )
+    // The fold sentence is the whole line — nothing about a size purpose or risk/reward.
+    expect(s).toContain('folding is the +EV play')
+    expect(s.toLowerCase()).not.toContain('value size')
+    expect(s.toLowerCase()).not.toContain('risked')
+    expect(s.toLowerCase()).not.toContain('size to pick')
+  })
+
   it('appends the short-all-in note on an UNBET all-in bet, not only priced lines (ticket 0092)', () => {
     // An open-shove into an unbet street is `potOddsThreshold === 0` + `heroBet`, yet it can still
     // be a short all-in when 2+ opponents already went all-in for more on a prior street. The note
@@ -246,6 +343,7 @@ describe('priceComparison', () => {
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     shortAllIn: null,
+    sizing: null,
     ...v,
   })
 
@@ -468,6 +566,7 @@ describe('evMetric', () => {
     concept: 'equity-vs-price',
     trace: { assumedRange: 'tight', lineReason: 'facing-bet', betFraction: 0.5, polarized: null },
     shortAllIn: null,
+    sizing: null,
     ...v,
   })
 

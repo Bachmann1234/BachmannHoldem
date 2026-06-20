@@ -67,12 +67,25 @@ export const VERDICT_LABEL: Readonly<Record<DecisionVerdict['verdict'], string>>
  * sentence is appended to the priced line, naming the main pot the hero is actually playing for.
  * It never co-occurs with the free-check branch (a check is not all-in).
  *
+ * On a **bet/raise** the verdict carries a graded {@link DecisionVerdict.sizing} read (ticket 0102);
+ * when present, one further sentence — its fully-formed, intent-named, peg-vocabulary `why` — is
+ * appended after the continue-decision sentence (in-band states the purpose, out-of-band the
+ * risk/reward arithmetic), so the size grade rides alongside the continue verdict in the one line every
+ * client shares. `null` (a fold/call/check has no size to grade) appends nothing.
+ *
  * The sentence is **label-free** (no "Good"/"Leak" prefix) so a client can pair it with its own
  * headline — the play coach's {@link VERDICT_LABEL}, the primer's encouraging copy — without
  * repeating the tag.
  */
 export function explainDecision(verdict: DecisionVerdict): string {
   const equity = pct(verdict.equity)
+  // The sizing line (ticket 0102): when the action was a bet/raise, the verdict carries a graded
+  // `sizing` read whose `why` is already a fully-formed, label-free, peg-vocabulary sentence that names
+  // the intent (so a protection bet is never described as value, etc.) — in-band it states the purpose,
+  // out-of-band it states the risk/reward arithmetic. We render it directly as one appended sentence
+  // after the continue-decision sentence, in the one place every client shares. `null` (a fold/call/
+  // check has no size to grade) appends nothing, so those branches read exactly as before.
+  const sizingNote = verdict.sizing ? ` ${verdict.sizing.why}` : ''
   // The short-all-in side-pot eligibility note (ticket 0092): appended to the priced sentence when
   // the action put the hero all-in for less than two-or-more live opponents (a real side pot they
   // can't win). One tight, concrete sentence naming the main pot they're actually playing for. It
@@ -95,22 +108,22 @@ export function explainDecision(verdict: DecisionVerdict): string {
     // priced ones below. (`missedValueBet`/free-card are checks, never all-in, so `sidePotNote` is
     // empty there.)
     if (verdict.heroBet) {
-      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.${sidePotNote}`
+      return `No one had bet, so there was no price to call, and with ${equity} equity you're ahead, so betting puts chips in as the favorite. A sound value bet.${sidePotNote}${sizingNote}`
     }
     return `There's no price to call, so taking the free card is automatic: you keep your ${equity} share for nothing.`
   }
   const price = pct(verdict.potOddsThreshold)
   // Break-even: equity is within the tolerance band of the price, so the call is a coin-flip.
   if (verdict.verdict === 'breakEven') {
-    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.${sidePotNote}`
+    return `Your ${equity} equity sits right on the ${price} the call needs: a coin-flip, so continuing and folding are equal in value.${sidePotNote}${sizingNote}`
   }
   // Clear decision: equity is meaningfully above or below the break-even price. `callEv`'s sign is
   // the EV-correct side; report the chip EV of calling either way so the magnitude teaches too.
   const chips = `calling is worth ${signedChips(verdict.callEv)} chips`
   if (verdict.correctDecision === 'continue') {
-    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.${sidePotNote}`
+    return `Your ${equity} equity beats the ${price} the call needs, so continuing is the +EV play: ${chips}.${sidePotNote}${sizingNote}`
   }
-  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.${sidePotNote}`
+  return `Your ${equity} equity falls short of the ${price} the call needs, so folding is the +EV play: ${chips}.${sidePotNote}${sizingNote}`
 }
 
 /**

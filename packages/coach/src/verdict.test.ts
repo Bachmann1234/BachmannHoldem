@@ -1150,6 +1150,79 @@ describe('coachDecision — short-all-in side-pot eligibility note (ticket 0092)
   })
 })
 
+// ---------------------------------------------------------------------------------------------------
+// The sizing read rides on the verdict (ticket 0102) — an ADDITIONAL signal, never a re-grade.
+// ---------------------------------------------------------------------------------------------------
+
+describe('coachDecision — the sizing read (ticket 0102)', () => {
+  it('is null for fold/call/check (no size to grade)', () => {
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
+    expect(coachDecision(spot, FOLD).sizing).toBeNull()
+    expect(coachDecision(spot, CALL).sizing).toBeNull()
+    const freeCheck = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 0 })
+    expect(coachDecision(freeCheck, CHECK).sizing).toBeNull()
+  })
+
+  it('is non-null for a bet/raise and carries intent/band/verdict/why', () => {
+    const spot = ctx({
+      holeCards: hole('KhKd'),
+      board: parseCards('Ks 7c 2d'),
+      pot: 100,
+      toCall: 0,
+      numActive: 2,
+    })
+    const v = coachDecision(spot, { type: 'bet', amount: 60 })
+    expect(v.sizing).not.toBeNull()
+    expect(v.sizing!.intent).toBeTypeOf('string')
+    expect(v.sizing!.band.spot).toBe('c-bet')
+    expect(['good', 'too-big', 'too-small']).toContain(v.sizing!.verdict)
+    expect(v.sizing!.why.length).toBeGreaterThan(0)
+  })
+
+  it('the ATo 100bb open-shove keeps a correct CONTINUE verdict but gains a too-big sizing read', () => {
+    // The exploratory-testing finding: an open-jam of ATo used to get a green "exactly right" with the
+    // coach blind to the size. The continue grade (a free, unbet preflop raise is always 'good') must
+    // stay correct, while the sizing read flips the size to a leak via the risk/reward guardrail.
+    const spot = ctx({
+      holeCards: hole('AhTd'),
+      board: [],
+      pot: 3,
+      toCall: 0,
+      stack: 200,
+    })
+    const v = coachDecision(spot, { type: 'raise', amount: 200 })
+    // The continue verdict is unchanged: a bet into an unbet pot is graded 'good'.
+    expect(v.verdict).toBe('good')
+    expect(v.heroBet).toBe(true)
+    // The size, however, is a clear leak — risk/reward, no fold-equity.
+    expect(v.sizing).not.toBeNull()
+    expect(v.sizing!.verdict).toBe('too-big')
+    expect(v.sizing!.why.toLowerCase()).toContain('risked')
+  })
+
+  it('the continue verdict is byte-identical with vs without the sizing layer (no regression)', () => {
+    // Grade a representative priced raise. Stripping the sizing field must leave the rest of the verdict
+    // exactly as it was before this ticket existed — the layer is additive, never a re-grade.
+    const spot = ctx({ holeCards: hole('AsAh'), pot: 100, toCall: 50 })
+    const raiseV = coachDecision(spot, { type: 'raise', amount: 150 })
+    const callV = coachDecision(spot, CALL)
+    // Everything except `sizing` is identical between a raise and a call of the same priced spot —
+    // both are continues, graded purely on equity vs price; sizing is the only field that differs.
+    const stripSizing = (v: DecisionVerdict): Omit<DecisionVerdict, 'sizing'> => {
+      const copy = { ...v }
+      delete (copy as { sizing?: unknown }).sizing
+      return copy
+    }
+    expect(stripSizing(raiseV)).toEqual(stripSizing(callV))
+    // And the raise's continue grade matches the call's: sizing did not flip it.
+    expect(raiseV.verdict).toBe(callV.verdict)
+    expect(raiseV.correctDecision).toBe(callV.correctDecision)
+    // The call has no size to grade; the raise does.
+    expect(callV.sizing).toBeNull()
+    expect(raiseV.sizing).not.toBeNull()
+  })
+})
+
 // Exercise the imported CallSpot type so the test's intent (we reason about call spots) is
 // explicit and the import is load-bearing rather than incidental.
 const _exampleSpot: CallSpot = { equity: 0.5, pot: 100, callAmount: 50 }
