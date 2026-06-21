@@ -123,6 +123,45 @@ describe('workedSteps — calculation spot', () => {
     expect(text).toContain('90 + 30 = 120') // the total step
     expect(text).toContain('25.0%') // the derived price
   })
+
+  // A made hand with no draw (pair of jacks, second pair) 4-way — the rule of 2-and-4 has nothing to
+  // count, so the equity reads the betting line (opponents on strong ranges, not random cards) rather
+  // than restating the answer. This is the exported bug-report spot that showed the old degenerate
+  // "Estimate → Equity" steps, and whose ~12% surprised a player reasoning about a random field.
+  const MADE_HAND_EQUITY: CalculationSpot = {
+    kind: 'calculation',
+    prompt: 'Estimate your equity.',
+    quantity: 'equity',
+    concept: 'equity',
+    choices: [
+      { label: '8–16%', lo: 0.08, hi: 0.16 },
+      { label: '16–24%', lo: 0.16, hi: 0.24 },
+      { label: '24–32%', lo: 0.24, hi: 0.32 },
+    ],
+    context: {
+      holeCards: hole('Jh 6d'),
+      board: parseCards('7s Qh Jc'),
+      pot: 263,
+      toCall: 113,
+      numActive: 4,
+    },
+  }
+
+  it('reads the betting line for a made hand instead of citing the rule of 2-and-4', () => {
+    const res = gradeSpot(MADE_HAND_EQUITY, 2)
+    expect((res.workedSteps ?? []).map((s) => s.label)).toEqual([
+      'Made hand',
+      'The range',
+      'Equity',
+    ])
+    const text = steps(res)
+    expect(text).toContain('Pair') // names the made hand the evaluator read
+    expect(text).toContain('113 to call into 263') // reads the actual betting line
+    expect(text).toContain('not random cards') // the key idea: opponents hold ranges, not random hands
+    expect(text).toContain('No draw') // states why the rule of 2-and-4 doesn't apply
+    expect(text).not.toContain('rule of 2-and-4') // and never invokes the inapplicable rule
+    expect(text).not.toContain('even split') // never anchors to the misleading random-field share
+  })
 })
 
 describe('workedSteps — hand-reading spot', () => {

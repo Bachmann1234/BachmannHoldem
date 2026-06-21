@@ -17,7 +17,7 @@
  * Purity: zero I/O, pure functions over the verdict/context the grader hands in.
  */
 
-import { formatCard, type Card } from '@holdem/engine'
+import { evaluate7, formatCard, HAND_CATEGORY_NAMES, type Card } from '@holdem/engine'
 import type { DecisionContext } from '@holdem/bots'
 import type { DecisionVerdict, PreflopVerdict, SizingRead } from '@holdem/coach'
 import { countDrawOuts, outsToEquity, type DrawRead } from '@holdem/odds'
@@ -158,10 +158,13 @@ export function preflopWorkedSteps(verdict: PreflopVerdict): WorkedStep[] {
 /**
  * Worked steps for a calculation spot — the arithmetic the spot asks the player to retrieve, broken
  * into setup → total → price for the price quantities, or spot-the-draw → count-outs → equity for the
- * equity quantity (outs-derived when hero holds a recognised draw).
+ * equity quantity. On the equity quantity the derivation forks on whether hero holds a recognised draw:
+ * a draw is outs-derived (rule of 2-and-4); a made hand has no such formula, so it reads the betting
+ * line — opponents on realistic (and, once money is in, strong) ranges rather than random cards — which
+ * is what actually drives the coach's range-aware number.
  */
 export function calculationWorkedSteps(spot: CalculationSpot, value: number): WorkedStep[] {
-  const { pot, toCall, holeCards, board } = spot.context
+  const { pot, toCall, holeCards, board, numActive } = spot.context
   const total = pot + toCall
   switch (spot.quantity) {
     case 'pot-odds':
@@ -191,12 +194,33 @@ export function calculationWorkedSteps(spot: CalculationSpot, value: number): Wo
     case 'equity': {
       const draw = drawOn(holeCards, board)
       if (draw === null) {
+        // No draw to count, so the rule of 2-and-4 has nothing to apply to — a made hand's equity is
+        // simply how often it's still best at showdown, and that turns on the *range* the opponents hold,
+        // not a random two cards. So the derivation reads the betting line: money already in means strong
+        // ranges (top pairs, better pairs, sets) against which a marginal made hand is usually behind; an
+        // unbet pot still means realistic holdings, not random. We deliberately do NOT anchor to an even
+        // 1/numActive split: that is a *random-field* number, and against a random field a made hand is
+        // ABOVE its fair share — the opposite of the point here — so stating it would mislead. The split is
+        // used only as a quiet cutoff for the marginal/strong wording, never shown.
+        const made = HAND_CATEGORY_NAMES[evaluate7([...holeCards, ...board]).category]
+        const madeLower = made.toLowerCase()
+        const opponents = numActive - 1
+        const them = opponents === 1 ? 'opponent' : 'opponents'
+        const range =
+          toCall > 0
+            ? `There's ${toCall} to call into ${pot}, so your ${opponents} ${them} have money in — assume strong ranges (top pairs, better pairs, sets), not random cards.`
+            : `Your ${opponents} ${them} still hold realistic ranges, not random cards — weigh your ${madeLower} against the hands they'd actually play.`
+        const verdict =
+          value < 1 / numActive
+            ? ` — a marginal ${madeLower} is usually behind one of them`
+            : " — you're ahead of their ranges"
         return [
-          { label: 'Estimate', detail: 'Estimate your share of the pot at showdown.' },
           {
-            label: 'Equity',
-            detail: `Your equity here is about ${pct(value)} — a rule-of-2-and-4 estimate in the ballpark is good enough.`,
+            label: 'Made hand',
+            detail: `No draw here — you have ${made}, so your equity is just how often that's still best at showdown.`,
           },
+          { label: 'The range', detail: range },
+          { label: 'Equity', detail: `Against that, your share is about ${pct(value)}${verdict}.` },
         ]
       }
       const toCome = cardsToCome(board.length)
