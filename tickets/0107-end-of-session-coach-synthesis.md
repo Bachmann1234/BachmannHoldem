@@ -2,7 +2,7 @@
 id: 0107
 title: 'Epic: End-of-session coach synthesis'
 type: epic
-status: in-progress
+status: done
 milestone: M9
 priority: medium
 created: 2026-06-20
@@ -35,15 +35,15 @@ deterministic recap first; it is useful on its own and it is the trustworthy sub
 
 ## Acceptance criteria
 
-- [ ] The session **retains** each hero decision's coach verdict across the whole session instead of
+- [x] The session **retains** each hero decision's coach verdict across the whole session instead of
       discarding it each hand (foundation — [[0108-session-graded-decision-log]]).
-- [ ] A **pure, deterministic** `synthesizeSession` in `@holdem/coach` folds the session's retained
+- [x] A **pure, deterministic** `synthesizeSession` in `@holdem/coach` folds the session's retained
       verdicts into a small, prioritized recap: the one or two things to work on, each **anchored to
       the specific hands** that earned them, with an honest "clean session / too few hands to call it"
       when nothing rises ([[0109-coach-session-synthesis]]).
-- [ ] The PWA renders the recap on the `game-over` state — the end-of-session review screen
+- [x] The PWA renders the recap on the `game-over` state — the end-of-session review screen
       ([[0110-pwa-session-recap-screen]]).
-- [ ] No server, no network dependency, no key required: the whole feature runs offline. The recap
+- [x] No server, no network dependency, no key required: the whole feature runs offline. The recap
       output is a **structured object** an optional LLM layer ([[0011-llm-coaching]]) could later
       narrate without computing anything.
 
