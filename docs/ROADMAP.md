@@ -90,6 +90,21 @@ UI exists — so the foundation is trustworthy before anything is built on top o
   discrete fold/call/raise choices don't. Builds on M3 (the coach) and M4.6 (the sizing lesson); holds
   the determinism-then-narration line (every band is math we own). Its epic is
   [`0100`](../tickets/0100-coach-betting-sizing-guidance.md).
+- **M9 — End-of-session coach synthesis.** When a play session ends, the coach looks back over the
+  hands you just played and gives **one synthesized read** — _"looking over your hands tonight, here's
+  the thing to work on"_ — anchored to the specific spots that earned it. This is the narrow/deep
+  per-session complement to M6's broad/longitudinal Stats screen: M6 asks "across all your hands, what
+  are your tendencies?" (sample-gated); M9 asks "in _these_ hands you just played, what did I see?".
+  The key move is to synthesize over the session's **own per-decision verdicts** — facts about real
+  decisions — not population-level leak stats, so it sidesteps the M6 sample gate honestly instead of
+  fighting it. Today the coach grades each decision live and then discards it; M9 retains those graded
+  rulings across the session, folds them into a prioritized, hand-anchored recap with a pure
+  `@holdem/coach` function, and renders it on the `game-over` screen. Determinism holds: the recap is
+  math we own, works fully offline with zero config and no server, and its structured output is exactly
+  what the deferred BYOK LLM narration ([`0011`](../tickets/0011-llm-coaching.md)) would later reword —
+  never compute. Build the deterministic recap first; it stands on its own and is the trustworthy
+  substrate any narration would sit on. Its epic is
+  [`0107`](../tickets/0107-end-of-session-coach-synthesis.md).
 
 ### Deferred — ideas, not committed
 

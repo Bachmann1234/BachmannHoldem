@@ -30,3 +30,18 @@ it clearly earns that cost. See `docs/ROADMAP.md` ("Deferred — ideas, not comm
 
 Introduces the only network dependency. Depends on [[0007-coaching-engine]]. Use the latest
 Claude model available at build time.
+
+**BYOK reframing (2026-06-20).** The deferral rationale above hinges on the serverless key-proxy being
+"the only server-side code in the project." A **bring-your-own-key** approach removes exactly that: the
+user pastes their own Anthropic key (stored in the app's existing IndexedDB durable layer) and the PWA
+calls the API **directly from the browser** (Anthropic TS SDK `dangerouslyAllowBrowser` +
+`anthropic-dangerous-direct-browser-access`) — no proxy, no backend, no key of ours. That deletes the
+one cost that parked this. If pulled, the narration model is **Haiku 4.5** (`claude-haiku-4-5`) —
+narration is just rewording numbers already computed, the cheapest possible LLM job (fractions of a
+cent per session on the user's own key).
+
+**Substrate is now [[0107-end-of-session-coach-synthesis]] (M9).** That epic ships the deterministic
+`SessionRecap` — a structured object the coach owns and computes offline. This ticket, if ever pulled,
+becomes the **thin optional layer** that rewords that recap (and the live per-decision verdicts) in a
+warmer voice, gated on a key, degrading to the deterministic text when no key is present. It computes
+nothing — it only narrates what M9 already produced.
