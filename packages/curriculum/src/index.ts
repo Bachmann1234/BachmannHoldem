@@ -11,5 +11,7 @@
 
 export * from './spot.js'
 export * from './grade.js'
+export * from './worked.js'
+export * from './serialize.js'
 export * from './lesson.js'
 export * from './foundations.js'

@@ -5,6 +5,7 @@ import {
   potOdds,
   outsToEquity,
   countOuts,
+  countDrawOuts,
   evOfCall,
   evOfBet,
   callIsProfitable,
@@ -117,6 +118,64 @@ describe('countOuts', () => {
     expect(() => countOuts(hero, villain, parseCards('2h 7h 9c Td 3s'))).toThrow(/flop.*turn|3.*4/)
     expect(() => countOuts(hand('Ah Kh'), hand('Ah Qd'), parseCards('2h 7h 9c'))).toThrow(
       /duplicate/i,
+    )
+  })
+})
+
+describe('countDrawOuts', () => {
+  it('reads a nut flush draw as 9 outs on the flop', () => {
+    // AhKh on 2h 7h 9c — four hearts (two of them hero's), so every remaining heart completes.
+    const draw = countDrawOuts(hand('Ah Kh'), parseCards('2h 7h 9c'))
+    expect(draw).not.toBeNull()
+    expect(draw!.type).toBe('flush')
+    expect(draw!.outs).toBe(9)
+    expect(draw!.cards.every((c) => suitIndex(c) === 2)).toBe(true) // all hearts
+  })
+
+  it('still reads the flush draw as 9 outs on the turn (one card to come)', () => {
+    const draw = countDrawOuts(hand('Ah Kh'), parseCards('2h 7h 9c Td'))
+    expect(draw!.type).toBe('flush')
+    expect(draw!.outs).toBe(9)
+  })
+
+  it('reads an open-ended straight draw as 8 outs (two completing ranks)', () => {
+    // 9h8c on 7d 6s 2c — 9-8-7-6 open at both ends, filled by any Ten or any Five.
+    const draw = countDrawOuts(hand('9h 8c'), parseCards('7d 6s 2c'))
+    expect(draw!.type).toBe('open-ender')
+    expect(draw!.outs).toBe(8)
+  })
+
+  it('reads a gutshot as 4 outs (one completing rank)', () => {
+    // JhTc on 8c 7d 2s — only a Nine fills J-T-9-8-7.
+    const draw = countDrawOuts(hand('Jh Tc'), parseCards('8c 7d 2s'))
+    expect(draw!.type).toBe('gutshot')
+    expect(draw!.outs).toBe(4)
+  })
+
+  it('reads a combo draw (flush + straight) and sums both', () => {
+    // 9h8h on 7h 6h 2c — four hearts (9 flush outs) AND a 9-8-7-6 open-ender whose
+    // non-heart Tens and Fives (6) are straight outs; the heart T/5 are flush outs already.
+    const draw = countDrawOuts(hand('9h 8h'), parseCards('7h 6h 2c'))
+    expect(draw!.type).toBe('combo')
+    expect(draw!.outs).toBe(15)
+  })
+
+  it('returns null for a made hand (a flush is not a draw)', () => {
+    expect(countDrawOuts(hand('Ah Kh'), parseCards('2h 7h 9h'))).toBeNull()
+  })
+
+  it('returns null when there is no flush or straight draw', () => {
+    expect(countDrawOuts(hand('Ah Kc'), parseCards('2d 7s 9h'))).toBeNull()
+  })
+
+  it('does not credit hero with a flush draw they do not share (board four-flush)', () => {
+    // Board has four diamonds; hero holds none, so this is not hero's draw.
+    expect(countDrawOuts(hand('Ah Kc'), parseCards('2d 7d 9d Td'))).toBeNull()
+  })
+
+  it('rejects an illegal board size', () => {
+    expect(() => countDrawOuts(hand('Ah Kh'), parseCards('2h 7h 9c Td 3s'))).toThrow(
+      /flop.*turn|3.*4/,
     )
   })
 })

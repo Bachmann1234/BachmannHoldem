@@ -58,6 +58,14 @@ import {
   type HandReadingSpot,
   type NumericChoice,
 } from './spot.js'
+import {
+  coachWorkedSteps,
+  preflopWorkedSteps,
+  calculationWorkedSteps,
+  handReadingWorkedSteps,
+  sizingWorkedSteps,
+  type WorkedStep,
+} from './worked.js'
 
 /**
  * The coach verdict backing a graded coach spot — either the postflop {@link DecisionVerdict} or the
@@ -97,6 +105,13 @@ export interface GradeResult {
   readonly verdict?: SpotVerdict
   /** The teaching explanation — built from the deterministic numbers (coach spots) or authored. */
   readonly explanation: string
+  /**
+   * The ordered "show the work" steps that derive the right answer — price, equity (outs-counted on a
+   * draw), and the comparison that lands the decision — so a miss teaches the derivation, not just the
+   * verdict. Built from the same deterministic numbers as {@link explanation} ({@link buildWorkedSteps}
+   * in worked.ts). Absent only for the declarative carve-out, whose answer is authored, not derived.
+   */
+  readonly workedSteps?: readonly WorkedStep[]
 }
 
 /**
@@ -382,6 +397,9 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       // No coach verdict to attach (like the declarative carve-out): the value is the whole grade, and
       // the explanation shows it derived from the spot's own numbers via @holdem/format.
       explanation: explainCalculation(spot.quantity, value, spot.context.pot, spot.context.toCall),
+      // The same derivation, broken into ordered steps (setup → total → price, or the outs derivation
+      // for the equity quantity) so a miss walks the arithmetic.
+      workedSteps: calculationWorkedSteps(spot, value),
     }
   }
 
@@ -408,6 +426,8 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       // No coach verdict to attach (like the calculation/declarative kinds): the made hand IS the grade,
       // and the explanation names it so a wrong read still teaches what the cards were.
       explanation: explainHandReading(answer),
+      // The cards → board → best-hand reading, laid out as ordered steps.
+      workedSteps: handReadingWorkedSteps(spot, answer),
     }
   }
 
@@ -428,6 +448,7 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
     // The explanation is the CHOSEN size's own `why` — so an out-of-band pick is explained with exactly
     // the `why` the coach gives the hero in play (in-band states the purpose, out-of-band the risk/reward
     // arithmetic), the ticket's headline acceptance criterion.
+    const chosenRead = gradeSizingChoice(context, spot.choices[chosenIndex]!.toAmount)
     return {
       // Correct iff the player picked the in-band ('good') size.
       correct: chosenIndex === correctIndex,
@@ -436,7 +457,9 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       concept: spot.concept,
       // No coach *continue* verdict to attach (like the calculation/hand-reading kinds): the size grade
       // IS the teaching, and its `why` is the live coach's own sizing explanation for the chosen size.
-      explanation: gradeSizingChoice(context, spot.choices[chosenIndex]!.toAmount).why,
+      explanation: chosenRead.why,
+      // Pot → recommended band → the chosen size's purpose, as ordered steps.
+      workedSteps: sizingWorkedSteps(chosenRead, spot.context.pot),
     }
   }
 
@@ -474,6 +497,12 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
     spot.kind === 'coach'
       ? explainCoach(chosenVerdict as DecisionVerdict)
       : explainPreflop(chosenVerdict as PreflopVerdict)
+  // The same verdict, re-told as ordered steps: postflop walks price → equity (outs-counted on a draw)
+  // → compare; preflop walks the tier sort → chart → rationale.
+  const workedSteps =
+    spot.kind === 'coach'
+      ? coachWorkedSteps(chosenVerdict as DecisionVerdict, context)
+      : preflopWorkedSteps(chosenVerdict as PreflopVerdict)
 
   return {
     // Correctness is the player's OWN action grade, not index-equality with the first non-leak
@@ -486,5 +515,6 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
     concept: chosenVerdict.concept,
     verdict: chosenVerdict,
     explanation,
+    workedSteps,
   }
 }

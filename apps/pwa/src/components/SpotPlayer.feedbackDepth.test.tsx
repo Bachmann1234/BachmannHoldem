@@ -14,10 +14,18 @@
 
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateSpot } from '@holdem/drills'
 import { type DecisionVerdict } from '@holdem/coach'
-import { gradeSpot, type GradeResult, type Spot, type SpotVerdict } from '@holdem/curriculum'
+import { countDrawOuts, outsToEquity } from '@holdem/odds'
+import {
+  gradeSpot,
+  OUTS_OVERSTATE_TOLERANCE,
+  parseDrillSpot,
+  type GradeResult,
+  type Spot,
+  type SpotVerdict,
+} from '@holdem/curriculum'
 import { priceComparison } from '@holdem/format'
 import { ResultSheet, SpotAnswers, SpotView } from './SpotPlayer.js'
 
@@ -180,6 +188,130 @@ describe('SpotPlayer — show-the-math feedback (ticket 0079)', () => {
     // It has no coach verdict, so no priced comparison line — its derivation IS the show-the-math feedback.
     expect(screen.queryByTestId('result-math')).toBeNull()
     expect(screen.getByTestId('result-calculation')).toBeTruthy()
+  })
+})
+
+describe('SpotPlayer — show the work (worked steps)', () => {
+  it('expands the worked steps on a miss, walking the price → equity → compare derivation', () => {
+    // A priced coach spot and an answer index that grades WRONG, so the steps auto-expand on the miss.
+    let found: { spot: Spot; wrongIndex: number } | undefined
+    for (let seed = 0; seed <= 200 && found === undefined; seed++) {
+      const spot = pricedSpot(seed)
+      for (let i = 0; i < spot.choices.length; i++) {
+        if (!gradeSpot(spot, i).correct) {
+          found = { spot, wrongIndex: i }
+          break
+        }
+      }
+    }
+    expect(found).toBeDefined()
+    render(<Harness spot={found!.spot} />)
+    fireEvent.click(screen.getByTestId(`answer-${found!.wrongIndex}`))
+
+    const toggle = screen.getByTestId('worked-steps-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    // The full derivation is visible: price → equity → compare (three steps on a priced spot).
+    expect(screen.getAllByTestId('worked-step').length).toBeGreaterThanOrEqual(3)
+    const text = (screen.getByTestId('worked-steps').textContent ?? '').toLowerCase()
+    expect(text).toContain('price')
+    expect(text).toContain('equity')
+  })
+
+  it('never presents a DOMINATED draw as a clean rule-of-N derivation (no contradictory numbers)', () => {
+    // The rule of 2-and-4 counts raw odds to complete, blind to whether the made hand wins. Against a
+    // heavy barreling line a draw can be dominated — ~18% raw odds yet ~1% real equity. Scan the real
+    // generator: wherever the outs estimate overstates the coach's read, the equity step must REFRAME
+    // ("often behind") rather than sit two contradictory numbers side by side; where they agree, it
+    // shows the derivation. This locks the fix for the 18%-vs-1.4% contradiction.
+    let sawDominated = false
+    let sawClean = false
+    for (let seed = 0; seed <= 600; seed++) {
+      const spot = generateSpot(seed, { kind: 'coach', priceMode: 'priced' })
+      if (spot.kind !== 'coach') continue
+      const { holeCards, board } = spot.context
+      if (board.length !== 3 && board.length !== 4) continue
+      const draw = countDrawOuts(holeCards, board)
+      if (draw === null) continue
+      const res = gradeSpot(spot, 0)
+      const verdict = res.verdict
+      if (verdict === undefined || !isDecisionVerdict(verdict)) continue
+      const approx = outsToEquity(draw.outs, board.length === 3 ? 2 : 1)
+      const step = (res.workedSteps ?? []).find((s) => s.label === 'Your equity')
+      expect(step).toBeDefined()
+      if (approx - verdict.equity > OUTS_OVERSTATE_TOLERANCE) {
+        sawDominated = true
+        expect(step!.detail).toContain('often behind') // the honest reality-check
+        expect(step!.detail).not.toContain('the rule of') // never the clean derivation
+      } else {
+        sawClean = true
+        expect(step!.detail).toContain('the rule of') // the derivation is shown when it holds up
+      }
+    }
+    // The generator yields both, so the one-directional guard is exercised both ways (not vacuous).
+    expect(sawClean).toBe(true)
+    expect(sawDominated).toBe(true)
+  })
+
+  it('collapses the worked steps on a correct answer, revealing them on toggle', () => {
+    let found: { spot: Spot; rightIndex: number } | undefined
+    for (let seed = 0; seed <= 200 && found === undefined; seed++) {
+      const spot = pricedSpot(seed)
+      for (let i = 0; i < spot.choices.length; i++) {
+        if (gradeSpot(spot, i).correct) {
+          found = { spot, rightIndex: i }
+          break
+        }
+      }
+    }
+    expect(found).toBeDefined()
+    render(<Harness spot={found!.spot} />)
+    fireEvent.click(screen.getByTestId(`answer-${found!.rightIndex}`))
+
+    // Collapsed by default on a correct answer — the steps are tucked behind the toggle.
+    const toggle = screen.getByTestId('worked-steps-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryAllByTestId('worked-step')).toHaveLength(0)
+    // Still available to review: tapping reveals the work.
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getAllByTestId('worked-step').length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('SpotPlayer — copy spot for a bug report', () => {
+  it('copies a reproducible spot+grade blob that re-grades identically', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    const spot = pricedSpot(7)
+    render(<Harness spot={spot} />)
+    fireEvent.click(screen.getByTestId('answer-0'))
+    fireEvent.click(screen.getByTestId('copy-spot'))
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    const blob = writeText.mock.calls[0]![0] as string
+    expect(blob).toContain('holdem-drill-spot-report')
+
+    // The blob is reproducible: parse it back and re-grade → exactly what the player saw, worked steps
+    // and all. This is the whole point — a bug report carries the spot, not just a screenshot.
+    const original = gradeSpot(spot, 0)
+    const { spot: parsed, chosenIndex } = parseDrillSpot(blob)
+    expect(chosenIndex).toBe(0)
+    const regraded = gradeSpot(parsed, chosenIndex)
+    expect(regraded.correct).toBe(original.correct)
+    expect(regraded.correctIndex).toBe(original.correctIndex)
+    expect(regraded.explanation).toBe(original.explanation)
+    expect(regraded.workedSteps).toEqual(original.workedSteps)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('does not throw when the clipboard API is unavailable', () => {
+    vi.stubGlobal('navigator', {})
+    render(<Harness spot={pricedSpot(7)} />)
+    fireEvent.click(screen.getByTestId('answer-0'))
+    expect(() => fireEvent.click(screen.getByTestId('copy-spot'))).not.toThrow()
+    vi.unstubAllGlobals()
   })
 })
 

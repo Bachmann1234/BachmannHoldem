@@ -346,7 +346,7 @@ export function priceComparison(verdict: DecisionVerdict): string | null {
 }
 
 /** Plain-language phrase for a hero's preflop {@link PreflopVerdict.trace} position, for {@link explainPreflop}. */
-function positionPhrase(position: PreflopVerdict['trace']['position']): string {
+export function positionPhrase(position: PreflopVerdict['trace']['position']): string {
   switch (position) {
     case 'early':
       return 'early position'

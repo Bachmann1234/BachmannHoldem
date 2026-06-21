@@ -27,7 +27,7 @@
  * deterministic coach narrates.
  */
 
-import { evaluate7, makeDeck, type Card } from '@holdem/engine'
+import { evaluate7, HandCategory, makeDeck, rankIndex, suitIndex, type Card } from '@holdem/engine'
 
 import { exactEquity, type HandEquity } from './equity.js'
 
@@ -159,6 +159,115 @@ export function countOuts(
     }
   }
   return { outs: cards.length, cards }
+}
+
+/**
+ * A classified drawing hand: the kind of draw hero holds, how many cards complete it, and
+ * which cards those are. The opponent-independent counterpart to {@link countOuts} — where
+ * `countOuts` counts cards that beat a *specific* villain hand, this counts cards that
+ * complete hero's draw into a flush or straight, the way a player counts outs at the table.
+ *
+ * This is the count the coach teaches ({@link outsToEquity}'s rule of 2 and 4 turns it into
+ * an equity estimate), so it deliberately recognises only the two draws with a crisp,
+ * teachable out count — flushes and straights. Made hands and weaker "improvements" (catching
+ * a pair, two pair, trips) return `null`: there is no clean outs story to narrate for them.
+ */
+export interface DrawRead {
+  /** Which draw hero holds. `combo` = a flush draw *and* a straight draw at once. */
+  readonly type: 'flush' | 'open-ender' | 'gutshot' | 'combo'
+  /** A table-friendly name, e.g. `"flush draw"`, `"open-ended straight draw"`, `"gutshot"`. */
+  readonly label: string
+  /** How many remaining cards complete the draw (`cards.length`). */
+  readonly outs: number
+  /** Those cards, in deterministic deck order, for display/debugging. */
+  readonly cards: readonly Card[]
+}
+
+/**
+ * Classify hero's draw on a partial board and count its outs — opponent-independent, the
+ * canonical "outs to your draw" a player counts at the table (flush draw ≈ 9, open-ender ≈ 8,
+ * gutshot ≈ 4). Returns `null` when hero has no flush/straight draw, or already holds a made
+ * hand stronger than a pair (no draw story to tell).
+ *
+ * The board must be a flop (3) or turn (4): there must be a card still to come for a draw to
+ * complete. Reuses {@link evaluate7} (so straight detection agrees exactly with the showdown)
+ * and direct suit counting for the flush, and gates both on hero *participating* in the draw —
+ * a flush counts only when hero holds a card of the suit, and on the turn a straight out counts
+ * only when the board alone is not already a straight with that card (hero must add the hand,
+ * not merely play the board).
+ *
+ * `flush` and combined draws report the flush as the headline; `combo` means a flush draw and a
+ * straight draw at once. Straights split on how many distinct ranks complete them: two ranks →
+ * `open-ender`, one rank → `gutshot`.
+ */
+export function countDrawOuts(
+  hero: readonly [Card, Card],
+  board: readonly Card[],
+): DrawRead | null {
+  if (board.length !== 3 && board.length !== 4) {
+    throw new RangeError(`countDrawOuts needs a flop (3) or turn (4) board, got ${board.length}`)
+  }
+
+  const known = [...hero, ...board]
+  // A made hand stronger than a pair is not a draw — there's no clean out count to teach.
+  const current = evaluate7(known)
+  if (current.category > HandCategory.Pair) return null
+
+  const isKnown = (card: Card): boolean => known.includes(card)
+
+  // Flush draw — counted directly off suit counts so we can require hero to hold a card of the
+  // suit (otherwise a four-flush board hero doesn't share would read as hero's draw).
+  const suitCounts = [0, 0, 0, 0]
+  for (const card of known) suitCounts[suitIndex(card)]! += 1
+  const heroSuitCounts = [0, 0, 0, 0]
+  for (const card of hero) heroSuitCounts[suitIndex(card)]! += 1
+  let flushSuit = -1
+  for (let s = 0; s < 4; s++) {
+    if (suitCounts[s] === 4 && heroSuitCounts[s]! >= 1) flushSuit = s
+  }
+  const flushCards: Card[] = []
+  if (flushSuit >= 0) {
+    for (const card of makeDeck()) {
+      if (!isKnown(card) && suitIndex(card) === flushSuit) flushCards.push(card)
+    }
+  }
+  const flushSet = new Set(flushCards)
+
+  // Straight draw — a card that makes hero's best hand exactly a straight (a straight flush is a
+  // flush out, already counted above and skipped here). On the turn, gate on the board not
+  // already making the straight by itself, so hero genuinely adds the hand.
+  const straightCards: Card[] = []
+  for (const card of makeDeck()) {
+    if (isKnown(card) || flushSet.has(card)) continue
+    const made = evaluate7([...known, card])
+    if (made.category !== HandCategory.Straight) continue
+    if (board.length === 4 && evaluate7([...board, card]).category >= HandCategory.Straight) {
+      continue
+    }
+    straightCards.push(card)
+  }
+
+  const flushOuts = flushCards.length
+  const straightOuts = straightCards.length
+  if (flushOuts + straightOuts === 0) return null
+
+  const cards = [...flushCards, ...straightCards]
+  let type: DrawRead['type']
+  let label: string
+  if (flushOuts > 0 && straightOuts > 0) {
+    type = 'combo'
+    label = 'combo draw (flush + straight)'
+  } else if (flushOuts > 0) {
+    type = 'flush'
+    label = 'flush draw'
+  } else if (new Set(straightCards.map(rankIndex)).size >= 2) {
+    type = 'open-ender'
+    label = 'open-ended straight draw'
+  } else {
+    type = 'gutshot'
+    label = 'gutshot'
+  }
+  return { type, label, outs: cards.length, cards }
 }
 
 /** The pot situation a chip-EV helper reasons about: equity plus the money involved. */

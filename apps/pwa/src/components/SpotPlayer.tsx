@@ -34,7 +34,13 @@ import {
   type GradeTermId,
   type PreflopVerdict,
 } from '@holdem/coach'
-import { type GradeResult, type Spot, type SpotVerdict } from '@holdem/curriculum'
+import {
+  serializeDrillSpot,
+  type GradeResult,
+  type Spot,
+  type SpotVerdict,
+  type WorkedStep,
+} from '@holdem/curriculum'
 import { evMetric, explainDecision, pct, priceComparison, VERDICT_LABEL } from '@holdem/format'
 import { positionLabel } from '../learn/lessonMeta.js'
 import { Card } from './Card.js'
@@ -263,6 +269,92 @@ export interface ResultSheetProps {
  * the lesson get the cross-links from one place (the lesson's own chart bridge lives in its read view,
  * not the result, so there is no double affordance).
  */
+/**
+ * The collapsible "show the work" derivation (every spot kind that carries `workedSteps`). Expanded by
+ * default on a miss — the player wants to see how the right answer is reached — and collapsed behind a
+ * "Show the work" toggle on a correct answer, so it's there to review without crowding a green result.
+ *
+ * Reuses the CoachDrawer's `ReadsSection` disclosure idiom verbatim (the `.coach-reads-toggle` button +
+ * chevron, scroll-into-view on reveal), so the two reveal affordances look and behave the same.
+ */
+function WorkedStepsSection({
+  steps,
+  defaultExpanded,
+}: {
+  readonly steps: readonly WorkedStep[]
+  readonly defaultExpanded: boolean
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  // Like ReadsSection: the drawer is a capped bottom sheet, so a revealed list can land below the fold;
+  // pull it into view on expand. (`?.` guards jsdom, which has no scrollIntoView.)
+  const listRef = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    if (expanded) listRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+  }, [expanded])
+  return (
+    <div className="worked-steps" data-testid="worked-steps">
+      <button
+        type="button"
+        className="coach-reads-toggle"
+        data-testid="worked-steps-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span>{expanded ? 'Hide the work' : 'Show the work'}</span>
+        <span className="coach-reads-chevron" aria-hidden="true">
+          {expanded ? '▾' : '▸'}
+        </span>
+      </button>
+      {expanded && (
+        <ol className="worked-steps-list" ref={listRef}>
+          {steps.map((step, i) => (
+            <li className="worked-step" key={`${step.label}-${i}`} data-testid="worked-step">
+              <span className="worked-step-label">{step.label}</span>
+              <span className="worked-step-detail">{step.detail}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Copy the graded spot to the clipboard as a reproducible bug-report blob — the drill counterpart to the
+ * CoachDrawer's "Copy ruling". {@link serializeDrillSpot} captures the spot the player saw plus the grade
+ * (worked steps included), and a developer parses it back ({@link parseDrillSpot}) to re-grade the exact
+ * spot — so "this verdict / worked step looks wrong" reports are reproducible, not just screenshots.
+ *
+ * Mirrors `CopyRulingButton` exactly: the same `navigator.clipboard` guard (a no-op in an insecure
+ * context, never throwing), the same 1.5s "Copied" flash, the same `chart-link` affordance styling.
+ */
+function CopySpotButton({
+  spot,
+  result,
+}: {
+  readonly spot: Spot
+  readonly result: GradeResult
+}): React.JSX.Element {
+  const [copied, setCopied] = useState(false)
+  const onClick = (): void => {
+    const blob = serializeDrillSpot(spot, result)
+    void navigator.clipboard?.writeText?.(blob)?.then(
+      () => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1500)
+      },
+      () => {
+        /* clipboard write rejected — leave the label unchanged */
+      },
+    )
+  }
+  return (
+    <button type="button" className="chart-link" data-testid="copy-spot" onClick={onClick}>
+      {copied ? 'Copied' : '⧉ Copy spot for a bug report'}
+    </button>
+  )
+}
+
 export function ResultSheet({
   result,
   spot,
@@ -497,6 +589,19 @@ export function ResultSheet({
             ♠ See the starting-hand chart
           </button>
         ) : null}
+
+        {/* "Show the work" (every spot kind the grader derives): the ordered steps that reach the right
+            answer — price → equity (outs-counted on a draw) → compare, or the per-kind derivation. Open
+            on a miss (the player wants the derivation), collapsed when correct. Absent only on the
+            declarative carve-out, whose answer is authored, not derived (so no `workedSteps`). */}
+        {result.workedSteps && result.workedSteps.length > 0 ? (
+          <WorkedStepsSection steps={result.workedSteps} defaultExpanded={!result.correct} />
+        ) : null}
+
+        {/* Copy the exact spot + grade for a bug report — reproducible because a drill stores no answer
+            key, so the spot alone re-grades identically (see serializeDrillSpot/parseDrillSpot). Offered
+            on every drill spot, so a wrong-looking verdict or worked step is one tap from reportable. */}
+        <CopySpotButton spot={spot} result={result} />
 
         <button
           type="button"
