@@ -161,6 +161,10 @@ describe('workedSteps — calculation spot', () => {
     expect(text).toContain('No draw') // states why the rule of 2-and-4 doesn't apply
     expect(text).not.toContain('rule of 2-and-4') // and never invokes the inapplicable rule
     expect(text).not.toContain('even split') // never anchors to the misleading random-field share
+    // The one-line headline forks the same way: a made hand drops the rule-of-2-and-4 "good enough"
+    // framing the draw case keeps, so the top line never contradicts the worked steps below it.
+    expect(res.explanation).toContain('not random cards')
+    expect(res.explanation).not.toContain('rule-of-2-and-4')
   })
 })
 

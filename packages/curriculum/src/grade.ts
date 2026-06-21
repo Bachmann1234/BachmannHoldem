@@ -42,7 +42,7 @@ import {
   type PreflopVerdict,
   type SizingRead,
 } from '@holdem/coach'
-import { potOdds } from '@holdem/odds'
+import { countDrawOuts, outsToEquity, potOdds } from '@holdem/odds'
 import {
   explainDecision,
   explainPreflop as explainPreflopWhy,
@@ -64,6 +64,7 @@ import {
   calculationWorkedSteps,
   handReadingWorkedSteps,
   sizingWorkedSteps,
+  OUTS_OVERSTATE_TOLERANCE,
   type WorkedStep,
 } from './worked.js'
 
@@ -217,15 +218,18 @@ function findContainingBucket(choices: readonly NumericChoice[], value: number):
  *
  * - `'pot-odds'` → "Pot odds: 30 to call into a 90 pot ⇒ 30/120 = 25% — that's the price you're getting."
  * - `'required-equity'` → the same fraction framed as the equity the call demands.
- * - `'equity'` → the coach's seeded read, stated as the share of the pot, with the rule-of-2-and-4
- *   "close enough" framing the bucket tolerance embodies.
+ * - `'equity'` → the coach's seeded read. The framing forks the same way the worked steps do, so the
+ *   headline never contradicts them: on a recognised draw it's the rule-of-2-and-4 "close enough" line
+ *   the bucket tolerance embodies; on a **dominated** draw it's reframed honestly (the raw odds
+ *   overstate the real share); and on a **made hand** — no outs to count, so the rule of 2-and-4 simply
+ *   does not apply — it's the range-aware read (opponents on plausible holdings, not random cards).
  */
 function explainCalculation(
   quantity: CalculationQuantity,
   value: number,
-  pot: number,
-  toCall: number,
+  context: CalculationSpot['context'],
 ): string {
+  const { pot, toCall, holeCards, board } = context
   const v = pct(value)
   // `pot` is the win-pot (already includes the villain's bet), so the total you'd play for is
   // `pot + toCall` and the price is `toCall / total` — the exact potOdds arithmetic, named once here so
@@ -236,8 +240,23 @@ function explainCalculation(
       return `Pot odds: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v}. That's the price you're getting.`
     case 'required-equity':
       return `Required equity: ${toCall} to call into a ${pot} pot ⇒ ${toCall}/${total} = ${v}. You need about ${v} equity to break even on the call.`
-    case 'equity':
+    case 'equity': {
+      // Classify the holding the SAME way worked.ts does (a draw only on a flop/turn board), so the
+      // one-line headline and the worked steps below it can never disagree about whether the rule of
+      // 2-and-4 applies.
+      const draw = board.length === 3 || board.length === 4 ? countDrawOuts(holeCards, board) : null
+      if (draw === null) {
+        // Made hand (or a river, where nothing is left to draw to): no outs to count, so the rule of
+        // 2-and-4 has nothing to apply to — the read is range-aware, not a draw estimate.
+        return `Your equity here is about ${v}: your share of the pot at showdown against the hands your opponents would really play this way, not random cards.`
+      }
+      const approx = outsToEquity(draw.outs, board.length === 3 ? 2 : 1)
+      if (approx - value > OUTS_OVERSTATE_TOLERANCE) {
+        // Dominated draw: the raw odds overstate the real equity, so don't bless them as "good enough".
+        return `Your equity here is about ${v}: you're on a ${draw.label}, but against this betting line it's often behind, so the raw odds overstate your real share.`
+      }
       return `Your equity here is about ${v}: your share of the pot at showdown. A rule-of-2-and-4 estimate in the right ballpark is good enough.`
+    }
   }
 }
 
@@ -396,7 +415,7 @@ export function gradeSpot(spot: Spot, chosenIndex: number): GradeResult {
       concept: spot.concept,
       // No coach verdict to attach (like the declarative carve-out): the value is the whole grade, and
       // the explanation shows it derived from the spot's own numbers via @holdem/format.
-      explanation: explainCalculation(spot.quantity, value, spot.context.pot, spot.context.toCall),
+      explanation: explainCalculation(spot.quantity, value, spot.context),
       // The same derivation, broken into ordered steps (setup → total → price, or the outs derivation
       // for the equity quantity) so a miss walks the arithmetic.
       workedSteps: calculationWorkedSteps(spot, value),
