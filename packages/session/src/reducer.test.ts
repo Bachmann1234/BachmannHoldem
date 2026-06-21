@@ -311,6 +311,7 @@ describe('reducer — a hand decided at deal time settles instead of freezing (B
     buttonId: 0,
     handNumber: 10,
     coach: { kind: 'none' },
+    gradedDecisions: [],
   })
 
   it('deals a hand already complete (the short blind is all-in, no one can act) and never stays in playing', () => {
@@ -690,5 +691,145 @@ describe('reducer — archetype-aware grading: which villain colours the read (t
     model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
     expect(model.coach.kind).toBe('verdict')
     expect(gradedArchetype(model)).toBeUndefined() // line-only grade — no villain attributed
+  })
+})
+
+describe('reducer — retained graded-decision log (ticket 0108)', () => {
+  it('a fresh session starts with an empty log', () => {
+    expect(createInitialModel().gradedDecisions).toEqual([])
+    expect(createInitialModel({ seats: 2 }).gradedDecisions).toEqual([])
+  })
+
+  it('appends one entry per graded hero decision, anchored to the hand number and hole cards', () => {
+    const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    expect(model.gradedDecisions).toHaveLength(0) // dealing grades nothing
+    // The hero's first decision (preflop call) is graded and logged.
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    expect(model.coach.kind).toBe('preflop')
+    expect(model.gradedDecisions).toHaveLength(1)
+    const [entry] = model.gradedDecisions
+    expect(entry!.ruling.kind).toBe('preflop')
+    expect(entry!.ruling).toBe(model.coach) // thin capture — the live object copied through, not re-graded
+    expect(entry!.handNumber).toBe(1)
+    // The hero's actual cards at the decision — read from the graded context (no duplicate field).
+    expect(entry!.ruling.ctx.holeCards).toEqual(parseCards('As Ad'))
+  })
+
+  it('does NOT log a bot decision — only the hero leaves an entry', () => {
+    // 3-handed, hero on the button (seat 0) acts first preflop; the two bots (seats 1, 2) act AFTER.
+    // The hero's limp is logged; the bots' subsequent actions must NOT append (they leave `coach`
+    // carrying the hero's last ruling forward for the panel, so the log must not grow on a bot turn).
+    const deck = buildDeck(3, 0, ['As Ad', 'Kd Qc', '7h 2c'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 3 }), { type: 'start-hand', deck })
+    expect(model.hand!.toAct).toBe(model.heroSeat) // 3-handed: the button (hero) is first to act
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps → graded
+    expect(model.gradedDecisions).toHaveLength(1)
+    expect(model.gradedDecisions[0]!.ruling.kind).toBe('preflop')
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // seat 1 (bot) limps
+    expect(model.hand!.toAct).not.toBe(model.heroSeat)
+    expect(model.gradedDecisions).toHaveLength(1) // a bot action logs nothing…
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } }) // seat 2 (bot) checks
+    expect(model.gradedDecisions).toHaveLength(1) // …even though `coach` still carries the hero's ruling
+  })
+
+  it('never logs a none/error ruling — only graded verdict/preflop variants', () => {
+    const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    // Drive the whole hand to a showdown; only the hero's own actions are graded and logged.
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } })
+    model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    for (let i = 0; i < 6 && model.phase === 'playing'; i++) {
+      model = reducer(model, { type: 'apply-action', action: { type: 'check' } })
+    }
+    // Every retained entry is a graded variant — no 'none'/'error' ever made it in.
+    for (const d of model.gradedDecisions) {
+      expect(['verdict', 'preflop']).toContain(d.ruling.kind)
+    }
+  })
+
+  it('logs the hero decision that COMPLETES the hand (the completion return path appends too)', () => {
+    // Heads-up: the hero (button/SB) limps, the bot (BB) raises, and the hero FOLDS — that fold ends
+    // the hand AND is the hero's own graded decision. The completion arm of applyHeroOrBotAction must
+    // carry the appended log, or this session-ending hero decision is silently dropped.
+    const deck = buildDeck(2, 0, ['7h 2c', 'As Ad'], 'Kd Qc 9s 4c 3d')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps (graded #1)
+    expect(model.gradedDecisions).toHaveLength(1)
+    model = reducer(model, { type: 'apply-action', action: { type: 'raise', amount: 10 } }) // bot raises
+    expect(model.gradedDecisions).toHaveLength(1) // bot action appends nothing
+    model = reducer(model, { type: 'apply-action', action: { type: 'fold' } }) // hero folds → hand completes
+    expect(isComplete(model.hand!)).toBe(true)
+    expect(model.phase).toBe('hand-over')
+    // The hand-completing hero fold IS logged — the completion arm shares the same append.
+    expect(model.gradedDecisions).toHaveLength(2)
+    expect(model.gradedDecisions[1]!.ruling.kind).toBe('preflop')
+  })
+
+  it('does NOT re-log the hero ruling on the bot actions that complete a hand around it', () => {
+    // Heads-up: the hero shoves all-in (graded, not yet complete); the bot's all-in CALL completes the
+    // hand. The bot call is not the hero, so it must append nothing even though the live `coach` still
+    // carries the hero's shove ruling — the log holds exactly the one hero decision.
+    const deck = buildDeck(2, 0, ['As Ad', '7h 2c'], 'Ah Kd 9s 4c 3d')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    model = reducer(model, { type: 'apply-action', action: legalAllIn(model.hand!) }) // hero shoves
+    expect(model.gradedDecisions).toHaveLength(1)
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // bot calls → completes
+    expect(isComplete(model.hand!)).toBe(true)
+    expect(model.phase).toBe('session-over')
+    expect(model.gradedDecisions).toHaveLength(1) // still just the hero's shove
+  })
+
+  it('accumulates across hands IN ORDER and survives the hand-over → next-hand transition', () => {
+    // Heads-up, checked down twice. Each hand the hero (SB/button) calls preflop then checks every
+    // street to a showdown — four graded hero decisions per hand. The log must keep hand 1's entries
+    // and append hand 2's AFTER them, each anchored to its own hand number, and survive the
+    // hand-over → next-hand deal (which resets the live `coach` but not the retained log).
+    const checkDown = (model: Model): Model => {
+      let m = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps
+      for (let i = 0; i < 10 && m.phase === 'playing'; i++) {
+        m = reducer(m, { type: 'apply-action', action: { type: 'check' } })
+      }
+      return m
+    }
+
+    let model = reducer(createInitialModel({ seats: 2 }), {
+      type: 'start-hand',
+      deck: buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s'),
+    })
+    model = checkDown(model)
+    expect(model.phase).toBe('hand-over') // a checked-down small pot busts no one
+    const afterHand1 = model.gradedDecisions.length
+    expect(afterHand1).toBeGreaterThanOrEqual(2) // at least the preflop call + a postflop check
+    expect(model.gradedDecisions.every((d) => d.handNumber === 1)).toBe(true)
+
+    // Deal hand 2 — the log must SURVIVE the transition (live `coach` resets, the retained log does not).
+    model = reducer(model, {
+      type: 'start-hand',
+      deck: buildDeck(2, 1, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s'),
+    })
+    expect(model.coach).toEqual({ kind: 'none' }) // live coach reset for the fresh hand…
+    expect(model.gradedDecisions).toHaveLength(afterHand1) // …but the retained log is preserved
+    expect(model.handNumber).toBe(2)
+
+    model = checkDown(model)
+    // Hand 2's entries append AFTER hand 1's, anchored to hand #2.
+    expect(model.gradedDecisions.length).toBeGreaterThan(afterHand1)
+    expect(model.gradedDecisions.slice(0, afterHand1).every((d) => d.handNumber === 1)).toBe(true)
+    expect(model.gradedDecisions.slice(afterHand1).every((d) => d.handNumber === 2)).toBe(true)
+    // Ordering: hand-number anchors are non-decreasing across the whole log.
+    const handNumbers = model.gradedDecisions.map((d) => d.handNumber)
+    expect(handNumbers).toEqual([...handNumbers].sort((a, b) => a - b))
+  })
+
+  it('the retained log rides on the model to game-over (nothing clears it)', () => {
+    const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // graded preflop
+    expect(model.gradedDecisions).toHaveLength(1)
+    // Quitting jumps to game-over with the log intact for the synthesis to read.
+    const over = reducer(model, { type: 'quit' })
+    expect(over.phase).toBe('game-over')
+    expect(over.gradedDecisions).toBe(model.gradedDecisions)
   })
 })

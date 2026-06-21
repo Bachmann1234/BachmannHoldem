@@ -35,6 +35,7 @@ import {
   BOT_KINDS,
   type BotKind,
   type CoachResult,
+  type GradedDecision,
   type Model,
   type SessionMode,
 } from './model.js'
@@ -316,11 +317,20 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
 
   // Grade the hero's decision BEFORE mutating the hand (a bot action leaves the grade untouched, so
   // the panel keeps showing the hero's last decision as play proceeds around the table).
-  const coach = model.hand.toAct === model.heroSeat ? coachHero(model, action) : model.coach
+  const heroActed = model.hand.toAct === model.heroSeat
+  const coach = heroActed ? coachHero(model, action) : model.coach
+  // Retain the freshly graded hero ruling on the session-scoped log (ticket 0108) — the accumulated
+  // mirror of `coach`. Gate on `heroActed`, NOT on `coach.kind`: the live `coach` carries the hero's
+  // last graded ruling forward across the bot actions that follow (so the panel keeps showing it), so
+  // appending whenever `coach` is graded would re-log that same ruling on every bot action. Capture
+  // from the PRE-action model so the hero's hole cards are read at the decision point (`coach` was
+  // likewise graded capture-before-apply). Both return paths below share this, because a hero's action
+  // can COMPLETE the hand — that ruling must still be logged.
+  const gradedDecisions = heroActed ? appendIfGraded(model, coach) : model.gradedDecisions
   const hand = applyAction(model.hand, action)
 
   if (!isComplete(hand)) {
-    return { ...model, hand, coach }
+    return { ...model, hand, coach, gradedDecisions }
   }
 
   // Hand done: write the survivors' stacks back to the stable players, then decide the next phase.
@@ -330,7 +340,30 @@ function applyHeroOrBotAction(model: Model, action: Action): Model {
   // `'hand-over'` to offer play-again.
   const players = applyHandResult(model.players, hand, model.seatToId)
   const phase = sessionOver(players) ? 'session-over' : 'hand-over'
-  return { ...model, hand, coach, players, phase }
+  return { ...model, hand, coach, gradedDecisions, players, phase }
+}
+
+/**
+ * Append a just-computed {@link CoachResult} to the session's graded-decision log (ticket 0108) — the
+ * tiny pure helper both return paths of {@link applyHeroOrBotAction} share so a hero's hand-completing
+ * action is logged exactly like a non-completing one.
+ *
+ * Retention is **purely additive** and a **thin capture**: only the two GRADED variants
+ * (`'verdict'` / `'preflop'`) are stored — `'none'` (no hero decision, or a bot action that left
+ * `coach` untouched) and `'error'` carry no spot, so they return the log unchanged. The graded
+ * `coach` object is copied through verbatim (never re-graded), tagged only with the pre-action
+ * {@link Model.handNumber} ordinal — the one anchor not already on the ruling. The hero's hole cards
+ * need no capture: they ride on `coach.ctx.holeCards` (the graded context), so duplicating them here
+ * would only invite drift. Returns the existing array identity when nothing is appended, so an
+ * un-graded action allocates nothing.
+ */
+function appendIfGraded(model: Model, coach: CoachResult): readonly GradedDecision[] {
+  if (coach.kind !== 'verdict' && coach.kind !== 'preflop') return model.gradedDecisions
+  const entry: GradedDecision = {
+    ruling: coach,
+    handNumber: model.handNumber,
+  }
+  return [...model.gradedDecisions, entry]
 }
 
 /**

@@ -38,6 +38,7 @@ function modelFor(hand: HandState): Model {
     buttonId: 0,
     handNumber: 1,
     coach: { kind: 'none' },
+    gradedDecisions: [],
   }
 }
 

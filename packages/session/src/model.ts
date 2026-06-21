@@ -309,6 +309,44 @@ export type CoachResult =
   | { readonly kind: 'error'; readonly message: string }
 
 /**
+ * One retained, already-graded coach ruling — a **thin capture** of a single graded hero decision,
+ * kept so the end-of-session synthesis ([[0107-end-of-session-coach-synthesis]] / [[0109]]) can look
+ * back over the *whole* session rather than only the live {@link Model.coach} (which the reducer
+ * resets every hand). It is the accumulated mirror of `coach`: the reducer appends one of these at
+ * the exact point it sets `coach` for a graded decision.
+ *
+ * **Thin, not a re-grade.** The {@link ruling} is the live graded {@link CoachResult} copied straight
+ * through — never recomputed (the ticket's "Notes" is explicit: the graded variants already hold the
+ * `DecisionVerdict` / `PreflopVerdict`, the {@link DecisionContext} `ctx`, and the hero's
+ * {@link Action}). Only the two **graded** variants are ever stored, so {@link ruling} is narrowed to
+ * `kind: 'verdict' | 'preflop'`: `'none'` / `'error'` carry no spot and are never logged.
+ *
+ * **Anchoring.** The capture adds just enough identity to point synthesis at a concrete hand — the
+ * per-hand {@link handNumber} ordinal (so a recap can say "in hand #7…"). The hero's hole cards, which
+ * make the anchor readable in the recap ([[0110-pwa-session-recap-screen]]), need no separate field:
+ * they already ride on `ruling.ctx.holeCards` (the {@link DecisionContext} the coach graded), so
+ * synthesis reads them from there rather than duplicating a value that can never diverge from it. No
+ * serialization (`serializeSpot`) is involved — these are in-memory live objects.
+ */
+export interface GradedDecision {
+  /**
+   * The live graded ruling, copied through unchanged. Narrowed to the two graded {@link CoachResult}
+   * variants — the only ones the reducer ever appends — so a reader has the verdict, the `ctx` (and
+   * thus the hero's `ctx.holeCards` for the recap anchor), and the hero's `action` without a `kind`
+   * guard for `'none'` / `'error'`.
+   */
+  readonly ruling: Extract<CoachResult, { kind: 'verdict' | 'preflop' }>
+  /**
+   * The 1-based per-hand ordinal ({@link Model.handNumber}) at append time — the stable anchor that
+   * lets synthesis name the hand ("in hand #7…"). The only identity that is *not* already on
+   * {@link ruling}: the {@link DecisionContext} carries no hand number, but the live {@link Model}
+   * keeps only the *current* one, which has moved on by the time the session ends — so it is captured
+   * here.
+   */
+  readonly handNumber: number
+}
+
+/**
  * A seat at the table for the lifetime of the *session*, identified by a STABLE {@link id} that
  * never changes — unlike the per-hand engine seat index, which shifts as busted players compact
  * out. Bots and the hero are routed by this id; the post-hand stacks are written back by id.
@@ -407,6 +445,18 @@ export interface Model {
    * replaced each time the *hero* acts; bot actions leave it in place.
    */
   readonly coach: CoachResult
+  /**
+   * The session's append-only log of every *graded* hero decision (ticket 0108) — the accumulated
+   * mirror of {@link coach} that survives the per-hand reset. Where {@link coach} is overwritten each
+   * hand (so the live panel only shows the current decision), this grows by one {@link GradedDecision}
+   * each time the reducer grades a hero's decision, so the full sequence rides on the model to
+   * `session-over` / `game-over` for the end-of-session synthesis ([[0109]]) to read back over.
+   *
+   * Only graded rulings are appended (`'none'` / `'error'` are never logged). It is **not** reset
+   * between hands — only a new session ({@link createInitialModel}) starts it empty. Bounded by a
+   * session's hand count (tens), so no pruning is needed.
+   */
+  readonly gradedDecisions: readonly GradedDecision[]
 }
 
 /** The coach's "table read" for one live opponent — their felt name, archetype, and an exploit tip. */
@@ -513,6 +563,10 @@ export function createInitialModel(options: InitialModelOptions = {}): Model {
     buttonId: 0,
     handNumber: 0,
     coach: { kind: 'none' },
+    // A fresh session starts with an empty graded-decision log; the shell rebuilds the model via
+    // `createInitialModel` for "New table", so this is the log's only reset point (there is no
+    // in-reducer path back to `setup`). It is NOT reset between hands — retention is additive.
+    gradedDecisions: [],
   }
 }
 
