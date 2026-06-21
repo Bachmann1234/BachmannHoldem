@@ -780,6 +780,27 @@ describe('reducer — retained graded-decision log (ticket 0108)', () => {
     expect(model.gradedDecisions).toHaveLength(1) // still just the hero's shove
   })
 
+  it('logs MULTIPLE decisions from ONE hand under the same hand number (preflop + postflop streets)', () => {
+    // A single hand grades the hero more than once — a preflop limp, then a check on each postflop
+    // street — and every one of those rulings is retained under the SAME handNumber. This is the
+    // reducer-side proof of the same-hand multiplicity the coach's exemplar dedup collapses
+    // (sessionRecap's "collapses multiple leaks in the SAME hand" test): the log can hold two-plus
+    // entries anchored to hand #1, of mixed kinds (a 'preflop' call plus a postflop 'verdict').
+    const deck = buildDeck(2, 0, ['As Ad', 'Kd Qc'], '2c 7d 9h Th 5s')
+    let model = reducer(createInitialModel({ seats: 2 }), { type: 'start-hand', deck })
+    model = reducer(model, { type: 'apply-action', action: { type: 'call' } }) // hero limps (preflop)
+    for (let i = 0; i < 10 && model.phase === 'playing'; i++) {
+      model = reducer(model, { type: 'apply-action', action: { type: 'check' } }) // check it down
+    }
+    // More than one graded hero decision, every one anchored to hand #1 (same ordinal, distinct spots).
+    expect(model.gradedDecisions.length).toBeGreaterThanOrEqual(2)
+    expect(model.gradedDecisions.every((d) => d.handNumber === 1)).toBe(true)
+    // Mixed kinds in the one hand: the preflop limp plus at least one postflop street verdict.
+    const kinds = new Set(model.gradedDecisions.map((d) => d.ruling.kind))
+    expect(kinds.has('preflop')).toBe(true)
+    expect(kinds.has('verdict')).toBe(true)
+  })
+
   it('accumulates across hands IN ORDER and survives the hand-over → next-hand transition', () => {
     // Heads-up, checked down twice. Each hand the hero (SB/button) calls preflop then checks every
     // street to a showdown — four graded hero decisions per hand. The log must keep hand 1's entries
