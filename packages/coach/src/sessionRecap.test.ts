@@ -136,6 +136,16 @@ describe('synthesizeSession — too-few branch', () => {
     const log = Array.from({ length: MIN_GRADED_DECISIONS - 1 }, (_, i) => clean(i + 1))
     expect(synthesizeSession(log).status).toBe('too-few')
   })
+
+  it('tolerates a nullish log (a legacy resume with no retained decisions) as too-few, never throwing', () => {
+    // A model rehydrated from a save predating the retained-decisions field ([[0108]]) carries no
+    // `gradedDecisions` array; passing that straight in must read as an empty session, not crash the
+    // game-over screen. Cast covers the runtime-undefined the type doesn't admit.
+    const recap = synthesizeSession(undefined as unknown as readonly GradedSessionDecision[])
+    expect(recap.status).toBe('too-few')
+    expect(recap.gradedCount).toBe(0)
+    expect(recap.takeaways).toEqual([])
+  })
 })
 
 describe('synthesizeSession — clean branch', () => {

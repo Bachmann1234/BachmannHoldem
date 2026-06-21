@@ -474,10 +474,15 @@ function takeawayLine(
  *
  * @param log The session's retained graded decisions (the PWA passes `model.gradedDecisions` straight
  *   in — see {@link GradedSessionDecision} for why that type-checks with no conversion). Reasoned over
- *   directly; never re-graded.
+ *   directly; never re-graded. A nullish `log` is tolerated as an empty session (a model rehydrated
+ *   from a save predating the retained-decisions field, [[0108]], carries no array) → the `too-few`
+ *   branch, so the recap never crashes the game-over screen on a legacy resume.
  */
 export function synthesizeSession(log: readonly GradedSessionDecision[]): SessionRecap {
-  const gradedCount = log.length
+  // Normalise once: a nullish log (a pre-[[0108]] save with no `gradedDecisions`) reads as no decisions
+  // rather than throwing on `.length` — the pure recap stays total for every caller.
+  const decisions = log ?? []
+  const gradedCount = decisions.length
 
   // BRANCH 1 — too few graded decisions to call a pattern. Checked FIRST on the total count (before
   // leaks) so a thin session that happens to contain a leak still gets the honest low-sample line
@@ -505,7 +510,7 @@ export function synthesizeSession(log: readonly GradedSessionDecision[]): Sessio
   // first-seen insertion order, which the ranking tiebreak below makes irrelevant but keeps the build
   // deterministic regardless. We reason over per-decision facts here, never population aggregates.
   const byTheme = new Map<RecapThemeKey, GradedSessionDecision[]>()
-  for (const entry of log) {
+  for (const entry of decisions) {
     const theme = themeOf(entry)
     if (theme === null) continue
     const bucket = byTheme.get(theme)

@@ -101,6 +101,11 @@ export function parseSnapshot(raw: string | null): LiveSessionSnapshot | null {
   const model = env.model
   // A well-formed model always carries a string `phase`; treat anything else as "no saved game".
   if (typeof model !== 'object' || model === null || typeof model.phase !== 'string') return null
+  // Backfill the retained graded decisions ([[0108]]): a save predating that field rehydrates without
+  // it, and the game-over recap (`synthesizeSession`) reads `model.gradedDecisions` directly, so an
+  // absent array would crash the end-of-session screen. Mirror the `decisions` backfill below.
+  const withGraded = model as { gradedDecisions?: unknown }
+  if (!Array.isArray(withGraded.gradedDecisions)) withGraded.gradedDecisions = []
   const decisions = Array.isArray(env.decisions) ? env.decisions : []
   // sessionId is best-effort: only a string survives; anything else (absent in pre-v3 saves) drops to
   // undefined and the shell mints a fresh id on resume.
