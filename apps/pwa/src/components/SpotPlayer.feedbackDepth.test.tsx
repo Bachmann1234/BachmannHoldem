@@ -223,9 +223,14 @@ describe('SpotPlayer — show the work (worked steps)', () => {
     // generator: wherever the outs estimate overstates the coach's read, the equity step must REFRAME
     // ("often behind") rather than sit two contradictory numbers side by side; where they agree, it
     // shows the derivation. This locks the fix for the 18%-vs-1.4% contradiction.
+    //
+    // Stop as soon as BOTH branches have been exercised (a dominated draw appears at seed ~3, a clean
+    // one at ~17): grading each draw spot runs a 4000-iteration Monte-Carlo, so scanning the whole range
+    // blows vitest's per-test timeout in CI. The exhaustive invariant is the unit test's job
+    // (worked.test.ts); here we only need to prove both branches fire against the real generator.
     let sawDominated = false
     let sawClean = false
-    for (let seed = 0; seed <= 600; seed++) {
+    for (let seed = 0; seed <= 600 && !(sawDominated && sawClean); seed++) {
       const spot = generateSpot(seed, { kind: 'coach', priceMode: 'priced' })
       if (spot.kind !== 'coach') continue
       const { holeCards, board } = spot.context
