@@ -2,7 +2,7 @@
 id: 0110
 title: End-of-session recap screen — render the coach's synthesis on game-over
 type: feature
-status: todo
+status: done
 milestone: M9
 priority: medium
 created: 2026-06-20
@@ -22,25 +22,25 @@ This adds the synthesized recap to that screen.
 
 ## Acceptance criteria
 
-- [ ] On the `game-over` screen, the PWA calls `synthesizeSession` over the retained log
+- [x] On the `game-over` screen, the PWA calls `synthesizeSession` over the retained log
       ([[0108-session-graded-decision-log]]) and renders the resulting `SessionRecap`: the one or two
       prioritized takeaways, each with its deterministic plain-English line and its **anchored exemplar
       hands** (e.g. "hands #7, #14").
-- [ ] The clean-session and too-few-hands branches render their honest copy
+- [x] The clean-session and too-few-hands branches render their honest copy
       ([[0109-coach-session-synthesis]]) — a positive note when nothing stood out, an explicit
       "too few hands to call a pattern" when the session was short — never a manufactured criticism.
-- [ ] Works **fully offline with zero config** — no key, no network. This screen renders the
+- [x] Works **fully offline with zero config** — no key, no network. This screen renders the
       deterministic recap only; the optional LLM narration ([[0011-llm-coaching]]) is **out of scope**
       here (it would later swap in reworded text behind a feature gate, leaving this deterministic
       render as the fallback).
-- [ ] Visual treatment is consistent with the existing coach surfaces (the live coach panel / review
+- [x] Visual treatment is consistent with the existing coach surfaces (the live coach panel / review
       drawer) so it reads as the same coach voice — reuse existing coach-panel styling/components
       rather than inventing a new visual language.
-- [ ] The recap does not block the existing `game-over` actions (start a new session, etc.) — it is
+- [x] The recap does not block the existing `game-over` actions (start a new session, etc.) — it is
       added to that screen, not a modal that traps the player.
-- [ ] Co-located component test(s): a multi-takeaway recap renders its takeaways + exemplars; the
+- [x] Co-located component test(s): a multi-takeaway recap renders its takeaways + exemplars; the
       clean-session and too-few-hands recaps render their respective copy.
-- [ ] `pnpm verify` fully green.
+- [x] `pnpm verify` fully green.
 
 ## Notes
 

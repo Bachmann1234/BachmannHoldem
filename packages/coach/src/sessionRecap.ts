@@ -364,14 +364,24 @@ function exemplarLine(handNumber: number, description: string): string {
 }
 
 /**
- * Pick and order a theme's exemplar hands — the sharpest {@link MAX_EXEMPLARS_PER_TAKEAWAY} leaked
- * decisions, ordered deterministically so the recap is byte-stable.
+ * Pick and order a theme's exemplar **hands** — the sharpest {@link MAX_EXEMPLARS_PER_TAKEAWAY}
+ * distinct hands the hero leaked this theme on, ordered deterministically so the recap is byte-stable.
+ *
+ * **Distinct hands, not distinct decisions.** A single hand can contribute *several* leaked decisions
+ * to one theme — the session retains one entry per graded hero action, so a hero who leaks the same
+ * concept on both the flop and the river of hand #7 yields two entries with the same `handNumber`. The
+ * anchor is the **hand** ("in hands #7 and #14"), so we dedupe by `handNumber`, keeping the sharpest
+ * decision as that hand's representative. Without this the recap would name the same hand twice (a
+ * stuttering "in hands #7 and #7") and a renderer keying on `handNumber` would collide. The takeaway's
+ * `count` still reflects every leaked *decision* (see {@link synthesizeSession}); only the exemplar
+ * *anchors* collapse to distinct hands.
  *
  * **The ordering, documented (the ticket requires it):** descending {@link severityOf} (the bigger the
  * already-computed `|callEv|`, the more egregious the spot, so it leads), with **ascending
  * {@link handNumber} as the tiebreak** — so equal-severity spots (and *all* preflop leaks, which share
  * severity `0`) fall into stable hand order. The tiebreak makes the sort total and deterministic with
- * no reliance on input order or `Array.sort` stability. Reads only graded fields; recomputes nothing.
+ * no reliance on input order or `Array.sort` stability. The dedupe runs *after* the sort, so the
+ * representative kept per hand is its sharpest decision. Reads only graded fields; recomputes nothing.
  */
 function pickExemplars(entries: readonly GradedSessionDecision[]): RecapExemplar[] {
   const ordered = [...entries].sort((a, b) => {
@@ -379,7 +389,15 @@ function pickExemplars(entries: readonly GradedSessionDecision[]): RecapExemplar
     if (sevDiff !== 0) return sevDiff
     return a.handNumber - b.handNumber // ascending handNumber tiebreak (stable, total order)
   })
-  return ordered.slice(0, MAX_EXEMPLARS_PER_TAKEAWAY).map((entry): RecapExemplar => {
+  // Collapse to distinct hands, keeping each hand's sharpest decision (the first seen post-sort). The
+  // anchor is a hand, so two leaked decisions in one hand are one exemplar, not two.
+  const seenHands = new Set<number>()
+  const distinct = ordered.filter((entry) => {
+    if (seenHands.has(entry.handNumber)) return false
+    seenHands.add(entry.handNumber)
+    return true
+  })
+  return distinct.slice(0, MAX_EXEMPLARS_PER_TAKEAWAY).map((entry): RecapExemplar => {
     const label = handClassLabel(holeCardsOf(entry))
     const description = describeHandClass(label)
     return {

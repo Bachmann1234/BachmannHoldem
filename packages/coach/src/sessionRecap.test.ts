@@ -261,6 +261,28 @@ describe('synthesizeSession — exemplar anchoring & ordering', () => {
     expect(recap.takeaways[0]!.count).toBe(5) // count reflects ALL leaked decisions, not just shown
     expect(recap.takeaways[0]!.line).toMatch(/across 5 spots/i)
   })
+
+  it('collapses multiple leaks in the SAME hand to one exemplar (anchor is a hand, not a decision)', () => {
+    // A hero can leak the same concept on more than one street of one hand — the session retains one
+    // entry per graded action, so both carry handNumber 7. The exemplar anchor is the HAND, so they
+    // must collapse to a single #7 (no "in hands #7 and #7", no duplicate render key), keeping the
+    // sharper |callEv| as the representative — while `count` still tallies BOTH leaked decisions.
+    const log: GradedSessionDecision[] = [
+      postflop({ handNumber: 7, holeCards: hole('AhKh'), callEv: -4 }), // flop leak
+      postflop({ handNumber: 7, holeCards: hole('AhKh'), callEv: -9 }), // river leak, same hand (sharper)
+      clean(8),
+      clean(9),
+      clean(10),
+      clean(11),
+      clean(12),
+      clean(13),
+    ]
+    const recap = synthesizeSession(log)
+    const ex = recap.takeaways[0]!.exemplars
+    expect(ex.map((e) => e.handNumber)).toEqual([7]) // one exemplar, not two
+    expect(recap.takeaways[0]!.count).toBe(2) // but both leaked decisions are counted
+    expect(recap.takeaways[0]!.line).not.toMatch(/#7.*#7/) // never names the same hand twice
+  })
 })
 
 describe('synthesizeSession — determinism & honesty', () => {

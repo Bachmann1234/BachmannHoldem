@@ -29,6 +29,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { isComplete, legalActions, type Action, type Card, type LegalActions } from '@holdem/engine'
 import { decisionContext, type Opponent } from '@holdem/bots'
+import { synthesizeSession } from '@holdem/coach'
 import {
   createInitialModel,
   DEFAULT_BLIND_LEVEL,
@@ -664,6 +665,11 @@ function Session({
   ) : null
 
   if (phase === 'game-over') {
+    // The coach's end-of-session synthesis (ticket 0110): fold the session's retained graded decisions
+    // ([[0108]]) into the structured recap. `model.gradedDecisions` is assignable to the locally
+    // declared input type with no conversion (see `synthesizeSession`). This is the ONLY synthesis call
+    // — the Summary / SessionRecapCard stay presentational and only render the owned structure.
+    const recap = synthesizeSession(model.gradedDecisions)
     return (
       <>
         <Summary
@@ -671,6 +677,7 @@ function Session({
           handNumber={model.handNumber}
           onNewTable={onNewTable}
           onShowHistory={() => setHistoryOpen(true)}
+          recap={recap}
         />
         {historyOverlay}
       </>

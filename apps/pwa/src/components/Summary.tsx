@@ -9,6 +9,8 @@
  */
 
 import { livePlayers, type SessionPlayer } from '@holdem/session'
+import { SessionRecapCard } from './SessionRecapCard.js'
+import type { SessionRecap } from '@holdem/coach'
 
 /** Props for {@link Summary}. */
 export interface SummaryProps {
@@ -20,6 +22,13 @@ export interface SummaryProps {
   readonly onNewTable: () => void
   /** Open the recent-hands history view (ticket 0037). Optional so the component reads standalone. */
   readonly onShowHistory?: () => void
+  /**
+   * The end-of-session coach synthesis to render on this screen (ticket 0110), already folded by
+   * `@holdem/coach`'s `synthesizeSession` — the App computes it from `model.gradedDecisions` and passes
+   * it down; this component stays presentational and never synthesizes. Optional so the summary reads
+   * standalone (older callers / a session with no log render the standings + CTAs unchanged).
+   */
+  readonly recap?: SessionRecap
 }
 
 /** Render the session outcome headline, the standings by stack, and a new-table CTA. */
@@ -28,6 +37,7 @@ export function Summary({
   handNumber,
   onNewTable,
   onShowHistory,
+  recap,
 }: SummaryProps): React.JSX.Element {
   const hero = players.find((p) => p.isHero)
   const live = livePlayers(players)
@@ -83,6 +93,11 @@ export function Summary({
             </div>
           ))}
         </div>
+
+        {/* The coach's end-of-session read (ticket 0110), between the standings and the CTAs. It is
+            ADDED to the screen, not a modal: `.summary` scrolls and `.summary-ctas` keeps `margin-top:
+            auto`, so the New table / View history CTAs stay pinned and clickable below the recap. */}
+        {recap !== undefined ? <SessionRecapCard recap={recap} /> : null}
 
         <div className="summary-ctas">
           <button type="button" className="btn next-cta summary-cta" onClick={onNewTable}>

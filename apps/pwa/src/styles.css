@@ -1482,6 +1482,38 @@ body {
   width: 100%;
 }
 
+/* The coach's end-of-session recap on the summary screen (ticket 0110). It reuses the live coach's
+   `.verdict` badge/headline block + good/leak/neutral tone classes for the read itself, so only the
+   takeaway list below the verdict needs its own (recap-*) rules. The takeaway `line`s use the
+   `.coach-note` copy idiom; the anchored exemplar hands render as small mono chips, matching the
+   `.metric`/`.standing` surface family so the card reads as part of the same coach surface. */
+.recap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.recap .verdict {
+  /* The verdict block already carries its own bottom margin in the drawer; here the `.recap` gap owns
+     the spacing, so drop it to keep the card's rhythm even. */
+  margin-bottom: 0;
+}
+.recap-takeaways {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.recap-takeaway {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 12px 14px;
+}
+.recap-takeaway-line {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
 /* ============ coach FAB (ticket 0036) ============ */
 .coach-fab {
   position: absolute;
