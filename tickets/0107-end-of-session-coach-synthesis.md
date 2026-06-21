@@ -2,7 +2,7 @@
 id: 0107
 title: 'Epic: End-of-session coach synthesis'
 type: epic
-status: todo
+status: in-progress
 milestone: M9
 priority: medium
 created: 2026-06-20
