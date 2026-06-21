@@ -2,7 +2,7 @@
 id: 0109
 title: Deterministic session synthesis — retained verdicts to a prioritized, hand-anchored recap
 type: feature
-status: todo
+status: done
 milestone: M9
 priority: high
 created: 2026-06-20
@@ -23,29 +23,29 @@ the M6 sample-size gate ([[0088-leak-detection]]) rather than fighting it.
 
 ## Acceptance criteria
 
-- [ ] A pure `synthesizeSession(log): SessionRecap` lives in `@holdem/coach` (no UI, no I/O, no
+- [x] A pure `synthesizeSession(log): SessionRecap` lives in `@holdem/coach` (no UI, no I/O, no
       network) and is fully deterministic: same log → same recap.
-- [ ] It folds the retained verdicts into a **prioritized** recap of **at most one or two** takeaways —
+- [x] It folds the retained verdicts into a **prioritized** recap of **at most one or two** takeaways —
       not a per-hand dump. Prioritization groups the session's **leaks** (postflop `verdict === 'leak'`
       by `concept`; preflop `'leak'` by tier/advice shape) and surfaces the **dominant theme** — the
       concept the hero leaked on most this session — over noise.
-- [ ] Each takeaway is **anchored to specific hands** — it names the exemplar hands (by the per-hand
+- [x] Each takeaway is **anchored to specific hands** — it names the exemplar hands (by the per-hand
       ordinal / hole cards captured in [[0108-session-graded-decision-log]]) that earned it, so the
       recap can say "you called off light on the river in hands #7 and #14," not "you over-call."
-- [ ] **Honest empty / low-signal handling.** A clean session (no leaks) returns a positive,
+- [x] **Honest empty / low-signal handling.** A clean session (no leaks) returns a positive,
       truthful recap ("solid session — nothing stood out as a leak"), not a manufactured criticism. A
       session with **too few graded decisions to say anything** returns an explicit "too few hands this
       session to call out a pattern — here's what I noticed" rather than overclaiming. No fabricated
       advice when the signal isn't there.
-- [ ] `SessionRecap` is a **structured object** (the prioritized takeaways, each with its theme, its
+- [x] `SessionRecap` is a **structured object** (the prioritized takeaways, each with its theme, its
       anchored exemplars, and a deterministic plain-English line) — shaped so the PWA renders it
       directly ([[0110-pwa-session-recap-screen]]) **and** so an LLM narration layer
       ([[0011-llm-coaching]]) could later reword it without computing anything. The deterministic
       plain-English line IS the offline default.
-- [ ] Co-located tests cover: dominant-theme selection across mixed leaks; the one/two-takeaway cap;
+- [x] Co-located tests cover: dominant-theme selection across mixed leaks; the one/two-takeaway cap;
       exemplar anchoring; the clean-session and too-few-hands branches; determinism (same input → same
       output).
-- [ ] `pnpm verify` fully green.
+- [x] `pnpm verify` fully green.
 
 ## Notes
 
